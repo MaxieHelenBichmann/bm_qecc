@@ -54,3 +54,33 @@ $$\exists C_{CSS} \ with \ tableu(C_{CSS}) = \begin{pmatrix} H_x & 0 \\ 0 & H_z\
 ## Scope
 
 I use the term "Benchmark" to measure the runtime of the python algorithms with an expected workload - input codes $\llbracket n,k,d \rrbracket$ with $n$ ranging from $2$ to $\thicksim 50$. NOT meant are more detailed benchmark or profiling analyses.
+
+## Repository Structure
+
+The repository is structured as a minimal local benchmark application.
+
+```text
+src/
+  core/            # base QECC classes from MQT
+    pauli.py
+    symplectic.py
+    stabilizer_code.py
+    css_code.py
+  algorithms/      # equivalence-checking implementations
+
+benchmarks/
+  run.py           # cases, timing, and CSV output
+
+results/           # generated CSV output, ignored by git
+```
+
+Install the local runtime dependencies first if needed:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+Run benchmarks from the repository root:
+```bash
+python3 -m benchmarks.run
+```
