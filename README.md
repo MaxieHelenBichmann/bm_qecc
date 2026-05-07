@@ -54,6 +54,7 @@ $$\exists C_{CSS} \ with \ tableu(C_{CSS}) = \begin{pmatrix} H_x & 0 \\ 0 & H_z\
 ## Scope
 
 I use the term "Benchmark" to measure the runtime of the python algorithms with an expected workload - input codes $\llbracket n,k,d \rrbracket$ with $n$ ranging from $2$ to $\thicksim 50$. NOT meant are more detailed benchmark or profiling analyses.
+Furthermore, the input is guaranteed to always be valid, thus implemented algorithms do not have to check small invariants.
 
 ## Repository Structure
 

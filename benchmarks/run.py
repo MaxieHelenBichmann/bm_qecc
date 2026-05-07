@@ -18,6 +18,7 @@ from src.algorithms.p_css_bruteforce import are_peq_css_bruteforce
 from src.algorithms.p_css_classical import are_peq_css_classical
 from src.algorithms.p_css_graph_iso import are_peq_css_graph_iso
 from src.algorithms.p_css_matroid import are_peq_css_matroid
+from src.algorithms.p_stab_bruteforce import are_peq_stab_bruteforce
 
 from src.core.stabilizer_code import StabilizerCode
 from src.core.css_code import CSSCode
@@ -54,10 +55,11 @@ Algorithm = Callable[..., bool]
 
 ALGORITHMS: dict[str, dict[str, tuple[Algorithm, str]]] = {
     "equivalence": {
-        "p_bruteforce": (are_peq_css_bruteforce, "p"),
-        "p_classical": (are_peq_css_classical, "p"),
-        "p_graph_iso": (are_peq_css_graph_iso, "p"),
-        "p_matroid": (are_peq_css_matroid, "p"),
+        "p_css_bruteforce": (are_peq_css_bruteforce, "p"),
+        "p_css_classical": (are_peq_css_classical, "p"),
+        "p_css_graph_iso": (are_peq_css_graph_iso, "p"),
+        "p_css_matroid": (are_peq_css_matroid, "p"),
+        "p_stab_bruteforce": (are_peq_stab_bruteforce, "p"),
         "lc_eq_graph_state": (are_lceq_graph_state, "lc")
     },
     "search": {
