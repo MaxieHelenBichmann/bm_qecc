@@ -55,6 +55,45 @@ def random_permutation(n: int, *, seed: int | None = None) -> tuple[int, ...]:
     return tuple(int(q) for q in rng.permutation(n))
 
 
+def random_row_space_base_change(
+    matrix: np.ndarray,
+    *,
+    seed: int | None = None,
+    steps: int | None = None,
+) -> np.ndarray:
+    """Return ``matrix`` after seeded invertible row operations over GF(2).
+
+    This keeps the generated row space unchanged, but may replace the rows by
+    different linear combinations. For stabilizer generator matrices, this gives
+    an equivalent generating set for the same stabilizer group.
+    """
+    changed = np.asarray(matrix, dtype=np.int8).copy() % 2
+    if changed.ndim != 2:
+        msg = f"Expected a 2D matrix, got shape {changed.shape}."
+        raise ValueError(msg)
+
+    n_rows = changed.shape[0]
+    if n_rows < 2:
+        return changed
+
+    num_steps = steps if steps is not None else 4 * n_rows
+    if num_steps < 0:
+        msg = "steps must be non-negative."
+        raise ValueError(msg)
+
+    rng = np.random.default_rng(seed)
+    for _ in range(num_steps):
+        row_a, row_b = rng.choice(n_rows, size=2, replace=False)
+        row_a = int(row_a)
+        row_b = int(row_b)
+        if bool(rng.integers(0, 2)):
+            changed[[row_a, row_b]] = changed[[row_b, row_a]]
+        else:
+            changed[row_b] ^= changed[row_a]
+
+    return changed
+
+
 def permute_tableau(tableau: StabilizerTableau, permutation: Sequence[int]) -> StabilizerTableau:
     """Return a copy of ``tableau`` with physical qubits permuted."""
     permutation = _checked_permutation(tableau.n, permutation)
