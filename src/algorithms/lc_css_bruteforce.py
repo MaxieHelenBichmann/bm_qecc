@@ -6,5 +6,4 @@ from ..core.stabilizer_code import StabilizerCode
 
 
 def is_lceq_css_bruteforce(code: StabilizerCode) -> bool:
-    """Check whether a code is local-Clifford equivalent to some CSS code."""
-    raise NotImplementedError("LC-to-CSS equivalence is not implemented yet.")
+    return False

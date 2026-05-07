@@ -30,7 +30,8 @@ class Case:
     name: str
     problem: str
     inputs: tuple[StabilizerCode, ...]
-    expected: bool | None = None
+    expected_p: bool | None = None
+    expected_lc: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -51,12 +52,20 @@ class Result:
 
 Algorithm = Callable[..., bool]
 
-ALGORITHMS: dict[str, dict[str, Algorithm]] = {
+ALGORITHMS: dict[str, dict[str, tuple[Algorithm, str]]] = {
     "equivalence": {
-        "permutation_bruteforce": are_permutation_equivalent,
-
+        "p_bruteforce": (are_peq_css_bruteforce, "p"),
+        "p_classical": (are_peq_css_classical, "p"),
+        "p_graph_iso": (are_peq_css_graph_iso, "p"),
+        "p_matroid": (are_peq_css_matroid, "p"),
+        "lc_eq_graph_state": (are_lceq_graph_state, "lc")
     },
-    "search": {},
+    "search": {
+        "lc_bruteforce": (is_lceq_css_bruteforce, "lc"),
+        "lc_graph_state": (is_lceq_css_graph_state, "lc"),
+        "lc_kls": (is_lceq_css_kls, "lc"),
+        "lc_orbit": (is_lceq_css_orbit, "lc"),
+    },
 }
 
 
@@ -72,24 +81,27 @@ def default_cases() -> list[Case]:
             name="bell_pair_same",
             problem="equivalence",
             inputs=(StabilizerCode(["ZZ"]), StabilizerCode(["ZZ"])),
-            expected=True,
+            expected_p=True,
+            expected_lc=True,
         ),
         Case(
             name="three_qubit_repetition_reordered_generators",
             problem="equivalence",
             inputs=(StabilizerCode(["ZZI", "IZZ"]), StabilizerCode(["IZZ", "ZZI"])),
-            expected=True,
+            expected_p=True,
+            expected_lc=True,
         ),
         Case(
             name="single_z_not_weight_two",
             problem="equivalence",
             inputs=(StabilizerCode(["ZII"]), StabilizerCode(["ZZI"])),
-            expected=False,
+            expected_p=False,
+            expected_lc=False,
         ),
     ]
 
 
-def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
+def run_case(algorithm_name: str, algorithm: Algorithm, problem_type: str, case: Case, repeats: int) -> Result:
     """Run one algorithm on one case and return the average runtime."""
     total_seconds = 0.0
     last_result: bool | None = None
@@ -99,7 +111,7 @@ def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int
             start = perf_counter()
             last_result = algorithm(*case.inputs)
             total_seconds += perf_counter() - start
-        success = case.expected is None or last_result == case.expected
+        success = (None if case.expected_p is None and case.expected_lc is None else (last_result == case.expected_p)) if problem_type == "p" else (None if case.expected_lc is None else (last_result == case.expected_lc))
         return Result(
             algorithm=algorithm_name,
             case=case.name,
@@ -108,7 +120,7 @@ def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int
             k=case.inputs[0].k,
             seconds=total_seconds / repeats,
             result=last_result,
-            expected=case.expected,
+            expected=case.expected_p if problem_type == "p" else case.expected_lc,
             success=success,
         )
     except Exception as exc:  # noqa: BLE001
@@ -120,7 +132,7 @@ def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int
             k=case.inputs[0].k,
             seconds=0.0,
             result=None,
-            expected=case.expected,
+            expected=case.expected_p if problem_type == "p" else case.expected_lc,
             success=False,
             error=f"{type(exc).__name__}: {exc}",
         )
@@ -134,8 +146,8 @@ def run_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], repeat
     for case in cases:
         algorithms = ALGORITHMS[case.problem]
         for algorithm_name in sorted(selected_names & algorithms.keys()):
-            algorithm = algorithms[algorithm_name]
-            results.append(run_case(algorithm_name, algorithm, case, repeats))
+            algorithm, problem_type = algorithms[algorithm_name]
+            results.append(run_case(algorithm_name, algorithm, problem_type, case, repeats))
     return results
 
 
