@@ -10,5 +10,5 @@ from ldpc.mod2.mod2_numpy import rank
 
 from ..core.css_code import CSSCode
 
-def are_permutation_equivalent(c1: CSSCode, c2: CSSCode) -> bool:
+def are_peq_css_bruteforce(c1: CSSCode, c2: CSSCode) -> bool:
     raise NotImplementedError("Brute-force permutation equivalence is not implemented yet.")

@@ -9,8 +9,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
-from src.algorithms.p_css_bruteforce import are_permutation_equivalent
+from src.algorithms.lc_css_bruteforce import is_lceq_css_bruteforce
+from src.algorithms.lc_css_graph_state import is_lceq_css_graph_state
+from src.algorithms.lc_css_kls import is_lceq_css_kls
+from src.algorithms.lc_css_orbit import is_lceq_css_orbit
+from src.algorithms.lc_eq_graph_state import are_lceq_graph_state
+from src.algorithms.p_css_bruteforce import are_peq_css_bruteforce
+from src.algorithms.p_css_classical import are_peq_css_classical
+from src.algorithms.p_css_graph_iso import are_peq_css_graph_iso
+from src.algorithms.p_css_matroid import are_peq_css_matroid
+
 from src.core.stabilizer_code import StabilizerCode
+from src.core.css_code import CSSCode
 
 
 @dataclass(frozen=True)
