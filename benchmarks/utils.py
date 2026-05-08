@@ -132,6 +132,22 @@ def permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> C
         z_distance=code.z_distance,
     )
 
+def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> CSSCode:
+    """Return a same-invariant CSS code certified non-equivalent by joint row-space weights."""
+    rng = np.random.default_rng(seed)
+    rx = _rank_binary(code.Hx)
+    rz = _rank_binary(code.Hz)
+    if (rx, rz) in {(0, 0), (code.n, 0), (0, code.n)}:
+        raise ValueError("No non-equivalent CSS code exists with these small invariants.")
+    invariant = _css_joint_weight_enumerator(code)
+    for _ in range(10_000):
+        candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        candidate = random_css_code(code.n, code.k, rx=rx, seed=candidate_seed)
+        if _css_joint_weight_enumerator(candidate) != invariant:
+            return candidate
+
+    raise ValueError("Could not find a candidate with a different joint CSS weight enumerator.")
+
 
 def random_permuted_stabilizer_pair(
     n: int,
@@ -166,6 +182,21 @@ def random_permuted_css_pair(
     permutation = _random_permutation(n, seed=permutation_seed)
     return code, permutation_equivalent_css_code(code, permutation)
 
+def random_non_permuted_stabilizer_pair(    
+    n: int,
+    k: int,
+    *,
+    seed: int | None = None,
+) -> tuple[CSSCode, CSSCode]:
+    """Return a seeded random css code together with another random css code that is guaranteed to be non-permuted."""
+    rng = np.random.default_rng(seed)
+    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+
+    rx = int(rng.integers(0, n - k + 1))
+
+    code = random_css_code(n, k, rx, seed=code_seed)
+    return code, non_permutation_equivalent_css_code(code, seed=other_seed)
 
 def lc_equivalent_code(
     code: StabilizerCode,
@@ -201,6 +232,38 @@ def _random_permutation(n: int, *, seed: int | None = None) -> tuple[int, ...]:
         raise ValueError(msg)
     rng = np.random.default_rng(seed)
     return tuple(int(q) for q in rng.permutation(n))
+
+
+def _rank_binary(matrix: np.ndarray) -> int:
+    matrix = np.asarray(matrix, dtype=np.int8) % 2
+    return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
+
+
+def _css_joint_weight_enumerator(code: CSSCode) -> tuple[tuple[tuple[int, int, int, int], int], ...]:
+    enumerator: dict[tuple[int, int, int, int], int] = {}
+    z_words = _row_space_words(code.Hz)
+    for x_word in _row_space_words(code.Hx):
+        for z_word in z_words:
+            both = int(np.count_nonzero(x_word & z_word))
+            x_only = int(np.count_nonzero(x_word)) - both
+            z_only = int(np.count_nonzero(z_word)) - both
+            key = (code.n - x_only - z_only - both, x_only, z_only, both)
+            enumerator[key] = enumerator.get(key, 0) + 1
+    return tuple(sorted(enumerator.items()))
+
+
+def _row_space_words(matrix: np.ndarray) -> np.ndarray:
+    matrix = np.asarray(matrix, dtype=np.uint8) % 2
+    rank = _rank_binary(matrix)
+    if rank == 0:
+        return np.zeros((1, matrix.shape[1]), dtype=np.uint8)
+    basis = np.asarray(mod2.row_basis(matrix), dtype=np.uint8) % 2
+    words = np.zeros((1 << rank, matrix.shape[1]), dtype=np.uint8)
+    num_words = 1
+    for row in basis:
+        words[num_words : 2 * num_words] = words[:num_words] ^ row
+        num_words *= 2
+    return words
 
 
 def _random_row_space_base_change(

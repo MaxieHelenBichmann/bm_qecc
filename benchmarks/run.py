@@ -30,6 +30,7 @@ from .utils import (
     permutation_equivalent_css_code,
     random_permuted_stabilizer_pair,
     random_permuted_css_pair,
+    random_non_permuted_stabilizer_pair,
 )
 
 @dataclass(frozen=True)
@@ -97,6 +98,7 @@ def default_cases(seed: int) -> list[Case]:
     five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
     random_case_stab1, random_case_stab2 = random_permuted_stabilizer_pair(4, 2, seed=seed)
     random_case_css1, random_case_css2 = random_permuted_css_pair(8, 3, seed=seed + 1)
+    random_case_non_permuted_css1 , random_case_non_permuted_css2 = random_non_permuted_stabilizer_pair(10, 4, seed=seed + 2)
 
     return [
         Case(
@@ -130,11 +132,18 @@ def default_cases(seed: int) -> list[Case]:
             expected_lc=None,
         ),
         Case(
+                name="random_non_permuted_css",
+                inputs=(random_case_non_permuted_css1, random_case_non_permuted_css2),
+                expected_p=False,
+                expected_lc=None,
+            ),
+        Case(
             name="five_qubits_lc_only",
             inputs=(five_qubit_perfect, lc_equivalent_code(five_qubit_perfect, seed=seed + 3)),
             expected_p=None,
             expected_lc=True,
         ),
+
     ]
 
 
