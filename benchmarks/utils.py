@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import numpy as np
+import ldpc.mod2.mod2_numpy as mod2
 
 from src.core.pauli import StabilizerTableau
 from src.core.css_code import CSSCode
@@ -47,6 +48,61 @@ def random_stabilizer_code(
     return StabilizerCode(_without_phases(tableau))
 
 
+def random_css_code(
+    n: int,
+    k: int,
+    rx: int | None = None,
+    seed: int | None = None,
+) -> CSSCode:
+    """
+    Generate random CSS parity-check matrices Hx, Hz over GF(2).
+    """
+    if not 0 <= k <= n:
+        raise ValueError("Require 0 <= k <= n.")
+
+    total_checks = n - k
+
+    if rx is None:
+        rx = total_checks // 2
+    rz = total_checks - rx
+
+    if not 0 <= rx <= n or not 0 <= rz <= n:
+        raise ValueError("Require 0 <= rx <= n and 0 <= rz <= n.")
+
+    rng = np.random.default_rng(seed)
+
+    if rx == 0:
+        Hx = np.zeros((0, n), dtype=np.int8)
+    else:
+        while True:
+            Hx = rng.integers(0, 2, size=(rx, n), dtype=np.int8)
+            if mod2.rank(Hx) == rx:
+                break
+
+    ker_hx = mod2.nullspace(Hx)
+
+    if hasattr(ker_hx, "toarray"):
+        ker_hx = ker_hx.toarray()
+
+    ker_hx = np.asarray(ker_hx, dtype=np.int8) % 2
+
+    if rz > ker_hx.shape[0]:
+        raise ValueError(
+            f"Cannot construct {rz} independent Z checks: "
+            f"ker(Hx) has dimension {ker_hx.shape[0]}."
+        )
+
+    if rz == 0:
+        Hz = np.zeros((0, n), dtype=np.int8)
+    else:
+        while True:
+            coeffs = rng.integers(0, 2, size=(rz, ker_hx.shape[0]), dtype=np.int8)
+            if mod2.rank(coeffs) == rz:
+                break
+        Hz = np.asarray(coeffs @ ker_hx, dtype=np.int8) % 2
+
+    return CSSCode(Hx=Hx, Hz=Hz)
+
 def permutation_equivalent_code(code: StabilizerCode, seed: int | None = None) -> StabilizerCode:
     """Return a permuted equivalent code to the given code."""
     rng = np.random.default_rng(seed)
@@ -77,7 +133,7 @@ def permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> C
     )
 
 
-def random_permuted_pair(
+def random_permuted_stabilizer_pair(
     n: int,
     k: int,
     *,
@@ -92,6 +148,23 @@ def random_permuted_pair(
     code = random_stabilizer_code(n, k, seed=code_seed, clifford_steps=clifford_steps)
     permutation = _random_permutation(n, seed=permutation_seed)
     return code, _permute_stabilizer_code(code, permutation)
+
+def random_permuted_css_pair(
+    n: int,
+    k: int,
+    *,
+    seed: int | None = None,
+) -> tuple[CSSCode, CSSCode]:
+    """Return a seeded random css code together with a permuted equivalent copy."""
+    rng = np.random.default_rng(seed)
+    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    permutation_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+
+    rx = int(rng.integers(0, n - k + 1))
+
+    code = random_css_code(n, k, rx, seed=code_seed)
+    permutation = _random_permutation(n, seed=permutation_seed)
+    return code, permutation_equivalent_css_code(code, permutation)
 
 
 def lc_equivalent_code(

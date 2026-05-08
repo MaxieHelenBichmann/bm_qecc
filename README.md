@@ -90,5 +90,6 @@ Certain parameters can be set as well:
 ```bash
 python -m benchmarks.run --repeats 1
 python -m benchmarks.run --output results/bm_output.csv
+python -m benchmarks.run --seed 69
 python -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 ```

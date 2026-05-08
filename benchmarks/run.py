@@ -28,7 +28,8 @@ from src.core.css_code import CSSCode
 from .utils import (
     lc_equivalent_code,
     permutation_equivalent_css_code,
-    random_permuted_pair,
+    random_permuted_stabilizer_pair,
+    random_permuted_css_pair,
 )
 
 @dataclass(frozen=True)
@@ -44,7 +45,6 @@ class Case:
 @dataclass(frozen=True)
 class Result:
     """One benchmark measurement."""
-
     algorithm: str
     case: str
     n: int
@@ -89,13 +89,14 @@ def all_algorithm_names() -> list[str]:
     return sorted({name for name in ALGORITHMS.keys()})
 
 
-def default_cases() -> list[Case]:
+def default_cases(seed: int) -> list[Case]:
     """Return test cases."""
     bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
     three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
     steane = CSSCode.from_file("data/steane")
     five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
-    random_case_code1, random_case_code2 = random_permuted_pair(4, 2, seed=42)
+    random_case_stab1, random_case_stab2 = random_permuted_stabilizer_pair(4, 2, seed=seed)
+    random_case_css1, random_case_css2 = random_permuted_css_pair(8, 3, seed=seed + 1)
 
     return [
         Case(
@@ -106,25 +107,31 @@ def default_cases() -> list[Case]:
         ),
         Case(
             name="three_qubits_permuted",
-            inputs=(three_bit_repetition, permutation_equivalent_css_code(three_bit_repetition)),
+            inputs=(three_bit_repetition, permutation_equivalent_css_code(three_bit_repetition, seed=seed + 1)),
             expected_p=True,
             expected_lc=None,
         ),
         Case(
             name="steane_permuted",
-            inputs=(steane, permutation_equivalent_css_code(steane)),
+            inputs=(steane, permutation_equivalent_css_code(steane, seed=seed + 2)),
             expected_p=True,
             expected_lc=None,
         ),
         Case(
-            name="random_permuted",
-            inputs=(random_case_code1, random_case_code2),
+            name="random_permuted_stb",
+            inputs=(random_case_stab1, random_case_stab2),
+            expected_p=True,
+            expected_lc=None,
+        ),
+        Case(
+            name="random_permuted_css",
+            inputs=(random_case_css1, random_case_css2),
             expected_p=True,
             expected_lc=None,
         ),
         Case(
             name="five_qubits_lc_only",
-            inputs=(five_qubit_perfect, lc_equivalent_code(five_qubit_perfect)),
+            inputs=(five_qubit_perfect, lc_equivalent_code(five_qubit_perfect, seed=seed + 3)),
             expected_p=None,
             expected_lc=True,
         ),
@@ -180,7 +187,7 @@ def run_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], repeat
     return results
 
 
-def write_csv(results: Sequence[Result], output: Path) -> None:
+def write_csv(results: Sequence[Result], seed: int, output: Path) -> None:
     """Write benchmark results to CSV."""
     output.parent.mkdir(parents=True, exist_ok=True)
     rows = [
@@ -197,10 +204,9 @@ def write_csv(results: Sequence[Result], output: Path) -> None:
         }
         for result in results
     ]
-    if not rows:
-        return
 
     with output.open("w", newline="", encoding="utf-8") as file:
+        csv.writer(file).writerow([seed])
         writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
@@ -217,6 +223,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Algorithm to run. Can be passed multiple times. Defaults to all implemented algorithms.",
     )
     parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
+    parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
     return parser.parse_args(argv)
 
 
@@ -226,9 +233,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.repeats < 1:
         raise ValueError("--repeats must be at least 1.")
 
+   
     algorithm_names = args.algorithm or all_algorithm_names()
-    results = run_benchmarks(default_cases(), algorithm_names, args.repeats)
-    write_csv(results, args.output)
+    results = run_benchmarks(default_cases(seed=args.seed), algorithm_names, args.repeats)
+    write_csv(results, args.seed, args.output)
+    print(f"Benchmark results for global seed {args.seed}:\n")
 
     for result in results:
         status = "ok" if result.success else "failed"
