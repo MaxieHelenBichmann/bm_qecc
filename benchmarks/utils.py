@@ -179,6 +179,36 @@ def random_permuted_stabilizer_pair(
     permutation = _random_permutation(n, seed=permutation_seed)
     return code, _permute_stabilizer_code(code, permutation)
 
+def random_non_permuted_stabilizer_pair(    
+    n: int,
+    k: int,
+    *,
+    seed: int | None = None,
+) -> tuple[StabilizerCode, StabilizerCode]:
+    """Return a seeded random stabilizer code together with another random stabilizer code that is guaranteed to be non-permuted."""
+    rng = np.random.default_rng(seed)
+    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+
+    code = random_stabilizer_code(n, k, seed=code_seed)
+    return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed)
+
+def random_non_permuted_css_pair(    
+    n: int,
+    k: int,
+    *,
+    seed: int | None = None,
+) -> tuple[CSSCode, CSSCode]:
+    """Return a seeded random css code together with another random css code that is guaranteed to be non-permuted."""
+    rng = np.random.default_rng(seed)
+    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+
+    rx = int(rng.integers(0, n - k + 1))
+
+    code = random_css_code(n, k, rx, seed=code_seed)
+    return code, non_permutation_equivalent_css_code(code, seed=other_seed)
+
 def random_permuted_css_pair(
     n: int,
     k: int,
@@ -195,20 +225,6 @@ def random_permuted_css_pair(
     code = random_css_code(n, k, rx, seed=code_seed)
     permutation = _random_permutation(n, seed=permutation_seed)
     return code, permutation_equivalent_css_code(code, permutation)
-
-def random_non_permuted_stabilizer_pair(    
-    n: int,
-    k: int,
-    *,
-    seed: int | None = None,
-) -> tuple[StabilizerCode, StabilizerCode]:
-    """Return a seeded random stabilizer code together with another random stabilizer code that is guaranteed to be non-permuted."""
-    rng = np.random.default_rng(seed)
-    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-    other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-
-    code = random_stabilizer_code(n, k, seed=code_seed)
-    return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed)
 
 def lc_equivalent_code(
     code: StabilizerCode,
