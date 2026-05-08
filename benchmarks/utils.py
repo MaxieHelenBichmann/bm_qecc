@@ -139,15 +139,29 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
     rz = _rank_binary(code.Hz)
     if (rx, rz) in {(0, 0), (code.n, 0), (0, code.n)}:
         raise ValueError("No non-equivalent CSS code exists with these small invariants.")
-    invariant = _css_joint_weight_enumerator(code)
+    invariant = _stabilizer_weight_enumerator(code)
     for _ in range(10_000):
         candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
         candidate = random_css_code(code.n, code.k, rx=rx, seed=candidate_seed)
-        if _css_joint_weight_enumerator(candidate) != invariant:
+        if _stabilizer_weight_enumerator(candidate) != invariant:
             return candidate
 
-    raise ValueError("Could not find a candidate with a different joint CSS weight enumerator.")
+    raise ValueError("Could not find a candidate with a different stabilizer weight enumerator.")
 
+
+def non_permutation_equivalent_stabilizer_code(code: StabilizerCode, seed: int | None = None) -> StabilizerCode:
+    """Return a same-[[n,k]] stabilizer code certified non-equivalent by stabilizer weights."""
+    rng = np.random.default_rng(seed)
+    if code.k == code.n:
+        raise ValueError("No non-equivalent stabilizer code exists with these small invariants.")
+    invariant = _stabilizer_weight_enumerator(code)
+    for _ in range(10_000):
+        candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        candidate = random_stabilizer_code(code.n, code.k, seed=candidate_seed)
+        if _stabilizer_weight_enumerator(candidate) != invariant:
+            return candidate
+
+    raise ValueError("Could not find a candidate with a different stabilizer weight enumerator.")
 
 def random_permuted_stabilizer_pair(
     n: int,
@@ -187,16 +201,14 @@ def random_non_permuted_stabilizer_pair(
     k: int,
     *,
     seed: int | None = None,
-) -> tuple[CSSCode, CSSCode]:
-    """Return a seeded random css code together with another random css code that is guaranteed to be non-permuted."""
+) -> tuple[StabilizerCode, StabilizerCode]:
+    """Return a seeded random stabilizer code together with another random stabilizer code that is guaranteed to be non-permuted."""
     rng = np.random.default_rng(seed)
     code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
     other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
 
-    rx = int(rng.integers(0, n - k + 1))
-
-    code = random_css_code(n, k, rx, seed=code_seed)
-    return code, non_permutation_equivalent_css_code(code, seed=other_seed)
+    code = random_stabilizer_code(n, k, seed=code_seed)
+    return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed)
 
 def lc_equivalent_code(
     code: StabilizerCode,
@@ -239,16 +251,15 @@ def _rank_binary(matrix: np.ndarray) -> int:
     return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
 
 
-def _css_joint_weight_enumerator(code: CSSCode) -> tuple[tuple[tuple[int, int, int, int], int], ...]:
+def _stabilizer_weight_enumerator(code: StabilizerCode) -> tuple[tuple[tuple[int, int, int, int], int], ...]:
     enumerator: dict[tuple[int, int, int, int], int] = {}
-    z_words = _row_space_words(code.Hz)
-    for x_word in _row_space_words(code.Hx):
-        for z_word in z_words:
-            both = int(np.count_nonzero(x_word & z_word))
-            x_only = int(np.count_nonzero(x_word)) - both
-            z_only = int(np.count_nonzero(z_word)) - both
-            key = (code.n - x_only - z_only - both, x_only, z_only, both)
-            enumerator[key] = enumerator.get(key, 0) + 1
+    for word in _row_space_words(code.symplectic):
+        x_word, z_word = word[: code.n], word[code.n :]
+        both = int(np.count_nonzero(x_word & z_word))
+        x_only = int(np.count_nonzero(x_word)) - both
+        z_only = int(np.count_nonzero(z_word)) - both
+        key = (code.n - x_only - z_only - both, x_only, z_only, both)
+        enumerator[key] = enumerator.get(key, 0) + 1
     return tuple(sorted(enumerator.items()))
 
 
