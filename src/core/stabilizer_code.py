@@ -125,9 +125,9 @@ class StabilizerCode:
             return None
 
         mapping = []
-        for lz_self, lx_self in zip(self.z_logicals, self.x_logicals, strict=False):
+        for lz_self, lx_self in zip(self.z_logicals, self.x_logicals):
             found_match = False
-            for idx, (lz_other, lx_other) in enumerate(zip(other.z_logicals, other.x_logicals, strict=False)):
+            for idx, (lz_other, lx_other) in enumerate(zip(other.z_logicals, other.x_logicals)):
                 if self.stabilizer_equivalent(lz_self, lz_other) and self.stabilizer_equivalent(lx_self, lx_other):
                     mapping.append(idx)
                     found_match = True
@@ -331,7 +331,7 @@ class StabilizerCode:
 
         def ortho_against_pairs(a: np.ndarray) -> np.ndarray:
             a = a.copy()
-            for zp, xp in zip(zs, xs, strict=False):
+            for zp, xp in zip(zs, xs):
                 if symp(a, xp):
                     a ^= zp
                 if symp(a, zp):

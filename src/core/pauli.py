@@ -75,7 +75,7 @@ class Pauli:
         z_part = self.symplectic[self.n :]
         pauli = [
             "X" if x and not z else "Z" if z and not x else "Y" if x and z else "I"
-            for x, z in zip(x_part, z_part, strict=False)
+            for x, z in zip(x_part, z_part)
         ]
         return f"{'' if self.phase == 0 else '-'}" + "".join(pauli)
 

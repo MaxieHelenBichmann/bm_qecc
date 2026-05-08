@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from itertools import product
+from typing import TYPE_CHECKING
 
 import numpy as np
 from ldpc.mod2.mod2_numpy import rank
@@ -10,9 +11,6 @@ from ldpc.mod2.mod2_numpy import rank
 from ..core.stabilizer_code import StabilizerCode
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
-    from typing import Any
-
     import numpy.typing as npt
 
 
@@ -34,7 +32,7 @@ def is_lceq_css_bruteforce(code: StabilizerCode) -> bool:
     Each row space check should be done in O(n^3) time, and there are O(n^6) Local Clifford actions on the tableau, so the overall runtime is O(n^6 * n^3) which is obviously not efficient at all.
     """
     n = code.n
-    r = rank(code.tableau)
+    r = rank(code.symplectic)
 
     def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> npt.NDArray[np.int8]:
         if lc == "I":
@@ -55,7 +53,7 @@ def is_lceq_css_bruteforce(code: StabilizerCode) -> bool:
 
         
     for action in product(LOCAL_CLIFFORDS, repeat=n):
-        lc_tableau = code.tableau.copy()
+        lc_tableau = code.symplectic.copy()
 
         for qubit, lc in enumerate(action):
             lc_tableau = apply_lc(lc_tableau, lc, qubit)
