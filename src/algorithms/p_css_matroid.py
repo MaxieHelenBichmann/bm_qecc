@@ -6,6 +6,7 @@ from ..core.css_code import CSSCode
 
 import numpy as np
 import numpy.typing as npt
+from collections import defaultdict
 
 import ldpc.mod2.mod2_numpy as mod2
 from pynauty import Graph, certificate
@@ -60,24 +61,28 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
 
 def _graph_from_circuits(n: int, circuits_hx: list[tuple[int, ...]], circuits_hz: list[tuple[int, ...]]) -> Graph:
 
-    adj = {}
-    for i, circuit in enumerate(circuits_hx):
-        for q in circuit:
-            adj.setdefault(q, list()).append(n + i)
-            adj.setdefault(n + i, list()).append(q)
-    for i, circuit in enumerate(circuits_hz):
-        for q in circuit:
-            adj.setdefault(q, list()).append(n + len(circuits_hx) + i)
-            adj.setdefault(n + len(circuits_hx) + i, list()).append(q)
+    adj = defaultdict(list)
+
+    def _add_edges_from_circuits(circuits: list[tuple[int, ...]], offset: int) -> None:
+        for i, circuit in enumerate(circuits):
+            for q in circuit:
+                adj[q].append(offset + i)
+                adj[offset + i].append(q)
+
+    hx_offset = n
+    hz_offset = n + len(circuits_hx)
+
+    _add_edges_from_circuits(circuits_hx, hx_offset)
+    _add_edges_from_circuits(circuits_hz, hz_offset)
 
     return Graph(
         number_of_vertices=n + len(circuits_hx) + len(circuits_hz),
         directed=False,
         adjacency_dict=adj,
         vertex_coloring=[
-            { i for i in range(n) },
-            { n + i for i in range(len(circuits_hx)) },
-            { n + len(circuits_hx) + i for i in range(len(circuits_hz)) }
+            set(range(n)),
+            set(range(hx_offset, hx_offset + len(circuits_hx))),
+            set(range(hz_offset, hz_offset + len(circuits_hz)))
         ]
     )
 
