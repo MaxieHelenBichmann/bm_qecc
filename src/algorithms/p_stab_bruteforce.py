@@ -16,11 +16,13 @@ def are_peq_stab_bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     Each row space check should be done in O(n^3) time, and there are O(n!) permutations, so the overall runtime is O(n! * n^3) which is obviously not efficient at all.
     """
+    c1_rank = rank(c1.symplectic)
+
     for perm in permutations(range(c1.n)):
         perm = np.array(perm)
         perm_symplectic = np.concatenate([perm, perm + c1.n])
 
-        if (rank(c1.symplectic) == rank(c2.symplectic[:, perm_symplectic]) and rank(c1.symplectic) == rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]]))):
+        if (c1_rank == rank(c2.symplectic[:, perm_symplectic]) == rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]]))):
             return True
     
     return False
