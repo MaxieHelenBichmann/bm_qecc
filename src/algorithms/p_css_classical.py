@@ -6,17 +6,301 @@ from ..core.css_code import CSSCode
 
 import ldpc.mod2.mod2_numpy as mod2
 
+def _rank(matrix: np.ndarray) -> int:
+    if matrix.shape[0] == 0:
+        return 0
+    return mod2.rank(matrix)
+
+def _compute_signatures(G: np.ndarray) -> list[int]:
+    """Compute the Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of Hx of the CSS code.
+    """
+    def _kernel_basis(A: np.ndarray) -> np.ndarray:
+        A = (np.asarray(A) & 1).astype(np.uint8)
+        K = mod2.nullspace(A)
+        if hasattr(K, "toarray"):
+            K = K.toarray()
+        K = (np.asarray(K) & 1).astype(np.uint8)
+        if K.size == 0:
+            return np.zeros((0, A.shape[1]), dtype=np.uint8)
+        if K.ndim == 1:
+            K = K.reshape(1, -1)
+        if K.shape[1] != A.shape[1]:
+            raise ValueError(
+                "Kernel basis must have the same number of columns as the input matrix."
+            )
+        return K
+
+    def _row_basis(M: np.ndarray) -> np.ndarray:
+        M = (np.asarray(M) & 1).astype(np.uint8)
+        if M.size == 0:
+            return np.zeros((0, M.shape[1]), dtype=np.uint8)
+        B = mod2.row_basis(M)
+        if hasattr(B, "toarray"):
+            B = B.toarray()
+        B = (np.asarray(B) & 1).astype(np.uint8)
+        if B.size == 0:
+            return np.zeros((0, M.shape[1]), dtype=np.uint8)
+        if B.ndim == 1:
+            B = B.reshape(1, -1)
+        return B
+
+    def _weight_enumerator_of_hull_punctured(G: np.ndarray, col_idx: int) -> list[int]:
+        Gp = np.delete(G, col_idx, axis=1).astype(np.uint8) & 1
+        g_p = Gp.shape[1]
+
+        gram = (Gp @ Gp.T) & 1
+
+        if gram.size == 0:
+            hull_basis = np.zeros((0, g_p), dtype=np.uint8)
+        elif not gram.any():
+            hull_basis = _row_basis(Gp)
+        else:
+            coeff_basis = _kernel_basis(gram)
+
+            if coeff_basis.shape[0] == 0:
+                hull_basis = np.zeros((0, g_p), dtype=np.uint8)
+            else:
+                hull_basis = _row_basis((coeff_basis @ Gp) & 1)
+
+        h = hull_basis.shape[0]
+        enumerator = [1] + [0] * g_p
+
+        word = np.zeros(g_p, dtype=np.uint8)
+        previous_gray = 0
+
+        for t in range(1, 1 << h):
+            gray = t ^ (t >> 1)
+            changed = gray ^ previous_gray
+            row_idx = changed.bit_length() - 1
+
+            word ^= hull_basis[row_idx]
+            enumerator[int(word.sum())] += 1
+
+            previous_gray = gray
+
+        return enumerator
+
+    invariants = []
+
+    for col_idx in range(G.shape[1]):
+        inv_hx = _weight_enumerator_of_hull_punctured(G, col_idx)
+        invariants.append(hash(tuple(inv_hx)))
+
+    return invariants
+
+def _partition_columns_by_invariants(invariants: list[int]) -> dict[int, list[int]]:
+    partition = {}
+    for idx, inv in enumerate(invariants):
+        if inv not in partition:
+            partition[inv] = []
+        partition[inv].append(idx)
+    return {k: sorted(v) for k, v in sorted(partition.items(), key=lambda item: item[0])}
+
+def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.ndarray, list[list[int]]]:
+    """Compute the canonical form of Hx of the CSS code, using Feulner's algorithm, and return the canonical form and the corresponding permutation of the columns. Partition is used for pruning the search tree.
+    """
+    def _prefix_semicanonical(G: np.ndarray, i: int) -> np.ndarray:
+        """Bring the first i columns of G into semi-canonical form only using row operations."""
+        M = np.array(G, dtype=np.int8, copy=True) & 1
+        k_m, n_m = M.shape
+        if i == 0:
+            return M
+        pivot_row = 0
+        original_pivot_columns = []
+
+        def _solve_linear_system(basis: list[np.ndarray], target: np.ndarray) -> np.ndarray | None:
+            B = np.asarray(basis, dtype=np.int8) & 1
+            v = (np.asarray(target, dtype=np.int8).reshape(-1, 1) & 1)
+
+            k, s = B.shape
+
+            Aug = np.concatenate([B, v], axis=1).astype(np.int8)
+            E, r, _ = mod2.row_echelon(Aug, full=True)
+            E = np.asarray(E, dtype=np.int8) & 1
+
+            x = np.zeros(s, dtype=np.int8)
+
+            for row in range(k):
+                nz = np.flatnonzero(E[row, :s])
+                if nz.size == 0:
+                    continue
+
+                pivot_col = int(nz[0])
+
+                if pivot_col < s:
+                    x[pivot_col] = E[row, s]
+
+            return x
+
+        for c in range(i):
+            old_rank = _rank(M[:, :c])
+            new_rank = _rank(M[:, : c + 1])
+
+            if new_rank == old_rank: # dependent column, bring it to the top
+                lk = _solve_linear_system(original_pivot_columns, M[:, c])
+                minimal_combination = np.zeros(k_m, dtype=np.uint8)
+                minimal_combination[: len(lk)] = lk
+
+                M[:, c] = minimal_combination
+
+            else: # independent column, bring it to semi-canonical form
+                pivot_row = len(original_pivot_columns)
+                original_pivot_columns.append(M[:, c])
+
+                if pivot_row >= k_m:
+                    continue
+
+                pivot_candidates = np.flatnonzero(M[pivot_row:, c])
+
+                if pivot_candidates.size == 0:
+                    continue
+
+                pivot = pivot_row + int(pivot_candidates[0])
+
+                # swap row with potential pivot up
+                if pivot != pivot_row:
+                    M[[pivot_row, pivot], :] = M[[pivot, pivot_row], :]
+
+                # eliminate pivot column in rows below
+                for r in range(k_m):
+                    if r != pivot_row and M[r, c]:
+                        M[r, :] ^= M[pivot_row, :]
+
+        return M
+
+    def _flatten(cells_: list[list[int]]) -> list[int]:
+        return [c for cell in cells_ for c in cell]
+
+    def matrix_key(M: np.ndarray) -> tuple[tuple[int, ...], ...]:
+        M = np.asarray(M, dtype=np.int8) & 1
+        k_m, n_m = M.shape
+        return tuple(tuple(int(M[r, c]) for r in range(k_m)) for c in range(n_m))
+
+    def prefix_key(M: np.ndarray, i: int) -> tuple[tuple[int, ...], ...]:
+        return matrix_key(M[:, :i]) # lexicographic key of the first i columns of M, because python can compare tuples
+
+
+    G = np.array(G, dtype=np.int8, copy=True) & 1
+    k_g, n_g = G.shape
+    best_matrix: np.ndarray | None = None
+    best_full_key: tuple[tuple[int, ...], ...] | None = None
+    best_perms: list[list[list[int]]] = []
+
+    def _search(prefix: list[int], remaining_cells: list[list[int]]) -> None: # recursive search over the space of permutations
+        nonlocal best_matrix, best_full_key, best_perms
+        i = len(prefix)
+        trial_perm = prefix + _flatten(remaining_cells)
+        M_trial = G[:, trial_perm]
+        M_semi = _prefix_semicanonical(M_trial, i)
+
+        # Prefix pruning.
+
+        if best_matrix is not None and i > 0:
+            current_prefix = prefix_key(M_semi, i)
+            best_prefix = prefix_key(best_matrix, i)
+
+            if current_prefix > best_prefix: # prune this branch, since the canonical form must be lexicographically minimal
+                return 
+
+            if current_prefix < best_prefix: # update the best prefix, since we found a better one on current path
+                best_matrix = None 
+                best_full_key = None
+                best_perms = []
+
+        if i == n_g: # we are at leaf (have a full permutation)
+            full_key = matrix_key(M_semi)
+
+            if best_full_key is None or full_key < best_full_key:
+                best_full_key = full_key
+                best_matrix = M_semi
+                best_perms = [prefix.copy()]
+
+            elif full_key == best_full_key:
+                best_perms.append(prefix.copy())
+            return
+
+        # Select first nonempty cell.
+        cell_idx = next(idx for idx, cell in enumerate(remaining_cells) if cell)
+        cell = remaining_cells[cell_idx]
+
+        for col in sorted(cell):
+            new_prefix = prefix + [col]
+            new_cells = [list(c) for c in remaining_cells]
+            new_cells[cell_idx].remove(col)
+            new_cells = [c for c in new_cells if c]
+            _search(new_prefix, new_cells)
+
+    _search([], cells)
+
+    return best_matrix, best_perms
+
+def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, g1_to_can: list[list[list[int]]], g2_to_can: list[list[list[int]]]) -> list[int]:
+    def _inverse_perm(p):
+        inv = [None] * len(p)
+        for i, x in enumerate(p):
+            inv[x] = i
+        return inv
+
+    def _compose(p, q):
+        return tuple(p[q[i]] for i in range(len(q)))
+
+    if not np.array_equal(np.asarray(canon1, dtype=np.int8) & 1, np.asarray(canon2, dtype=np.int8) & 1):
+        return []
+
+    # Find all permutations that map g1 to g2
+    perms = []
+    for p1 in g1_to_can:
+        for p2 in g2_to_can:
+            perms.append(_compose(_inverse_perm(p2), p1))
+    return perms
+
+def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: list[int]) -> bool:
+    return _rank(c2.Hx) == _rank(c1.Hx[:, permutation]) == _rank(np.vstack([c2.Hx, c1.Hx[:, permutation]])) and _rank(c2.Hz) == _rank(c1.Hz[:, permutation]) == _rank(np.vstack([c2.Hz, c1.Hz[:, permutation]]))
+
 
 def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
     """Check permutation equivalence using algorithms for classical code equivalence. A two-layer approach is used, where the first layer uses Sendrier's Support Splitting Algorithm to partition the columns of the generator matrices into equivalence classes based on the weight enumerator of the hull of the punctured code. 
     The second layer then checks for permutation equivalence by traversing the search tree of possible permutations, and pruning branches based on the canonical form of Feulner's Algorithm.
     
     For each code, the following is done:
-    1.) Compute the generator matrices Gx from the parity-check matrices Hx for each code
-    2.) Partition the columns of Gx1 into equivalence classes
-    3.) Canonicalize the generator matrices of Gx1 anf Gx2 using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations. 
-    4.) Check if the found permutation also works for the other matrix Hx.
+    1.) Partition the columns of Hx into equivalence classes according to the weight enumerator of Sendrier
+    2.) Canonicalize the generator matrices of Gx1 anf Gx2 using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations. 
+    3.) Check if the found permutation also works for the other matrix Hx.
 
     This algorithm should be more efficient than the brute-force algorithm, since it avoids checking all permutations, BUT it is still not efficient in the worst case.
     """
+    # Sendrier
+
+    def _generator_matrix_from_parity_check(H: np.ndarray, n: int) -> np.ndarray:
+        if H.size == 0 or H.shape[0] == 0:
+            return np.eye(n, dtype=np.uint8)
+        return _kernel_basis(H)
+
+    Gx1 = _generator_matrix_from_parity_check(c1.Hx, c1.n)
+    Gz1 = _generator_matrix_from_parity_check(c1.Hz, c1.n)
+    Gx2 = _generator_matrix_from_parity_check(c2.Hx, c2.n)
+    Gz2 = _generator_matrix_from_parity_check(c2.Hz, c2.n)
+    # TODO: potentially use Hz if Hz seems less symmetric than Hx through another invariant?
+    signatures_c1 = _compute_signatures(Gx1)
+    signatures_c2 = _compute_signatures(Gx2)
+
+    partition_c1 = _partition_columns_by_invariants(signatures_c1)
+    partition_c2 = _partition_columns_by_invariants(signatures_c2)
+
+    for key1, key2 in zip(partition_c1.keys(), partition_c2.keys()):
+        if key1 != key2:
+            return False
+        if len(partition_c1[key1]) != len(partition_c2[key2]):
+            return False
+
+    # Feulner
+    canon_c1, perm1 = _compute_canonical_form(Gx1, list(partition_c1.values()))
+    canon_c2, perm2 = _compute_canonical_form(Gx2, list(partition_c2.values()))
+    permutations = _extract_permutations(canon_c1, canon_c2, perm1, perm2)
+
+
+    for perm in permutations:
+        if _check_permutation_equivalence(c1, c2, perm):
+            return True
+
     return False
