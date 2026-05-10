@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from ..core.css_code import CSSCode
 
+import hashlib
+
+import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 
 def _rank(matrix: np.ndarray) -> int:
@@ -11,39 +14,39 @@ def _rank(matrix: np.ndarray) -> int:
         return 0
     return mod2.rank(matrix)
 
-def _compute_signatures(G: np.ndarray) -> list[int]:
-    """Compute the Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of Hx of the CSS code.
+def _kernel_basis(A: np.ndarray) -> np.ndarray:
+    A = (np.asarray(A) & 1).astype(np.uint8)
+    K = mod2.nullspace(A)
+    if hasattr(K, "toarray"):
+        K = K.toarray()
+    K = (np.asarray(K) & 1).astype(np.uint8)
+    if K.size == 0:
+        return np.zeros((0, A.shape[1]), dtype=np.uint8)
+    if K.ndim == 1:
+        K = K.reshape(1, -1)
+    if K.shape[1] != A.shape[1]:
+        raise ValueError(
+            "Kernel basis must have the same number of columns as the input matrix."
+        )
+    return K
+
+def _row_basis(M: np.ndarray) -> np.ndarray:
+    M = (np.asarray(M) & 1).astype(np.uint8)
+    if M.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    B = mod2.row_basis(M)
+    if hasattr(B, "toarray"):
+        B = B.toarray()
+    B = (np.asarray(B) & 1).astype(np.uint8)
+    if B.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    if B.ndim == 1:
+        B = B.reshape(1, -1)
+    return B
+
+def _compute_signatures(G1: np.ndarray, G2: np.ndarray) -> list[int]:
+    """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the CSS code.
     """
-    def _kernel_basis(A: np.ndarray) -> np.ndarray:
-        A = (np.asarray(A) & 1).astype(np.uint8)
-        K = mod2.nullspace(A)
-        if hasattr(K, "toarray"):
-            K = K.toarray()
-        K = (np.asarray(K) & 1).astype(np.uint8)
-        if K.size == 0:
-            return np.zeros((0, A.shape[1]), dtype=np.uint8)
-        if K.ndim == 1:
-            K = K.reshape(1, -1)
-        if K.shape[1] != A.shape[1]:
-            raise ValueError(
-                "Kernel basis must have the same number of columns as the input matrix."
-            )
-        return K
-
-    def _row_basis(M: np.ndarray) -> np.ndarray:
-        M = (np.asarray(M) & 1).astype(np.uint8)
-        if M.size == 0:
-            return np.zeros((0, M.shape[1]), dtype=np.uint8)
-        B = mod2.row_basis(M)
-        if hasattr(B, "toarray"):
-            B = B.toarray()
-        B = (np.asarray(B) & 1).astype(np.uint8)
-        if B.size == 0:
-            return np.zeros((0, M.shape[1]), dtype=np.uint8)
-        if B.ndim == 1:
-            B = B.reshape(1, -1)
-        return B
-
     def _weight_enumerator_of_hull_punctured(G: np.ndarray, col_idx: int) -> list[int]:
         Gp = np.delete(G, col_idx, axis=1).astype(np.uint8) & 1
         g_p = Gp.shape[1]
@@ -80,11 +83,23 @@ def _compute_signatures(G: np.ndarray) -> list[int]:
 
         return enumerator
 
+    def _combine_invariants(inv_hx: list[int], inv_hz: list[int]) -> int:
+        payload = (
+            ",".join(map(str, inv_hx))
+            + "|"
+            + ",".join(map(str, inv_hz))
+        ).encode("ascii")
+        return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
+    
+
+
     invariants = []
 
-    for col_idx in range(G.shape[1]):
-        inv_hx = _weight_enumerator_of_hull_punctured(G, col_idx)
-        invariants.append(hash(tuple(inv_hx)))
+    for col_idx in range(G1.shape[1]):
+        inv1 = _weight_enumerator_of_hull_punctured(G1, col_idx)
+        inv2 = _weight_enumerator_of_hull_punctured(G2, col_idx)
+
+        invariants.append(_combine_invariants(inv1, inv2))
 
     return invariants
 
@@ -106,47 +121,9 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
         if i == 0:
             return M
         pivot_row = 0
-        original_pivot_columns = []
-
-        def _solve_linear_system(basis: list[np.ndarray], target: np.ndarray) -> np.ndarray | None:
-            B = np.asarray(basis, dtype=np.int8) & 1
-            v = (np.asarray(target, dtype=np.int8).reshape(-1, 1) & 1)
-
-            k, s = B.shape
-
-            Aug = np.concatenate([B, v], axis=1).astype(np.int8)
-            E, r, _ = mod2.row_echelon(Aug, full=True)
-            E = np.asarray(E, dtype=np.int8) & 1
-
-            x = np.zeros(s, dtype=np.int8)
-
-            for row in range(k):
-                nz = np.flatnonzero(E[row, :s])
-                if nz.size == 0:
-                    continue
-
-                pivot_col = int(nz[0])
-
-                if pivot_col < s:
-                    x[pivot_col] = E[row, s]
-
-            return x
 
         for c in range(i):
-            old_rank = _rank(M[:, :c])
-            new_rank = _rank(M[:, : c + 1])
-
-            if new_rank == old_rank: # dependent column, bring it to the top
-                lk = _solve_linear_system(original_pivot_columns, M[:, c])
-                minimal_combination = np.zeros(k_m, dtype=np.uint8)
-                minimal_combination[: len(lk)] = lk
-
-                M[:, c] = minimal_combination
-
-            else: # independent column, bring it to semi-canonical form
-                pivot_row = len(original_pivot_columns)
-                original_pivot_columns.append(M[:, c])
-
+            if _rank(M[:, : c + 1]) > _rank(M[:, :c]): # independent column, bring it to semi-canonical form (dependent case not important for binary matrices)
                 if pivot_row >= k_m:
                     continue
 
@@ -161,10 +138,12 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
                 if pivot != pivot_row:
                     M[[pivot_row, pivot], :] = M[[pivot, pivot_row], :]
 
-                # eliminate pivot column in rows below
+                # make pivot column a unit vector
                 for r in range(k_m):
                     if r != pivot_row and M[r, c]:
                         M[r, :] ^= M[pivot_row, :]
+
+                pivot_row += 1
 
         return M
 
@@ -263,9 +242,9 @@ def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
     The second layer then checks for permutation equivalence by traversing the search tree of possible permutations, and pruning branches based on the canonical form of Feulner's Algorithm.
     
     For each code, the following is done:
-    1.) Partition the columns of Hx into equivalence classes according to the weight enumerator of Sendrier
+    1.) Partition the columns of Hx and Hz into equivalence classes according to the weight enumerator of Sendrier (we risk a complex computation O(2^k) for both Hx and Hz to have a better chance of a fine-grained partition)
     2.) Canonicalize the generator matrices of Gx1 anf Gx2 using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations. 
-    3.) Check if the found permutation also works for the other matrix Hx.
+    3.) Check if the found permutation is valid for both Hx and Hz.
 
     This algorithm should be more efficient than the brute-force algorithm, since it avoids checking all permutations, BUT it is still not efficient in the worst case.
     """
@@ -280,9 +259,9 @@ def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
     Gz1 = _generator_matrix_from_parity_check(c1.Hz, c1.n)
     Gx2 = _generator_matrix_from_parity_check(c2.Hx, c2.n)
     Gz2 = _generator_matrix_from_parity_check(c2.Hz, c2.n)
-    # TODO: potentially use Hz if Hz seems less symmetric than Hx through another invariant?
-    signatures_c1 = _compute_signatures(Gx1)
-    signatures_c2 = _compute_signatures(Gx2)
+
+    signatures_c1 = _compute_signatures(Gx1, Gz1)
+    signatures_c2 = _compute_signatures(Gx2, Gz2)
 
     partition_c1 = _partition_columns_by_invariants(signatures_c1)
     partition_c2 = _partition_columns_by_invariants(signatures_c2)
@@ -296,6 +275,7 @@ def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
     # Feulner
     canon_c1, perm1 = _compute_canonical_form(Gx1, list(partition_c1.values()))
     canon_c2, perm2 = _compute_canonical_form(Gx2, list(partition_c2.values()))
+
     permutations = _extract_permutations(canon_c1, canon_c2, perm1, perm2)
 
 
