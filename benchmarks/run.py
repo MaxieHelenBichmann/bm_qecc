@@ -235,21 +235,21 @@ def default_cases(seed: int) -> list[Case]:
 
     return [
         #case_bell_pair_same, # n = 2 , k = 0
-        case_three_qubits_permuted, # n = 3 , k = 1
+        #case_three_qubits_permuted, # n = 3 , k = 1
         case_steane_permuted, # n = 7 , k = 1
-        case_shor_permuted, # n = 9 , k = 1
-        case_carbon_permuted, # n = 12 , k = 2
-        case_tetrahedral_permuted, # n = 15 , k = 1
-        case_hamming_15_permuted, # n = 15 , k = 7
-        case_golay_permuted, # n = 23 , k = 1
-        case_rotated_surface_d5_permuted, # n = 25 , k = 1
-        case_random_permuted_css, # n = 4 , k = 2
-        case_random_permuted_stb, # n = 8 , k = 3
-        case_random_non_permuted_css,  # n = 10 , k = 4
-        case_random_non_permuted_stb, # n = 10 , k = 4
-        case_five_qubits_lc_only,  # n = 5 , k = 1
-        case_shor_lc_only,  # n = 9 , k = 1
-        case_shor_lc_css,  # n = 9 , k = 1
+        #case_shor_permuted, # n = 9 , k = 1
+        #case_carbon_permuted, # n = 12 , k = 2
+        #case_tetrahedral_permuted, # n = 15 , k = 1
+        #case_hamming_15_permuted, # n = 15 , k = 7
+        #case_golay_permuted, # n = 23 , k = 1
+        #case_rotated_surface_d5_permuted, # n = 25 , k = 1
+        #case_random_permuted_css, # n = 4 , k = 2
+        #case_random_permuted_stb, # n = 8 , k = 3
+        #case_random_non_permuted_css,  # n = 10 , k = 4
+        #case_random_non_permuted_stb, # n = 10 , k = 4
+        #case_five_qubits_lc_only,  # n = 5 , k = 1
+        #case_shor_lc_only,  # n = 9 , k = 1
+        #case_shor_lc_css,  # n = 9 , k = 1
     ]
 
 

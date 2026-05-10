@@ -126,8 +126,6 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
 
 
 def _traverse_lc_orbit(graph: np.ndarray) -> bool:
-    """Traverse the LC orbit of the graph and return a set of all graphs in the orbit."""
-
     def _lc(graph: np.ndarray, q: int) -> np.ndarray:
         new_graph = graph.copy()
         neighbors = np.flatnonzero(graph[q])
