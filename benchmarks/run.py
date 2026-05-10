@@ -12,7 +12,6 @@ from time import perf_counter
 import numpy as np
 
 from src.algorithms.lc_css_bruteforce import is_lceq_css_bruteforce
-from src.algorithms.lc_css_graph_state import is_lceq_css_graph_state
 from src.algorithms.lc_css_kls import is_lceq_css_kls
 from src.algorithms.lc_css_orbit import is_lceq_css_orbit
 from src.algorithms.lc_eq_graph_state import are_lceq_graph_state
@@ -70,7 +69,6 @@ ALGORITHMS: dict[str, Algorithm] = {
     "pm_stb_sat": are_peq_stab_sat,
     "lc_equ_graph_state": are_lceq_graph_state,
     "lc_css_bruteforce": is_lceq_css_bruteforce,
-    "lc_css_graph_state": is_lceq_css_graph_state,
     "lc_css_kls": is_lceq_css_kls,
     "lc_css_orbit": is_lceq_css_orbit,
 }
@@ -220,6 +218,13 @@ def default_cases(seed: int) -> list[Case]:
             expected_lc=True,
     )
 
+    case_shor_lc_css = Case(
+            name="shor_lc_css",
+            inputs=(lc_equivalent_code(shor, seed=seed + 1337)),
+            expected_p=None, 
+            expected_lc=True,
+    )
+
     return [
         #case_bell_pair_same, # n = 2 , k = 0
         case_three_qubits_permuted, # n = 3 , k = 1
@@ -236,6 +241,7 @@ def default_cases(seed: int) -> list[Case]:
         case_random_non_permuted_stb, # n = 10 , k = 4
         case_five_qubits_lc_only,  # n = 5 , k = 1
         case_shor_lc_only,  # n = 9 , k = 1
+        case_shor_lc_css,  # n = 9 , k = 1
     ]
 
 

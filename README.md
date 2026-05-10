@@ -46,9 +46,8 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 
 #### $C \thicksim_{LC} \ C_{CSS}$
 - Brute Force
-- Graph State Machinery
 - KLS Normal Form
-- LC Orbit
+- Graph State Machinery with LC Orbit
 
 
 ## Scope
