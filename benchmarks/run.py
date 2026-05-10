@@ -20,6 +20,10 @@ from src.algorithms.p_css_classical import are_peq_css_classical
 from src.algorithms.p_css_graph_iso import are_peq_css_graph_iso
 from src.algorithms.p_css_matroid import are_peq_css_matroid
 from src.algorithms.p_stab_bruteforce import are_peq_stab_bruteforce
+from src.algorithms.p_stab_aut import are_peq_stab_aut
+from src.algorithms.p_stab_classical import are_peq_stab_classical
+from src.algorithms.p_stab_graph_iso import are_peq_stab_graph_iso
+from src.algorithms.p_stab_graph_state import are_peq_stab_graph_state
 from src.algorithms.p_stab_sat import are_peq_stab_sat
 
 from src.core.stabilizer_code import StabilizerCode
@@ -65,7 +69,11 @@ ALGORITHMS: dict[str, Algorithm] = {
     "pm_css_classical": are_peq_css_classical,
     "pm_css_graph_iso": are_peq_css_graph_iso,
     "pm_css_matroid": are_peq_css_matroid,
+    "pm_stb_aut": are_peq_stab_aut,
     "pm_stb_bruteforce": are_peq_stab_bruteforce,
+    "pm_stb_classical": are_peq_stab_classical,
+    "pm_stb_graph_iso": are_peq_stab_graph_iso,
+    "pm_stb_graph_state": are_peq_stab_graph_state,
     "pm_stb_sat": are_peq_stab_sat,
     "lc_equ_graph_state": are_lceq_graph_state,
     "lc_css_bruteforce": is_lceq_css_bruteforce,
