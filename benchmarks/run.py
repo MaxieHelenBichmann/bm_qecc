@@ -21,6 +21,7 @@ from src.algorithms.p_css_classical import are_peq_css_classical
 from src.algorithms.p_css_graph_iso import are_peq_css_graph_iso
 from src.algorithms.p_css_matroid import are_peq_css_matroid
 from src.algorithms.p_stab_bruteforce import are_peq_stab_bruteforce
+from src.algorithms.p_stab_sat import are_peq_stab_sat
 
 from src.core.stabilizer_code import StabilizerCode
 from src.core.css_code import CSSCode
@@ -66,6 +67,7 @@ ALGORITHMS: dict[str, Algorithm] = {
     "pm_css_graph_iso": are_peq_css_graph_iso,
     "pm_css_matroid": are_peq_css_matroid,
     "pm_stb_bruteforce": are_peq_stab_bruteforce,
+    "pm_stb_sat": are_peq_stab_sat,
     "lc_equ_graph_state": are_lceq_graph_state,
     "lc_css_bruteforce": is_lceq_css_bruteforce,
     "lc_css_graph_state": is_lceq_css_graph_state,
@@ -94,9 +96,18 @@ def all_algorithm_names() -> list[str]:
 def default_cases(seed: int) -> list[Case]:
     """Return test cases."""
     bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
+
     three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
     steane = CSSCode.from_file("data/steane")
     five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
+    carbon = StabilizerCode.from_file("data/carbon")
+    golay = StabilizerCode.from_file("data/golay")
+    hamming_15 = StabilizerCode.from_file("data/hamming_15")
+    rotated_surface_d5 = StabilizerCode.from_file("data/rotated_surface_d5")
+    shor = StabilizerCode.from_file("data/shor")
+    tetrahedral = StabilizerCode.from_file("data/tetrahedral")
+    toric_50 = StabilizerCode.from_file("data/toric_50")
+
     random_case_stab1, random_case_stab2 = random_permuted_stabilizer_pair(4, 2, seed=seed)
     random_case_css1, random_case_css2 = random_permuted_css_pair(8, 3, seed=seed + 1)
     random_case_non_permuted_css1 , random_case_non_permuted_css2 = random_non_permuted_css_pair(10, 4, seed=seed + 2)
@@ -104,49 +115,85 @@ def default_cases(seed: int) -> list[Case]:
 
     return [
         Case(
-            name="bell_pair_same",
+            name="bell_pair_same", # n = 2 , k = 0
             inputs=(bell_pair, bell_pair),
             expected_p=True,
             expected_lc=True,
         ),
         Case(
-            name="three_qubits_permuted",
+            name="three_qubits_permuted", # n = 3 , k = 1
             inputs=(three_bit_repetition, permutation_equivalent_css_code(three_bit_repetition, seed=seed + 1)),
             expected_p=True,
             expected_lc=None,
         ),
         Case(
-            name="steane_permuted",
+            name="steane_permuted", # n = 7 , k = 1
             inputs=(steane, permutation_equivalent_css_code(steane, seed=seed + 2)),
             expected_p=True,
             expected_lc=None,
         ),
         Case(
-            name="random_permuted_stb",
+            name="carbon_permuted", # n = 12 , k = 2
+            inputs=(carbon, permutation_equivalent_css_code(carbon, seed=seed + 3)),
+            expected_p=True,
+            expected_lc=None,
+        ),
+        Case(
+            name="golay_permuted", # n = 23 , k = 1
+            inputs=(golay, permutation_equivalent_css_code(golay, seed=seed + 4)),
+            expected_p=True,
+            expected_lc=None,
+        ),
+        Case(
+            name="hamming_15_permuted", # n = 15 , k = 7
+            inputs=(hamming_15, permutation_equivalent_css_code(hamming_15, seed=seed + 5)),
+            expected_p=True,
+            expected_lc=None,
+        ),
+        Case(
+            name="rotated_surface_d5_permuted", # n = 25 , k = 1
+            inputs=(rotated_surface_d5, permutation_equivalent_css_code(rotated_surface_d5, seed=seed + 6)),
+            expected_p=True,
+            expected_lc=None,
+        ),
+        Case(
+            name="shor_permuted", # n = 9 , k = 1
+            inputs=(shor, permutation_equivalent_css_code(shor, seed=seed + 7)),
+            expected_p=True,
+            expected_lc=None,
+        ),
+        Case(
+            name="tetrahedral_permuted", # n = 15 , k = 1
+            inputs=(tetrahedral, permutation_equivalent_css_code(tetrahedral, seed=seed + 8)),
+            expected_p=True,
+            expected_lc=None,
+        ),
+        Case(
+            name="random_permuted_stb", # n = 4 , k = 2
             inputs=(random_case_stab1, random_case_stab2),
             expected_p=True,
             expected_lc=None,
         ),
         Case(
-            name="random_permuted_css",
+            name="random_permuted_css", # n = 8 , k = 3
             inputs=(random_case_css1, random_case_css2),
             expected_p=True,
             expected_lc=None,
         ),
         Case(
-                name="random_non_permuted_css",
-                inputs=(random_case_non_permuted_css1, random_case_non_permuted_css2),
-                expected_p=False,
-                expected_lc=None,
+            name="random_non_permuted_css", # n = 10 , k = 4
+            inputs=(random_case_non_permuted_css1, random_case_non_permuted_css2),
+            expected_p=False,
+            expected_lc=None,
         ),
         Case(
-                name="random_non_permuted_stb",
-                inputs=(random_case_non_permuted_stab1, random_case_non_permuted_stab2),
-                expected_p=False,
-                expected_lc=None,
+            name="random_non_permuted_stb", # n = 10 , k = 4
+            inputs=(random_case_non_permuted_stab1, random_case_non_permuted_stab2),
+            expected_p=False,
+            expected_lc=None,
         ),
         Case(
-            name="five_qubits_lc_only",
+            name="five_qubits_lc_only", # n = 5 , k = 1
             inputs=(five_qubit_perfect, lc_equivalent_code(five_qubit_perfect, seed=seed + 3)),
             expected_p=None,
             expected_lc=True,
