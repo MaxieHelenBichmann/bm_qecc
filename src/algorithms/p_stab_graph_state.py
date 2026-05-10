@@ -54,27 +54,37 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
 
     def _make_X_invertible(t: np.ndarray) -> np.ndarray:
         old_x_rank = _rank(t[:, :n])
-        for q in range(n):
-            if old_x_rank == n:
-                break
+        while old_x_rank < n:
+            improved = False
 
-            best_rank = old_x_rank
-            best_choice = (None, None)
+            for q in range(n):
+                if old_x_rank == n:
+                    break
 
-            x_col = t[:, q].copy()
-            z_col = t[:, q + n].copy()
+                best_rank = old_x_rank
+                best_choice = (None, None)
 
-            for new_x, new_z in [ (x_col, z_col), (z_col, x_col), ((x_col + z_col) % 2, x_col) ]:
-                t[:, q] = new_x
-                new_x_rank = _rank(t[:, :n])
-                if new_x_rank > old_x_rank:
-                    best_rank = new_x_rank
-                    best_choice = (new_x, new_z)
+                x_col = t[:, q].copy()
+                z_col = t[:, q + n].copy()
+
+                for new_x, new_z in [ (x_col, z_col), (z_col, x_col), ((x_col + z_col) % 2, x_col) ]:
+                    t[:, q] = new_x
+                    new_x_rank = _rank(t[:, :n])
+                    if new_x_rank > best_rank:
+                        best_rank = new_x_rank
+                        best_choice = (new_x, new_z)
             
-            if best_choice[0] is not None:
-                t[:, q] = best_choice[0]
-                t[:, q + n] = best_choice[1]
-                old_x_rank = best_rank
+                if best_choice[0] is not None:
+                    t[:, q] = best_choice[0]
+                    t[:, q + n] = best_choice[1]
+                    old_x_rank = best_rank
+                    improved = True
+                else:
+                    t[:, q] = x_col
+                    t[:, q + n] = z_col
+
+            if not improved:
+                break
 
         return t
 
