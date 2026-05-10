@@ -4,7 +4,9 @@
         "matroid",
         "qubit",
         "qubits",
+        "shor",
         "steane",
-        "symplectic"
+        "symplectic",
+        "toric"
     ]
 }
