@@ -220,7 +220,7 @@ def default_cases(seed: int) -> list[Case]:
 
     case_shor_lc_css = Case(
             name="shor_lc_css",
-            inputs=(lc_equivalent_code(shor, seed=seed + 1337)),
+            inputs=tuple([lc_equivalent_code(shor, seed=seed + 1337)]),
             expected_p=None, 
             expected_lc=True,
     )
