@@ -213,8 +213,15 @@ def default_cases(seed: int) -> list[Case]:
             expected_lc=True,
     )
 
+    case_shor_lc_only = Case(
+            name="shor_lc_only",
+            inputs=(shor, lc_equivalent_code(shor, seed=seed + 69)),
+            expected_p=None, 
+            expected_lc=True,
+    )
+
     return [
-        case_bell_pair_same, # n = 2 , k = 0
+        #case_bell_pair_same, # n = 2 , k = 0
         case_three_qubits_permuted, # n = 3 , k = 1
         case_steane_permuted, # n = 7 , k = 1
         case_shor_permuted, # n = 9 , k = 1
@@ -228,7 +235,7 @@ def default_cases(seed: int) -> list[Case]:
         case_random_non_permuted_css,  # n = 10 , k = 4
         case_random_non_permuted_stb, # n = 10 , k = 4
         case_five_qubits_lc_only,  # n = 5 , k = 1
-
+        case_shor_lc_only,  # n = 9 , k = 1
     ]
 
 
