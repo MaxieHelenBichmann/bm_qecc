@@ -3,3 +3,4 @@ ldpc
 stim
 
 pynauty
+z3-solver
