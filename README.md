@@ -37,8 +37,8 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 - [x] Graph State Machinery
 - [ ] Classical Algorithms
 - [ ] Automorphisms
-- [ ] Graph Isomorphism
-- [ ] SAT
+- [x] Graph Isomorphism
+- [x] SAT
 
 ### Local-Clifford Equivalence
 #### $C \thicksim_{LC} \ C'$
