@@ -6,6 +6,7 @@ import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 
 from pynauty import autgrp
+from itertools import permutations
 
 from ..core.stabilizer_code import StabilizerCode
 
@@ -27,7 +28,7 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     def _compose(p, q):
         return tuple(p[q[i]] for i in range(len(q)))
 
-    c2_rank = rank(c2.symplectic)
+    c2_rank = mod2.rank(c2.symplectic)
     aut_c2 = _automorphisms(c2.symplectic, c2.n)
 
     remaining_permutations = set(permutations(range(c1.n)))
