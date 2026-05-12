@@ -27,27 +27,27 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 
 ### Permutation Equivalence
 #### CSS Codes
-- Brute Force
-- Matroid Isomorphism
-- Classical Algorithms
-- Graph Isomorphism
+- [x] Brute Force
+- [x] Matroid Isomorphism
+- [x] Classical Algorithms
+- [x] Graph Isomorphism
 
 #### Stabilizer Codes
-- Brute Force
-- Graph State Machinery
-- Classical Algorithms
-- Automorphisms
-- Graph Isomorphism
-- SAT
+- [x] Brute Force
+- [x] Graph State Machinery
+- [ ] Classical Algorithms
+- [ ] Automorphisms
+- [ ] Graph Isomorphism
+- [ ] SAT
 
 ### Local-Clifford Equivalence
 #### $C \thicksim_{LC} \ C'$
-- Graph State Machinery
+- [x] Graph State Machinery
 
 #### $C \thicksim_{LC} \ C_{CSS}$
-- Brute Force
-- KLS Normal Form
-- Graph State Machinery with LC Orbit
+- [x] Brute Force
+- [ ] KLS Normal Form
+- [x] Graph State Machinery with LC Orbit
 
 
 ## Scope
