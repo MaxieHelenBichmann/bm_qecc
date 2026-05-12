@@ -39,7 +39,7 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         perm = np.array(perm)
         perm_symplectic = np.concatenate([perm, perm + c1.n])
 
-        if (rank(c1.symplectic[:, perm_symplectic]) == c2_rank == rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic]))):
+        if (mod2.rank(c1.symplectic[:, perm_symplectic]) == c2_rank == mod2.rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic]))):
             return True
         else:
             # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2
