@@ -43,12 +43,8 @@ def are_peq_stab_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     The idea is to create boolean variables for the permutation and the row operations, and then add constraints that enforce that the permuted tableau of c1 is equal to the row-operated tableau of c2.
     1.) Create a auxiliary tableau that encodes the column permutations of c1, and the row operations of c2.
-
     2.) Create boolean variables p_{i,j} for the permutation, where p_{i,j} is true if the i-th qubit of c1 is mapped to the j-th qubit of the auxiliary tableau.
-
     3.) Create boolean variables r_{i,j} for the row operations, where r_{i,j} is true if the j-th row is added to the i-th row in the auxiliary tableau.
-
-
     4.) Check satisfiability of the resulting formula. If it is satisfiable, then c1 and c2 are permutation equivalent, otherwise they are not.
     """
     solver = z3.Solver()

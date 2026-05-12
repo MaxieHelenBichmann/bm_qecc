@@ -245,7 +245,7 @@ def are_peq_stab_graph_state(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     2.) Convert the stabilizer state into a graph state under local Clifford operations.
 
     3.) Traversing the LC orbit of one graph and checking for graph isomorphism with the other representative.
-    $.) Check with the found isomorphism, if the corresponding permutation of the qubits is indeed a permutation also without local clifford operations.
+    4.) Check with the found isomorphism, if the corresponding permutation of the qubits is indeed a permutation also without local clifford operations.
 
 
     The detour via graph states and local-clifford equivalence is motivated by the fact that the LC orbit of a graph state is usually much smaller than the full permutation group, and there are efficient algorithms for checking graph isomorphism, which is maybe more efficient than the brute-force checking of all permutations.

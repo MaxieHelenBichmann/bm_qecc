@@ -198,7 +198,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
                 best_perms.append(prefix.copy())
             return
 
-        # Select first nonempty cell.
+        # Select first nonempty cell
         cell_idx = next(idx for idx, cell in enumerate(remaining_cells) if cell)
         cell = remaining_cells[cell_idx]
 
@@ -226,7 +226,7 @@ def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, g1_to_can: lis
     if not np.array_equal(np.asarray(canon1, dtype=np.int8) & 1, np.asarray(canon2, dtype=np.int8) & 1):
         return []
 
-    # Find all permutations that map g1 to g2
+    # find all permutations that map g1 to g2
     perms = []
     for p1 in g1_to_can:
         for p2 in g2_to_can:

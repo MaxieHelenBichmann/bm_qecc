@@ -37,7 +37,7 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
     k, n_cols = K.shape
     candidates: list[set[int]] = []
 
-    # Enumerate all nonzero GF(2)-linear combinations of kernel basis rows.
+    # all nonzero combinations of kernel basis rows
     for mask in range(1, 1 << k):
         x = np.zeros(n_cols, dtype=np.uint8)
 
@@ -49,7 +49,7 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
         if support:
             candidates.append(support)
 
-    # Keep inclusion-minimal supports.
+    # inclusion-minimal supports
     candidates.sort(key=len)
     circuits: list[set[int]] = []
 
