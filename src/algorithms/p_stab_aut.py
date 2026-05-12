@@ -19,12 +19,6 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     Can be better than brute-force if the automorphism group of the code is large, but still has factorial worst-case runtime if the automorphism group is trivial.
     """
-    def _inverse_perm(p):
-        inv = [None] * len(p)
-        for i, x in enumerate(p):
-            inv[x] = i
-        return inv
-
     def _compose(p, q):
         return tuple(p[q[i]] for i in range(len(q)))
 
