@@ -381,16 +381,33 @@ def _apply_local_clifford(tableau: StabilizerTableau, local_clifford: str, qubit
 
 
 def _apply_random_clifford_gate(tableau: StabilizerTableau, rng: np.random.Generator) -> None:
-    """Apply one seeded random Clifford generator to a tableau in-place."""
+    """Apply one seeded random Clifford gate (not only generators, to make more random hopefully) to a tableau in-place."""
     if tableau.n == 1:
-        gate = rng.choice(("h", "s"))
+        gate = rng.choice(("h", "s", "sdg", "x", "y", "z"))
     else:
-        gate = rng.choice(("h", "s", "cx"))
+        gate = rng.choice(("h", "s", "sdg", "x", "y", "z", "cx", "cz", "swap"))
 
     if gate == "h":
         tableau.apply_h(int(rng.integers(0, tableau.n)))
     elif gate == "s":
         tableau.apply_s(int(rng.integers(0, tableau.n)))
+    elif gate == "sdg":
+        tableau.apply_sdg(int(rng.integers(0, tableau.n)))
+    elif gate == "x":
+        tableau.apply_x(int(rng.integers(0, tableau.n)))
+    elif gate == "y":
+        tableau.apply_y(int(rng.integers(0, tableau.n)))
+    elif gate == "z":
+        tableau.apply_z(int(rng.integers(0, tableau.n)))
+    elif gate == "cx":
+        ctrl, target = rng.choice(tableau.n, size=2, replace=False)
+        tableau.apply_cx(int(ctrl), int(target))
+    elif gate == "cz":
+        ctrl, target = rng.choice(tableau.n, size=2, replace=False)
+        tableau.apply_cz(int(ctrl), int(target))
+    elif gate == "swap":
+         ctrl, target = rng.choice(tableau.n, size=2, replace=False)
+         tableau.apply_swap(int(ctrl), int(target))
     else:
         ctrl, target = rng.choice(tableau.n, size=2, replace=False)
         tableau.apply_cx(int(ctrl), int(target))
