@@ -2,17 +2,88 @@
 
 from __future__ import annotations
 
+import ast
+import os
+import shutil
+import subprocess
+from itertools import permutations
+from pathlib import Path
+
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 
-from pynauty import autgrp
-from itertools import permutations
-
 from ..core.stabilizer_code import StabilizerCode
 
-def _automorphisms(tableau: np.ndarray, n: int) -> list[int]:
-    # TODO: find a way to make Magma / SageMath work maybe
-    return [tuple(range(n))]
+def _automorphisms(tableau: np.ndarray, n: int) -> list[tuple[int, ...]]:
+    """Use GAP and the package GUAVA to compute the automorphism group of a stabilizer code."""
+    def _extract_valid_permutations(aut_group) -> list[tuple[int, ...]]:
+        perms = []
+        for aut in aut_group:
+            perm = [ aut[i] - 1 for i in range(2 * n) ]
+            if all(x_i + n == z_i for x_i, z_i in zip(perm[:n], perm[n:])):
+                perms.append(tuple(perm[:n]))
+        return perms
+
+    begin = "__BM_QECC_GAP_AUT_PERMS_BEGIN__"
+    end = "__BM_QECC_GAP_AUT_PERMS_END__"
+    project_root = Path(__file__).resolve().parents[2]
+    project_gap_root = project_root / ".gap"
+    gap_executable = os.environ.get("GAP_EXECUTABLE", "gap")
+    if shutil.which(gap_executable) is None:
+        raise RuntimeError(
+            f"Could not find GAP executable {gap_executable!r}. "
+            "Install GAP and make sure it is on PATH, or set GAP_EXECUTABLE."
+        )
+
+    script = f"""
+if LoadPackage("guava") = fail then
+    Print("Could not load GAP package guava. Expected it under {project_gap_root / 'pkg'}\\n");
+    QUIT_GAP(1);
+fi;
+
+G := Z(2)^0 * {str(tableau.tolist()).replace(' ', '')};
+C := GeneratorMatCode(G, GF(2));
+AutC := AutomorphismGroup(C);
+perms := List(Elements(AutC), g -> List([1..{2 * n}], i -> i^g));
+
+Print("{begin}\\n");
+Print(perms);
+Print("\\n{end}\\n");
+QUIT;
+"""
+
+    proc = subprocess.run(
+        [
+            gap_executable,
+            "-q",
+            "-r",
+            "--quitonbreak",
+            "--roots",
+            f";{project_gap_root}",
+        ],
+        input=script,
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            "GAP failed while computing the automorphism group.\n"
+            f"stdout:\n{proc.stdout}\n"
+            f"stderr:\n{proc.stderr}"
+        )
+
+    try:
+        output = proc.stdout.split(begin, 1)[1].split(end, 1)[0].strip()
+    except IndexError as exc:
+        raise RuntimeError(
+            "Could not find the permutation output in GAP's response.\n"
+            f"stdout:\n{proc.stdout}\n"
+            f"stderr:\n{proc.stderr}"
+        ) from exc
+
+    gap_perms = ast.literal_eval(output)
+
+    return _extract_valid_permutations(gap_perms)
 
 def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:    
     """Check permutation equivalence by brute-force search over all elements of S_n, but reducing the search space using automorphisms.

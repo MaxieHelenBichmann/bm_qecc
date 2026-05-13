@@ -100,3 +100,12 @@ python -m benchmarks.run --output results/bm_output.csv
 python -m benchmarks.run --seed 69
 python -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 ```
+
+### Dependencies
+
+For the Automorphism algorithm, I use [GAP / Guava](https://docs.gap-system.org/pkg/guava/doc/manual.pdf), thus the GAP executable is a dependency.
+Before running a benchmark with this algorithm, the following command has to be executed:
+```bash
+export GAP_EXECUTABLE=/path/to/gap
+```
+
