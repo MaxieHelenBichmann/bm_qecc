@@ -85,6 +85,8 @@ results/           # generated CSV output, ignored by git
 Install the local runtime dependencies first if needed:
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 
@@ -103,9 +105,10 @@ python -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_
 
 ### Dependencies
 
-For the Automorphism algorithm, I use [GAP / Guava](https://docs.gap-system.org/pkg/guava/doc/manual.pdf), thus the GAP executable is a dependency.
+For the Automorphism-based algorithm, I use [GAP / Guava](https://docs.gap-system.org/pkg/guava/doc/manual.pdf), thus the GAP executable is needed.
 Before running a benchmark with this algorithm, the following command has to be executed:
 ```bash
 export GAP_EXECUTABLE=/path/to/gap
 ```
+But as I would estimate that this Automorphism-based algorithm will NOT be efficient at all, it will probably not be used in the MQT and thus I will not deal with this dependency apart from getting some measurements in this Repo.
 
