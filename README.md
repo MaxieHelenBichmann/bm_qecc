@@ -36,7 +36,7 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 - [x] Brute Force
 - [x] Graph State Machinery
 - [ ] Classical Algorithms
-- [ ] Automorphisms
+- [x] Automorphisms
 - [x] Graph Isomorphism
 - [x] SAT
 
