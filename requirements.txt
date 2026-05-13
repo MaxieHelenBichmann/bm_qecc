@@ -4,3 +4,4 @@ stim
 
 pynauty
 z3-solver
+pyzx
