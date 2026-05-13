@@ -105,8 +105,8 @@ python -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_
 
 ### Dependencies
 
-For the Automorphism-based algorithm, I use [GAP / Guava](https://docs.gap-system.org/pkg/guava/doc/manual.pdf), thus the GAP executable is needed.
-Before running a benchmark with this algorithm, the following command has to be executed:
+For the Automorphism-based algorithm, I use [GAP / Guava](https://docs.gap-system.org/pkg/guava/doc/manual.pdf), thus the GAP executable and Guava's dependencies are needed.
+Before running a benchmark with this algorithm, Guava's dependencies should be in `bm_qecc/.gap` AND the following command has to be executed:
 ```bash
 export GAP_EXECUTABLE=/path/to/gap
 ```

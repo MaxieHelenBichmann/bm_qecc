@@ -14,43 +14,17 @@ import ldpc.mod2.mod2_numpy as mod2
 
 from ..core.stabilizer_code import StabilizerCode
 
-def _automorphisms(tableau: np.ndarray, n: int) -> list[tuple[int, ...]]:
-    """Use GAP and the package GUAVA to compute the automorphism group of a stabilizer code."""
-    def _extract_valid_permutations(aut_group) -> list[tuple[int, ...]]:
-        perms = []
-        for aut in aut_group:
-            perm = [ aut[i] - 1 for i in range(2 * n) ]
-            if all(x_i + n == z_i for x_i, z_i in zip(perm[:n], perm[n:])):
-                perms.append(tuple(perm[:n]))
-        return perms
+_GAP_BEGIN = "__BM_QECC_GAP_AUT_PERMS_BEGIN__"
+_GAP_END = "__BM_QECC_GAP_AUT_PERMS_END__"
 
-    begin = "__BM_QECC_GAP_AUT_PERMS_BEGIN__"
-    end = "__BM_QECC_GAP_AUT_PERMS_END__"
-    project_root = Path(__file__).resolve().parents[2]
-    project_gap_root = project_root / ".gap"
+def _run_gap(script: str) -> str:
+    project_gap_root = Path(__file__).resolve().parents[2] / ".gap"
     gap_executable = os.environ.get("GAP_EXECUTABLE", "gap")
     if shutil.which(gap_executable) is None:
         raise RuntimeError(
             f"Could not find GAP executable {gap_executable!r}. "
             "Install GAP and make sure it is on PATH, or set GAP_EXECUTABLE."
         )
-
-    script = f"""
-if LoadPackage("guava") = fail then
-    Print("Could not load GAP package guava. Expected it under {project_gap_root / 'pkg'}\\n");
-    QUIT_GAP(1);
-fi;
-
-G := Z(2)^0 * {str(tableau.tolist()).replace(' ', '')};
-C := GeneratorMatCode(G, GF(2));
-AutC := AutomorphismGroup(C);
-perms := List(Elements(AutC), g -> List([1..{2 * n}], i -> i^g));
-
-Print("{begin}\\n");
-Print(perms);
-Print("\\n{end}\\n");
-QUIT;
-"""
 
     proc = subprocess.run(
         [
@@ -72,15 +46,35 @@ QUIT;
             f"stderr:\n{proc.stderr}"
         )
 
-    try:
-        output = proc.stdout.split(begin, 1)[1].split(end, 1)[0].strip()
-    except IndexError as exc:
-        raise RuntimeError(
-            "Could not find the permutation output in GAP's response.\n"
-            f"stdout:\n{proc.stdout}\n"
-            f"stderr:\n{proc.stderr}"
-        ) from exc
+    return proc.stdout
 
+def _automorphisms(tableau: np.ndarray, n: int) -> list[tuple[int, ...]]:
+    """Use GAP and the package GUAVA to compute the automorphism group of a stabilizer code."""
+    def _extract_valid_permutations(aut_group) -> list[tuple[int, ...]]:
+        perms = []
+        for aut in aut_group:
+            perm = [ aut[i] - 1 for i in range(2 * n) ]
+            if all(x_i + n == z_i for x_i, z_i in zip(perm[:n], perm[n:])):
+                perms.append(tuple(perm[:n]))
+        return perms
+    
+    script = f"""
+if LoadPackage("guava") = fail then
+    Print("Could not load GAP package guava.\n");
+    QUIT_GAP(1);
+fi;
+
+G := Z(2)^0 * {str(tableau.tolist()).replace(' ', '')};
+C := GeneratorMatCode(G, GF(2));
+AutC := AutomorphismGroup(C);
+perms := List(Elements(AutC), g -> List([1..{2 * n}], i -> i^g));
+
+Print("{_GAP_BEGIN}\\n");
+Print(perms);
+Print("\\n{_GAP_END}\\n");
+QUIT;
+"""
+    output = _run_gap(script).split(_GAP_BEGIN, 1)[1].split(_GAP_END, 1)[0].strip()
     gap_perms = ast.literal_eval(output)
 
     return _extract_valid_permutations(gap_perms)
