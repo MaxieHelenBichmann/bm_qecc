@@ -84,8 +84,23 @@ class ZXGraph:
             raise ValueError(f"Invalid local Clifford decoration {d}.")
         
     @classmethod
-    def word_to_decoration(s: str) -> int:
-        pass
+    def word_to_decoration(s: list[str]) -> int:
+        if s == []:
+            return 0
+        elif s == ["S"]:
+            return 1
+        elif s == ["S", "S"]:
+            return 2
+        elif s == ["S", "S", "S"]:
+            return 3
+        elif s == ["H"]:
+            return 4
+        elif s == ["H", "S"]:
+            return 5
+        elif s == ["H", "S", "S"]:
+            return 6
+        elif s == ["H", "S", "S", "S"]:
+            return 7
 
     @classmethod
     def from_pyzx_diagram(diagram: zx.Graph) -> ZXGraph:
@@ -368,11 +383,11 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     """Requirements HK normal form:
     1.) graph like state (only Z nodes, one Z node per boundary, no inner Z edges, only H-edges between Z nodes)
     2.) Requirements on LC decorations:
-        - only decorations I , S, Z, S† , H , HZ allowed
-        - if vertex has H or HZ decoration, then it cannot have a neighbor with a smaller index
+        - only decorations I , S , H allowed
+        - if vertex has a H decoration, then it cannot have a neighbor with a smaller index
     """ 
     def _h_slide_down(g: ZXGraph, upper: int, lower: int) -> ZXGraph:
-        # H_upper |G> = H_lower Z_upper Z_lower prod_{p in A, q in B} CZ_{p,q} |G>
+        # (Eq. 13) H_upper |G> = H_lower Z_upper Z_lower prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(upper) union {upper}, B = N(lower) union {lower}
         def _add_z_decoration(v: int):
             if g.vertices[v] in (0, 4): # I -> Z, H -> HZ
@@ -403,24 +418,30 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
         return g
     
     def _reduce_trailing_HS(g: ZXGraph, words: list[list[str]], i: int):
-        # H_i S_i |G> = H_i S_i H_i Sd_i H_i prod_{p,q in N(i)} CS_{p,q} |G>
+        # (Eq. 12) H_i S_i |G> = S_i^3 prod_{p in N(i)} Z_p prod_{p,q in N(i)} CS_{p,q} |G>
         words[i] = words[i][:-2]
 
-        # append S to i and all neighbors
-        words[i].append("S")
+        words[i] += ["S", "S", "S"]
 
         for j in g.neighbors(i):
-            words[j].append("S")
+            words[j] += ["S", "S"]
 
-        g.graph_local_complementation(i)
+        for p in g.neighbors(i):
+            for q in g.neighbors(i):
+                # TODO
+                pass
 
     def _reduce_solo_trailing_SH(g: ZXGraph, words: list[list[str]], i: int):
-        # S_i H_i |G> = H_i prod_{p,q in N(i)} CS_{p,q} |G>
+        # (Eq. 11) S_i H_i |G> = H_i prod_{p,q in N(i)} CS_{p,q} |G>
         words[i] = words[i][:-2] + ["H"]
-        g.graph_local_complementation(i)
+
+        for p in g.neighbors(i):
+            for q in g.neighbors(i):
+                # TODO
+                pass
 
     def _reduce_shared_trailing_SH(g: ZXGraph, words: list[list[str]], i: int, j: int):
-        # H_i |G> = H_j Z_i Z_j prod_{p in A, q in B} CZ_{p,q} |G>
+        # (Eq. 11) H_i H_j|G> = Z_i Z_j prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(i) union {i}, B = N(j) union {j}
         def _add_z_decoration(v: int) -> list[str]:
             if v[-2:] == ["S", "S"]:
@@ -446,35 +467,34 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
 
         return g
     
-    def _normalize_word(words: list[str]) -> list[str]:
+    def _reduce_word(word: list[str]) -> list[str]:
         changed = True
         while changed:
+            new_word = []
             changed = False
-            i = 0
-            while True:
-                if i >= len(words) - 1:
-                    break
-                if words[i] == "H" and words[i + 1] == "H":
-                    words = words[:i] + words[i + 2:]
+            for i in range(len(word)):
+                if i < len(word) - 1 and ((word[i] == "H" and word[i + 1] == "H") or (word[i] == "Z" and word[i + 1] == "Z")):
                     changed = True
-                elif words[i] == "S" and words[i + 1] == "S":
-                    words = words[:i] + ["Z"] + words[i + 1:]
+                elif i < len(word) - 1 and (word[i] == "S" and word[i + 1] == "S"):
+                    new_word += ["Z"]
                     changed = True
-                elif words[i] == "Z" and words[i + 1] == "Z":
-                    words = words[:i] + words[i + 2:]
-                    changed = True
-                i += 1
+                else:
+                    new_word.append(word[i])
+            word = new_word
         
+        return word
+    
     n = graph.n + graph.k
 
-    # 1.) remove all HS and HS† decorations
-    words = [ZXGraph.decoration_to_word(d) for d in graph.vertices] # during step 1 this is the valid state of the decorations, not the graph.vertices array
+    # 1.) reduce LC decorations to either I, S, or H
+    words = [ZXGraph.decoration_to_word(d) for d in graph.vertices] # during step 1 this is the ONLY valid state of the decorations, not the graph.vertices array
     changed = True
     while changed:
         changed = False 
 
         for i in range(len(n)):
-            if len(_normalize_word(words[i].copy())) < 2:
+            words[i] = _reduce_word(words[i])
+            if len(words[i]) < 2:
                 continue
             if words[i][-2:] == ["H", "S"]:
                 _reduce_trailing_HS(graph, words, i)
@@ -488,8 +508,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
                     _reduce_shared_trailing_SH(graph, words, i, h_neighbors[0])
                 changed = True
                 break
-    graph.vertices = [ZXGraph.word_to_decoration(_normalize_word(w)) for w in words]
-
+    graph.vertices = [ZXGraph.word_to_decoration(_reduce_word(w)) for w in words] # should only be I, S, or H decorations left I hope
 
     # 2.) slides H down
     for x in reversed(range(n)):
@@ -500,6 +519,8 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
 
             y = min(low_neighbors)
             graph = _h_slide_down(graph, x, y)
+    
+    # 3.) cleanup decorations
 
     return graph
 
