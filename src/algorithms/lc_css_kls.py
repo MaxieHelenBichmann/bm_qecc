@@ -14,10 +14,9 @@ class ZXGraph:
         self.n = 0
         self.k = 0
         # each node is represented as its local clifford decoration, and identified with the index in the array, input nodes before output nodes
-        # I -> 0, S -> 1, Z -> 2, S† -> 3,  H -> 4,  SH -> 5, ZH -> 6, S†H -> 7
+        # I -> 0, S -> 1, Z -> 2, S† -> 3,  H -> 4, HS -> 5, HZ -> 6, HS† -> 7
         self.vertices = []
-
-        self.edges = set()
+        self.edges : set[tuple[int, int]]= set() # (u,v) with u < v
     
     def get_input_output_adjacency(self) -> np.ndarray:
         adj = np.zeros((self.k, self.n), dtype=bool)
@@ -26,9 +25,6 @@ class ZXGraph:
             if u < self.k and v >= self.k:
                 adj[u, v - self.k] = True
                 adj[v - self.k, u] = True
-            elif v < self.k and u >= self.k:
-                adj[v, u - self.k] = True
-                adj[u - self.k, v] = True
         return adj
     
     def get_full_adjacency(self) -> np.ndarray:
@@ -41,16 +37,55 @@ class ZXGraph:
             adj[j, i] = True
         return adj
     
-    def local_complementation(self, i: int):
-        neighbors = [v for v in self.vertices if {i, v} in self.edges]
+    def neighbors(self, v: int) -> list[int]:
+        return [u for u in self.vertices if (u, v) in self.edges or (v, u) in self.edges]
+
+    def toggle_edge(self, u: int, v: int):
+        min_u_v = min(u, v)
+        max_u_v = max(u, v)
+        if (min_u_v, max_u_v) in self.edges:
+            self.edges.remove((min_u_v, max_u_v))
+        else:
+            self.edges.add((min_u_v, max_u_v))
+    
+    def graph_local_complementation(self, i: int):
+        neighbors = self.neighbors(i)
         for i in range(len(neighbors)):
             for j in range(i + 1, len(neighbors)):
-                u = neighbors[i]
-                v = neighbors[j]
-                if {u, v} in self.edges:
-                    self.edges.remove({u, v})
-                else:
-                    self.edges.add({u, v})
+                self.toggle_edge(neighbors[i], neighbors[j])
+
+    def graph_pivot_edge(self, u: int, v: int):
+        min_u_v = min(u, v)
+        max_u_v = max(u, v)
+        if (min_u_v, max_u_v) in self.edges:
+           self.graph_local_complementation(u)
+           self.graph_local_complementation(v)
+           self.graph_local_complementation(u)
+
+    @classmethod
+    def decoration_to_word(d : int) -> list[str]:
+        if d == 0:
+            return []
+        elif d == 1:
+            return ["S"]
+        elif d == 2:
+            return ["S", "S"]
+        elif d == 3:
+            return ["S", "S", "S"]
+        elif d == 4:
+            return ["H"]
+        elif d == 5:
+            return ["H", "S"]
+        elif d == 6:
+            return ["H", "S", "S"]
+        elif d == 7:
+            return ["H", "S", "S", "S"]
+        else:
+            raise ValueError(f"Invalid local Clifford decoration {d}.")
+        
+    @classmethod
+    def word_to_decoration(s: str) -> int:
+        pass
 
     @classmethod
     def from_pyzx_diagram(diagram: zx.Graph) -> ZXGraph:
@@ -100,7 +135,10 @@ class ZXGraph:
         for edge in diagram.edges():
             u, v = diagram.edge_st(edge)
             if u in pyzx_vertices and v in pyzx_vertices:
-                graph.add_edge(graph.vertices[pyzx_vertices.index(u)], graph.vertices[pyzx_vertices.index(v)])
+                idx_u = pyzx_vertices.index(u)
+                idx_v = pyzx_vertices.index(v)
+                graph.add_edge(graph.vertices[min(idx_u, idx_v)], graph.vertices[max(idx_u, idx_v)])
+        
 
         return graph
     
@@ -178,9 +216,13 @@ class ZXGraph:
         return diagram
     
     def is_bipartite(self) -> bool:
-        adj = self.get_full_adjacency()
-        n = adj.shape[0]
+        n = self.n + self.k
         colors = np.full(n, -1, dtype=np.int8)
+
+        neighbors = { v: set() for v in self.vertices }
+        for u, v in self.edges:
+            neighbors[u].add(v)
+            neighbors[v].add(u)
 
         for start in range(n):
             if colors[start] != -1:
@@ -193,12 +235,15 @@ class ZXGraph:
                 current_color = colors[frontier[0]]
                 next_color = 1 - current_color
 
-                neighbors = np.flatnonzero(adj[frontier].any(axis=0))
+                neighbors = set()
+                for node in frontier:
+                    neighbors |= neighbors[node]
+                neighbors = np.array(list(neighbors), dtype=int)
 
                 if np.any(colors[neighbors] == current_color):
                     return False
 
-                new = neighbors[colors[neighbors] == -1]
+                new = list(neighbors)[colors[neighbors] == -1]
                 colors[new] = next_color
                 frontier = new
 
@@ -320,13 +365,156 @@ def _code_to_graph(code) -> ZXGraph:
     return graph
 
 def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
-    # TODO
+    """Requirements HK normal form:
+    1.) graph like state (only Z nodes, one Z node per boundary, no inner Z edges, only H-edges between Z nodes)
+    2.) Requirements on LC decorations:
+        - only decorations I , S, Z, S† , H , HZ allowed
+        - if vertex has H or HZ decoration, then it cannot have a neighbor with a smaller index
+    """ 
+    def _h_slide_down(g: ZXGraph, upper: int, lower: int) -> ZXGraph:
+        # H_upper |G> = H_lower Z_upper Z_lower prod_{p in A, q in B} CZ_{p,q} |G>
+        # with A = N(upper) union {upper}, B = N(lower) union {lower}
+        def _add_z_decoration(v: int):
+            if g.vertices[v] in (0, 4): # I -> Z, H -> HZ
+                g.vertices[v] += 2
+            elif g.vertices[v] in (1, 5): # S -> S†, SH -> S†H
+                g.vertices[v] += 2
+            elif g.vertices[v] in (2, 6): # Z -> I, ZH -> H
+                g.vertices[v] -= 2
+            elif g.vertices[v] in (3, 7): # S† -> S, S†H -> SH
+                g.vertices[v] -= 2
+
+        A = set(g.neighbors(upper)) | {upper}
+        B = set(g.neighbors(lower)) | {lower}
+
+        g.vertices[upper] -= 4 # remove H decoration
+        g.vertices[lower] += 4 # add H decoration
+
+        g.vertices[upper] = _add_z_decoration(g.vertices[upper])
+        g.vertices[lower] = _add_z_decoration(g.vertices[lower])
+
+        for p in A:
+            for q in B:
+                if p == q:
+                    g.vertices[p] = _add_z_decoration(g.vertices[p])
+                else:
+                    g.toggle_edge(p, q)
+
+        return g
+    
+    def _reduce_trailing_HS(g: ZXGraph, words: list[list[str]], i: int):
+        # H_i S_i |G> = H_i S_i H_i Sd_i H_i prod_{p,q in N(i)} CS_{p,q} |G>
+        words[i] = words[i][:-2]
+
+        # append S to i and all neighbors
+        words[i].append("S")
+
+        for j in g.neighbors(i):
+            words[j].append("S")
+
+        g.graph_local_complementation(i)
+
+    def _reduce_solo_trailing_SH(g: ZXGraph, words: list[list[str]], i: int):
+        # S_i H_i |G> = H_i prod_{p,q in N(i)} CS_{p,q} |G>
+        words[i] = words[i][:-2] + ["H"]
+        g.graph_local_complementation(i)
+
+    def _reduce_shared_trailing_SH(g: ZXGraph, words: list[list[str]], i: int, j: int):
+        # H_i |G> = H_j Z_i Z_j prod_{p in A, q in B} CZ_{p,q} |G>
+        # with A = N(i) union {i}, B = N(j) union {j}
+        def _add_z_decoration(v: int) -> list[str]:
+            if v[-2:] == ["S", "S"]:
+                return v[-2:]
+            return v + ["S", "S"]
+            
+
+        A = set(g.neighbors(i)) | {i}
+        B = set(g.neighbors(j)) | {j}
+
+        words[i] = words[i][:-1]
+        words[j] = words[j][:-1]
+
+        words[i] = _add_z_decoration(words[i])
+        words[j] = _add_z_decoration(words[j])
+
+        for p in A:
+            for q in B:
+                if p == q:
+                    words[p] = _add_z_decoration(words[p])
+                else:
+                    g.toggle_edge(p, q)
+
+        return g
+    
+    def _normalize_word(words: list[str]) -> list[str]:
+        changed = True
+        while changed:
+            changed = False
+            i = 0
+            while True:
+                if i >= len(words) - 1:
+                    break
+                if words[i] == "H" and words[i + 1] == "H":
+                    words = words[:i] + words[i + 2:]
+                    changed = True
+                elif words[i] == "S" and words[i + 1] == "S":
+                    words = words[:i] + ["Z"] + words[i + 1:]
+                    changed = True
+                elif words[i] == "Z" and words[i + 1] == "Z":
+                    words = words[:i] + words[i + 2:]
+                    changed = True
+                i += 1
+        
+    n = graph.n + graph.k
+
+    # 1.) remove all HS and HS† decorations
+    words = [ZXGraph.decoration_to_word(d) for d in graph.vertices] # during step 1 this is the valid state of the decorations, not the graph.vertices array
+    changed = True
+    while changed:
+        changed = False 
+
+        for i in range(len(n)):
+            if len(_normalize_word(words[i].copy())) < 2:
+                continue
+            if words[i][-2:] == ["H", "S"]:
+                _reduce_trailing_HS(graph, words, i)
+                changed = True
+                break
+            if words[i][-2:] == ["S", "H"]:
+                h_neighbors = [ j for j in graph.neighbors(i) if len(words[j]) >= 2 and words[j][-1:] == ["H"] ]
+                if len(h_neighbors) == 0:
+                    _reduce_solo_trailing_SH(graph, words, i)
+                else:
+                    _reduce_shared_trailing_SH(graph, words, i, h_neighbors[0])
+                changed = True
+                break
+    graph.vertices = [ZXGraph.word_to_decoration(_normalize_word(w)) for w in words]
+
+
+    # 2.) slides H down
+    for x in reversed(range(n)):
+        while graph.vertices[x] in (5, 7): # x has a Hadamard component
+            low_neighbors = [v for v in graph.vertices if (v, x) in graph.edges]
+            if len(low_neighbors) == 0:
+                break
+
+            y = min(low_neighbors)
+            graph = _h_slide_down(graph, x, y)
+
     return graph
 
 def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
-    # 1.) set input vertices to have no phase
+    """Additional requirements KLS normal form:
+    1.) input nodes have no non-I LC decoration, and no edges between input nodes
+    2.) the input-output adjacency matrix is in RREF
+    3.) the pivot columns of the input-output adjacency matrix have no non-I LC decorations, and no edges between pivot vertices
+    """
+    # 1.) set input vertices to have no decoration and no edges
     for q in range(graph_hk.k):
         graph_hk.vertices[q] = 0
+        for i in range(q + 1, graph_hk.k):
+            if {q, i} in graph_hk.edges:
+                graph_hk.edges.remove({q, i})
 
     # 2.) bring the IO-adjacency matrix into RREF
     adj = graph_hk.get_input_output_adjacency()
@@ -352,6 +540,16 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
     return graph
 
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
+    """Check if a stabilizer code is LC-equivalent to a CSS code by converting it into KLS normal form and checking if the resulting graph state is bipartite.
+
+    1.) Convert the stabilizer code into a clifford encoder circuit.
+    2.) Convert the encoder circuit into a ZX diagram.
+    3.) Simplify the ZX diagram into a graph-like state, aka a graph with local Clifford decorations on the vertices.
+    4.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
+    5.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
+
+    The conversion from stabilizer code into a graph state can be done in O(n^3) time an the efficient algorithm for equivalence checking of graph states runs in O(n^4) time, so the overall runtime of this algorithm should be O(n^3) which is very efficient.
+    """
     graph = _code_to_graph(code)
     graph_hk = _hk_normal_form(graph)
     graph_kls = _kls_normal_form(graph_hk)
