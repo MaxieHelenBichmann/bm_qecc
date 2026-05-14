@@ -5,34 +5,19 @@ from __future__ import annotations
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 import pyzx as zx
+from fractions import Fraction
+
 from ..core.stabilizer_code import StabilizerCode
 
 class ZXGraph:
     def __init__(self):
-        # each node is represented as its phase-factor of pi, input nodes before output nodes
         self.n = 0
         self.k = 0
+        # each node is represented as its local clifford decoration, and identified with the index in the array, input nodes before output nodes
+        # I -> 0, S -> 1, Z -> 2, S† -> 3,  H -> 4,  SH -> 5, ZH -> 6, S†H -> 7
         self.vertices = []
 
         self.edges = set()
-
-    def add_edge(self, idx1: float, idx2: float):
-        self.edges.add({ idx1, idx2 })
-
-    def add_input_vertex(self, u: float):
-        self.vertices.append(u)
-        self.k += 1
-        self.n += 1
-
-    def add_output_vertex(self, u: float):
-        self.vertices.append(u)
-        self.n += 1
-
-    def get_input_vertices(self) -> list[float]:
-        return self.vertices[:self.k]
-    
-    def get_output_vertices(self) -> list[float]:
-        return self.vertices[self.k:]
     
     def get_input_output_adjacency(self) -> np.ndarray:
         adj = np.zeros((self.k, self.n), dtype=bool)
@@ -66,6 +51,158 @@ class ZXGraph:
                     self.edges.remove({u, v})
                 else:
                     self.edges.add({u, v})
+
+    @classmethod
+    def from_pyzx_diagram(diagram: zx.Graph) -> ZXGraph:
+        def _pyzx_to_local_clifford(phase: Fraction, edge_type: zx.EdgeType) -> int:
+            if edge_type == zx.EdgeType.SIMPLE:
+                if (phase is None or phase == 0):
+                    return 0 # I
+                elif phase == Fraction(1, 2):
+                    return 1 # S
+                elif phase == Fraction(1, 1):
+                    return 2 # Z
+                elif phase == Fraction(3, 2):
+                    return 3 # S†
+                else:
+                    raise ValueError(f"Unexpected vertex phase {phase} in ZX diagram.")
+            elif edge_type == zx.EdgeType.HADAMARD:
+                if (phase is None or phase == 0):
+                    return 4 # H
+                elif phase == Fraction(1, 2):
+                    return 5 # SH
+                elif phase == Fraction(1, 1):
+                    return 6 # ZH
+                elif phase == Fraction(3, 2):
+                    return 7 # S†H
+                else:
+                    raise ValueError(f"Unexpected vertex phase {phase} in ZX diagram.")
+            
+        graph = ZXGraph()
+        pyzx_input_boundaries = sorted([ v for v in diagram.inputs()], key=lambda v: v.id)
+        pyzx_output_boundaries = sorted([ v for v in diagram.outputs()], key=lambda v: v.id)
+        pyzx_vertices = []
+
+        for input_boundary in pyzx_input_boundaries:
+            n = diagram.neighbors(input_boundary)
+            if len(n) != 1:
+                raise ValueError("Expected ZX diagram in encoder form, but found an input vertex with degree != 1.")
+            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(input_boundary, n[0])))
+            pyzx_vertices.append(n[0])
+
+        for output_boundary in pyzx_output_boundaries:
+            n = diagram.neighbors(output_boundary)
+            if len(n) != 1:
+                raise ValueError("Expected ZX diagram in encoder form, but found an output vertex with degree != 1.")
+            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(output_boundary, n[0])))
+            pyzx_vertices.append(n[0])
+
+        for edge in diagram.edges():
+            u, v = diagram.edge_st(edge)
+            if u in pyzx_vertices and v in pyzx_vertices:
+                graph.add_edge(graph.vertices[pyzx_vertices.index(u)], graph.vertices[pyzx_vertices.index(v)])
+
+        return graph
+    
+    def to_pyzx_diagram(self, cnots: list[tuple[int, int]] = []) -> zx.BaseGraph:
+        def _local_clifford_to_pyzx(lc_decoration: int) -> tuple[Fraction, zx.EdgeType]:
+            if lc_decoration == 0:
+                return (Fraction(0), zx.EdgeType.SIMPLE) # I
+            elif lc_decoration == 1:
+                return (Fraction(1, 2), zx.EdgeType.SIMPLE) # S
+            elif lc_decoration == 2:
+                return (Fraction(1, 1), zx.EdgeType.SIMPLE) # Z
+            elif lc_decoration == 3:
+                return (Fraction(3, 2), zx.EdgeType.SIMPLE) # S†
+            elif lc_decoration == 4:
+                return (Fraction(0), zx.EdgeType.HADAMARD) # H
+            elif lc_decoration == 5:
+                return (Fraction(1, 2), zx.EdgeType.HADAMARD) # SH
+            elif lc_decoration == 6:
+                return (Fraction(1, 1), zx.EdgeType.HADAMARD) # ZH
+            elif lc_decoration == 7:
+                return (Fraction(3, 2), zx.EdgeType.HADAMARD) # S†H
+            
+        def _add_cnots(diagram, inputs):
+            for control, target in cnots:
+                new_x = diagram.add_vertex(zx.VertexType.X) # place on target
+
+                input_target = inputs[target]
+                neighbor = diagram.neighbors(input_target)[0]
+
+                e = diagram.edge(input_target, neighbor)
+                e_type = diagram.edge_type(input_target, neighbor)
+                diagram.remove_edge(e)
+                diagram.add_edge(new_x, neighbor, edge_type=e_type)
+                diagram.add_edge(new_x, input_target, edge_type=zx.EdgeType.SIMPLE)
+
+
+                new_z = diagram.add_vertex(zx.VertexType.Z) # place on control
+                
+                input_control = inputs[control]
+                neighbor = diagram.neighbors(input_control)[0]
+                
+                e = diagram.edge(input_control, neighbor)
+                e_type = diagram.edge_type(input_control, neighbor)
+                diagram.remove_edge(e)
+                diagram.add_edge(new_z, neighbor, edge_type=e_type)
+                diagram.add_edge(new_z, input_control, edge_type=zx.EdgeType.SIMPLE)
+
+                diagram.add_edge(new_z, new_x, edge_type=zx.EdgeType.SIMPLE)
+            
+        diagram = zx.Graph()
+        vertex_map = {}
+        input_boundaries = []
+        output_boundaries = []
+        for i, deco in enumerate(self.vertices):
+            if i == self.k:
+                _add_cnots(diagram, input_boundaries)
+            boundary = diagram.add_vertex(zx.VertexType.BOUNDARY)
+            if i < self.k:      
+                input_boundaries.append(boundary)
+            else:
+                output_boundaries.append(boundary)
+
+            phase , edge_type = _local_clifford_to_pyzx(deco)
+            v = diagram.add_vertex(zx.VertexType.Z, phase=phase)
+            vertex_map[i] = v
+            diagram.add_edge(boundary, v, edge_type=edge_type)
+        
+        diagram.set_inputs(input_boundaries)
+        diagram.set_outputs(output_boundaries)
+
+        for edge in self.edges:
+            u, v = edge
+            diagram.add_edge(vertex_map[u], vertex_map[v], edge_type=zx.EdgeType.HADAMARD)
+
+        return diagram
+    
+    def is_bipartite(self) -> bool:
+        adj = self.get_full_adjacency()
+        n = adj.shape[0]
+        colors = np.full(n, -1, dtype=np.int8)
+
+        for start in range(n):
+            if colors[start] != -1:
+                continue
+
+            colors[start] = 0
+            frontier = np.array([start], dtype=int)
+
+            while frontier.size:
+                current_color = colors[frontier[0]]
+                next_color = 1 - current_color
+
+                neighbors = np.flatnonzero(adj[frontier].any(axis=0))
+
+                if np.any(colors[neighbors] == current_color):
+                    return False
+
+                new = neighbors[colors[neighbors] == -1]
+                colors[new] = next_color
+                frontier = new
+
+        return True
 
 def _code_to_encoder_circuit(code) -> zx.Circuit:
     def _delete_first_row_and_qubit(tab: np.ndarray) -> np.ndarray:
@@ -170,14 +307,17 @@ def _code_to_graph(code) -> ZXGraph:
     # 2.) Encoder circuit -> zx diagram
     zx_diagram = circuit.to_graph()
 
-    # 3.) zx diagram -> graph state
+    # 3.) zx diagram -> graph like state
+    zx.to_graph_like(zx_diagram)
     zx_diagram.normalize() 
 
-    # 4.) graph state -> ZXGraph
-    # TODO
-    graph = ZXGraph()
+    if not zx.is_graph_like(zx_diagram, strict=True):
+        raise ValueError("Expected the ZX diagram to be graph-like after normalization, but it was not.")
 
-    print(zx_diagram)
+    # 4.) graph state -> ZXGraph
+    graph = ZXGraph.from_pyzx_diagram(zx_diagram)
+
+    return graph
 
 def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     # TODO
@@ -190,7 +330,7 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
 
     # 2.) bring the IO-adjacency matrix into RREF
     adj = graph_hk.get_input_output_adjacency()
-    gates = []
+    cnots_gates = []
     for i in range(graph_hk.k):
         pivot_candidates = np.flatnonzero(adj[i, :])
         if len(pivot_candidates) == 0:
@@ -199,54 +339,20 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
         for r in range(0, graph_hk.k):
             if r != i and adj[r, pivot]:
                 adj[r] ^= adj[i]
-                gates.append(("CNOT", (i, r)))
+                cnots_gates.append((i, r))
 
-    # 3.) simplify the graph with the added gates
-    zx_diagram = zx.Graph()
-    for p in graph_hk.vertices:
-        print(p)
+    # 3.) simplify the graph with the added CNOTS
+    zx_diagram = graph_hk.to_pyzx_diagram(cnots=cnots_gates)
 
-    for u, v in graph_hk.edges:
-        print(u, v)
-
-    zx_diagram.normalize()
+    zx.to_graph_like(zx_diagram)
+    zx_diagram.normalize() 
 
     # 4.) graph state -> ZXGraph
-    # TODO
-    graph = ZXGraph()
-
+    graph = ZXGraph.from_pyzx_diagram(zx_diagram)
     return graph
-
-def _is_bipartite(graph: ZXGraph) -> bool:
-    adj = graph.get_full_adjacency()
-    n = adj.shape[0]
-    colors = np.full(n, -1, dtype=np.int8)
-
-    for start in range(n):
-        if colors[start] != -1:
-            continue
-
-        colors[start] = 0
-        frontier = np.array([start], dtype=int)
-
-        while frontier.size:
-            current_color = colors[frontier[0]]
-            next_color = 1 - current_color
-
-            neighbors = np.flatnonzero(adj[frontier].any(axis=0))
-
-            if np.any(colors[neighbors] == current_color):
-                return False
-
-            new = neighbors[colors[neighbors] == -1]
-            colors[new] = next_color
-            frontier = new
-
-    return True
-
 
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
     graph = _code_to_graph(code)
     graph_hk = _hk_normal_form(graph)
     graph_kls = _kls_normal_form(graph_hk)
-    return _is_bipartite(graph_kls)
+    return graph_kls.is_bipartite()
