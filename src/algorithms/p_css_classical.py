@@ -1,6 +1,7 @@
 """Classical code equivalence based permutation equivalence checking."""
 
 from __future__ import annotations
+from collections import defaultdict
 
 from ..core.css_code import CSSCode
 
@@ -104,10 +105,8 @@ def _compute_signatures(G1: np.ndarray, G2: np.ndarray) -> list[int]:
     return invariants
 
 def _partition_columns_by_invariants(invariants: list[int]) -> dict[int, list[int]]:
-    partition = {}
+    partition = defaultdict(list)
     for idx, inv in enumerate(invariants):
-        if inv not in partition:
-            partition[inv] = []
         partition[inv].append(idx)
     return {k: sorted(v) for k, v in sorted(partition.items(), key=lambda item: item[0])}
 
