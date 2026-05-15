@@ -23,7 +23,6 @@ class ZXGraph:
             u, v, _ = edge
             if u < self.k and v >= self.k:
                 adj[u, v - self.k] = True
-                adj[v - self.k, u] = True
         return adj
     
     def get_full_adjacency(self) -> np.ndarray:
@@ -37,7 +36,7 @@ class ZXGraph:
         return adj
     
     def neighbors(self, v: int) -> list[int]:
-        return [u for u in self.vertices if (u, v, True) in self.edges or (u, v, False) in self.edges or (v, u, True) in self.edges or (v, u, False) in self.edges]
+        return [u for u in range(self.n + self.k) if (u, v, True) in self.edges or (u, v, False) in self.edges or (v, u, True) in self.edges or (v, u, False) in self.edges]
 
     def apply_cz_edge(self, u: int, v: int):
         min_u_v = min(u, v)
@@ -130,8 +129,8 @@ class ZXGraph:
         graph = ZXGraph()
         pyzx_input_boundaries = sorted(diagram.inputs(), key=lambda v: getattr(v, "id", v))
         pyzx_output_boundaries = sorted(diagram.outputs(), key=lambda v: getattr(v, "id", v))
-        graph.n = len(pyzx_input_boundaries)
-        graph.k = len(pyzx_output_boundaries)
+        graph.n = len(pyzx_output_boundaries)
+        graph.k = len(pyzx_input_boundaries)
         pyzx_vertices = []
 
         for input_boundary in pyzx_input_boundaries:
@@ -153,7 +152,7 @@ class ZXGraph:
             if u in pyzx_vertices and v in pyzx_vertices:
                 idx_u = pyzx_vertices.index(u)
                 idx_v = pyzx_vertices.index(v)
-                graph.apply_cz_edge(graph.vertices[min(idx_u, idx_v)], graph.vertices[max(idx_u, idx_v)])
+                graph.apply_cz_edge(min(idx_u, idx_v), max(idx_u, idx_v))
         
 
         return graph
@@ -187,8 +186,8 @@ class ZXGraph:
                 e = diagram.edge(input_target, neighbor)
                 e_type = diagram.edge_type(e)
                 diagram.remove_edge(e)
-                diagram.add_edge((new_x, neighbor), edge_type=e_type)
-                diagram.add_edge((new_x, input_target), edge_type=zx.EdgeType.SIMPLE)
+                diagram.add_edge((new_x, neighbor), edgetype=e_type)
+                diagram.add_edge((new_x, input_target), edgetype=zx.EdgeType.SIMPLE)
 
 
                 new_z = diagram.add_vertex(zx.VertexType.Z) # place on control
@@ -199,10 +198,10 @@ class ZXGraph:
                 e = diagram.edge(input_control, neighbor)
                 e_type = diagram.edge_type(e)
                 diagram.remove_edge(e)
-                diagram.add_edge((new_z, neighbor), edge_type=e_type)
-                diagram.add_edge((new_z, input_control), edge_type=zx.EdgeType.SIMPLE)
+                diagram.add_edge((new_z, neighbor), edgetype=e_type)
+                diagram.add_edge((new_z, input_control), edgetype=zx.EdgeType.SIMPLE)
 
-                diagram.add_edge((new_z, new_x), edge_type=zx.EdgeType.SIMPLE)
+                diagram.add_edge((new_z, new_x), edgetype=zx.EdgeType.SIMPLE)
             
         diagram = zx.Graph()
         vertex_map = {}
@@ -220,14 +219,14 @@ class ZXGraph:
             phase , edge_type = _local_clifford_to_pyzx(deco)
             v = diagram.add_vertex(zx.VertexType.Z, phase=phase)
             vertex_map[i] = v
-            diagram.add_edge((boundary, v), edge_type=edge_type)
+            diagram.add_edge((boundary, v), edgetype=edge_type)
         
         diagram.set_inputs(input_boundaries)
         diagram.set_outputs(output_boundaries)
 
         for edge in self.edges:
-            u, v = edge
-            diagram.add_edge((vertex_map[u], vertex_map[v]), edge_type=zx.EdgeType.HADAMARD)
+            u, v , _ = edge
+            diagram.add_edge((vertex_map[u], vertex_map[v]), edgetype=zx.EdgeType.HADAMARD)
 
         return diagram
     
@@ -235,12 +234,15 @@ class ZXGraph:
         n = self.n + self.k
         colors = np.full(n, -1, dtype=np.int8)
 
-        neighbors = { v: set() for v in self.vertices }
-        for u, v in self.edges:
-            neighbors[u].add(v)
-            neighbors[v].add(u)
+        print("neighbors")
+        neighbors_list = [ set() for _ in range(n) ]
+        for u, v , _ in self.edges:
+            (neighbors_list[u]).add(v)
+            (neighbors_list[v]).add(u)
 
+        print("start BFS")
         for start in range(n):
+            print(start)
             if colors[start] != -1:
                 continue
 
@@ -248,12 +250,13 @@ class ZXGraph:
             frontier = np.array([start], dtype=int)
 
             while frontier.size:
+                print(frontier)
                 current_color = colors[frontier[0]]
                 next_color = 1 - current_color
 
                 neighbors = set()
                 for node in frontier:
-                    neighbors |= neighbors[node]
+                    neighbors |= neighbors_list[node]
                 neighbors = np.array(list(neighbors), dtype=int)
 
                 if np.any(colors[neighbors] == current_color):
@@ -518,7 +521,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     # 2.) slides H down
     for x in reversed(range(n)):
         while graph.vertices[x] in (5, 7): # x has a Hadamard component
-            low_neighbors = [v for v in graph.vertices if (v, x, True) in graph.edges or (v, x, False) in graph.edges]
+            low_neighbors = [v for v in range(graph.n + graph.k) if (v, x, True) in graph.edges or (v, x, False) in graph.edges]
             if len(low_neighbors) == 0:
                 break
 
@@ -530,7 +533,6 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     while changed:
         changed = False
         for i in range(n):
-            print(f"Vertex {i} has decoration {graph.vertices[i]}.")
             if graph.vertices[i] == 5: # SH
                 changed = True
                 graph.vertices[i] = 4 # H
@@ -557,16 +559,29 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
 
     # 2.) bring the IO-adjacency matrix into RREF
     adj = graph_hk.get_input_output_adjacency()
+  
+    pivot_row = 0
     cnots_gates = []
-    for i in range(graph_hk.k):
-        pivot_candidates = np.flatnonzero(adj[i, :])
+    for c in range(graph_hk.n):
+        pivot_candidates = np.flatnonzero(adj[pivot_row:, c])
         if len(pivot_candidates) == 0:
             continue
-        pivot = int(pivot_candidates[0])
-        for r in range(0, graph_hk.k):
-            if r != i and adj[r, pivot]:
-                adj[r] ^= adj[i]
-                cnots_gates.append((i, r))
+        pivot = pivot_row + int(pivot_candidates[0])
+
+        if pivot != pivot_row:
+            adj[[pivot_row, pivot]] = adj[[pivot, pivot_row]]
+            cnots_gates.append((pivot_row, pivot)) # swap = 3 CNOTs
+            cnots_gates.append((pivot, pivot_row))
+            cnots_gates.append((pivot_row, pivot))
+
+        for r in range(graph_hk.k):
+            if r != pivot_row and adj[r, c]:
+                adj[r] ^= adj[pivot_row]
+                cnots_gates.append((pivot_row, r))
+        pivot_row += 1
+
+        if pivot_row == graph_hk.k:
+            break
 
     # 3.) simplify the graph with the added CNOTS
     zx_diagram = graph_hk.to_pyzx_diagram(cnots=cnots_gates)
@@ -592,4 +607,5 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
     graph = _code_to_graph(code)
     graph_hk = _hk_normal_form(graph)
     graph_kls = _kls_normal_form(graph_hk)
+    print("Checking if graph is bipartite...")
     return graph_kls.is_bipartite()
