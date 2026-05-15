@@ -61,7 +61,7 @@ class ZXGraph:
         else:
             self.edges.add((min_u_v, max_u_v, True))
 
-    @classmethod
+    @staticmethod
     def decoration_to_word(d : int) -> list[str]:
         if d == 0:
             return []
@@ -82,7 +82,7 @@ class ZXGraph:
         else:
             raise ValueError(f"Invalid local Clifford decoration {d}.")
         
-    @classmethod
+    @staticmethod
     def word_to_decoration(s: list[str]) -> int:
         if s == []:
             return 0
@@ -101,7 +101,7 @@ class ZXGraph:
         elif s == ["H", "S", "S", "S"]:
             return 7
 
-    @classmethod
+    @staticmethod
     def from_pyzx_diagram(diagram: zx.Graph) -> ZXGraph:
         def _pyzx_to_local_clifford(phase: Fraction, edge_type: zx.EdgeType) -> int:
             if edge_type == zx.EdgeType.SIMPLE:
@@ -130,20 +130,22 @@ class ZXGraph:
         graph = ZXGraph()
         pyzx_input_boundaries = sorted([ v for v in diagram.inputs()], key=lambda v: v.id)
         pyzx_output_boundaries = sorted([ v for v in diagram.outputs()], key=lambda v: v.id)
+        graph.n = len(pyzx_input_boundaries)
+        graph.k = len(pyzx_output_boundaries)
         pyzx_vertices = []
 
         for input_boundary in pyzx_input_boundaries:
-            n = diagram.neighbors(input_boundary)
+            n = list(diagram.neighbors(input_boundary))
             if len(n) != 1:
                 raise ValueError("Expected ZX diagram in encoder form, but found an input vertex with degree != 1.")
-            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(input_boundary, n[0])))
+            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(diagram.edge(input_boundary, n[0]))))
             pyzx_vertices.append(n[0])
 
         for output_boundary in pyzx_output_boundaries:
-            n = diagram.neighbors(output_boundary)
+            n = list(diagram.neighbors(output_boundary))
             if len(n) != 1:
                 raise ValueError("Expected ZX diagram in encoder form, but found an output vertex with degree != 1.")
-            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(output_boundary, n[0])))
+            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(diagram.edge(output_boundary, n[0]))))
             pyzx_vertices.append(n[0])
 
         for edge in diagram.edges():
@@ -151,7 +153,7 @@ class ZXGraph:
             if u in pyzx_vertices and v in pyzx_vertices:
                 idx_u = pyzx_vertices.index(u)
                 idx_v = pyzx_vertices.index(v)
-                graph.add_edge(graph.vertices[min(idx_u, idx_v)], graph.vertices[max(idx_u, idx_v)])
+                graph.apply_cz_edge(graph.vertices[min(idx_u, idx_v)], graph.vertices[max(idx_u, idx_v)])
         
 
         return graph
@@ -180,27 +182,27 @@ class ZXGraph:
                 new_x = diagram.add_vertex(zx.VertexType.X) # place on target
 
                 input_target = inputs[target]
-                neighbor = diagram.neighbors(input_target)[0]
+                neighbor = list(diagram.neighbors(input_target))[0]
 
                 e = diagram.edge(input_target, neighbor)
-                e_type = diagram.edge_type(input_target, neighbor)
+                e_type = diagram.edge_type(e)
                 diagram.remove_edge(e)
-                diagram.add_edge(new_x, neighbor, edge_type=e_type)
-                diagram.add_edge(new_x, input_target, edge_type=zx.EdgeType.SIMPLE)
+                diagram.add_edge((new_x, neighbor), edge_type=e_type)
+                diagram.add_edge((new_x, input_target), edge_type=zx.EdgeType.SIMPLE)
 
 
                 new_z = diagram.add_vertex(zx.VertexType.Z) # place on control
                 
                 input_control = inputs[control]
-                neighbor = diagram.neighbors(input_control)[0]
+                neighbor = list(diagram.neighbors(input_control))[0]
                 
                 e = diagram.edge(input_control, neighbor)
-                e_type = diagram.edge_type(input_control, neighbor)
+                e_type = diagram.edge_type(e)
                 diagram.remove_edge(e)
-                diagram.add_edge(new_z, neighbor, edge_type=e_type)
-                diagram.add_edge(new_z, input_control, edge_type=zx.EdgeType.SIMPLE)
+                diagram.add_edge((new_z, neighbor), edge_type=e_type)
+                diagram.add_edge((new_z, input_control), edge_type=zx.EdgeType.SIMPLE)
 
-                diagram.add_edge(new_z, new_x, edge_type=zx.EdgeType.SIMPLE)
+                diagram.add_edge((new_z, new_x), edge_type=zx.EdgeType.SIMPLE)
             
         diagram = zx.Graph()
         vertex_map = {}
@@ -218,14 +220,14 @@ class ZXGraph:
             phase , edge_type = _local_clifford_to_pyzx(deco)
             v = diagram.add_vertex(zx.VertexType.Z, phase=phase)
             vertex_map[i] = v
-            diagram.add_edge(boundary, v, edge_type=edge_type)
+            diagram.add_edge((boundary, v), edge_type=edge_type)
         
         diagram.set_inputs(input_boundaries)
         diagram.set_outputs(output_boundaries)
 
         for edge in self.edges:
             u, v = edge
-            diagram.add_edge(vertex_map[u], vertex_map[v], edge_type=zx.EdgeType.HADAMARD)
+            diagram.add_edge((vertex_map[u], vertex_map[v]), edge_type=zx.EdgeType.HADAMARD)
 
         return diagram
     
@@ -365,6 +367,7 @@ def _code_to_graph(code) -> ZXGraph:
 
     # 2.) Encoder circuit -> zx diagram
     zx_diagram = circuit.to_graph()
+    print(zx_diagram)
 
     # 3.) zx diagram -> graph like state
     zx.to_graph_like(zx_diagram)
@@ -374,6 +377,7 @@ def _code_to_graph(code) -> ZXGraph:
         raise ValueError("Expected the ZX diagram to be graph-like after normalization, but it was not.")
 
     # 4.) graph state -> ZXGraph
+    print("Converting graph to ZXGraph...")
     graph = ZXGraph.from_pyzx_diagram(zx_diagram)
 
     return graph
@@ -495,7 +499,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     while changed:
         changed = False 
 
-        for i in range(len(n)):
+        for i in range(n):
             words[i] = _reduce_word(words[i])
             if len(words[i]) < 2:
                 continue
