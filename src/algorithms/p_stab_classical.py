@@ -109,7 +109,7 @@ def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
     # I = (0|0) -> 0, X = (1|0) -> 1, Z = (0|1) -> w, Y = (1|1) -> w_bar
     n = tableau.shape[1] // 2
     r = tableau.shape[0]
-    gf4_matrix = np.zeros([[ZERO for _ in range(n)] for _ in range(r)], dtype=object)
+    gf4_matrix = np.array([[ZERO for _ in range(n)] for _ in range(r)], dtype=object)
     for q in range(n):
         for i in range(r):
             x = tableau[i, q]
