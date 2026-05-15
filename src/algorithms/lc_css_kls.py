@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import ldpc.mod2.mod2_numpy as mod2
 import pyzx as zx
 from fractions import Fraction
 

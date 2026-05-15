@@ -5,7 +5,6 @@ from __future__ import annotations
 from ..core.css_code import CSSCode
 
 import numpy as np
-import numpy.typing as npt
 
 import hashlib
 

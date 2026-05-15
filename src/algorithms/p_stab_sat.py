@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import z3
 
 from ..core.stabilizer_code import StabilizerCode

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
-from itertools import product
 
 from collections import deque
 

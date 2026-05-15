@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import hashlib
 
 import numpy as np
-from itertools import product
 import ldpc.mod2.mod2_numpy as mod2
 
 from ..core.stabilizer_code import StabilizerCode
