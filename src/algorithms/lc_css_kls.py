@@ -128,8 +128,8 @@ class ZXGraph:
                     raise ValueError(f"Unexpected vertex phase {phase} in ZX diagram.")
             
         graph = ZXGraph()
-        pyzx_input_boundaries = sorted([ v for v in diagram.inputs()], key=lambda v: v.id)
-        pyzx_output_boundaries = sorted([ v for v in diagram.outputs()], key=lambda v: v.id)
+        pyzx_input_boundaries = sorted(diagram.inputs(), key=lambda v: getattr(v, "id", v))
+        pyzx_output_boundaries = sorted(diagram.outputs(), key=lambda v: getattr(v, "id", v))
         graph.n = len(pyzx_input_boundaries)
         graph.k = len(pyzx_output_boundaries)
         pyzx_vertices = []
@@ -367,7 +367,6 @@ def _code_to_graph(code) -> ZXGraph:
 
     # 2.) Encoder circuit -> zx diagram
     zx_diagram = circuit.to_graph()
-    print(zx_diagram)
 
     # 3.) zx diagram -> graph like state
     zx.to_graph_like(zx_diagram)
@@ -377,7 +376,6 @@ def _code_to_graph(code) -> ZXGraph:
         raise ValueError("Expected the ZX diagram to be graph-like after normalization, but it was not.")
 
     # 4.) graph state -> ZXGraph
-    print("Converting graph to ZXGraph...")
     graph = ZXGraph.from_pyzx_diagram(zx_diagram)
 
     return graph
@@ -532,6 +530,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     while changed:
         changed = False
         for i in range(n):
+            print(f"Vertex {i} has decoration {graph.vertices[i]}.")
             if graph.vertices[i] == 5: # SH
                 changed = True
                 graph.vertices[i] = 4 # H
@@ -541,8 +540,6 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
                             graph.vertices[p] = 1 if graph.vertices[p] == 0 else 5
                     else:
                         graph.apply_cs_edge(p, q)
-            changed = True
-
     return graph
 
 def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
