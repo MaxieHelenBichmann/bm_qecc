@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import hashlib
 
 import numpy as np
+from itertools import product
 import ldpc.mod2.mod2_numpy as mod2
 
 from ..core.stabilizer_code import StabilizerCode
@@ -107,7 +108,7 @@ def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
     # I -> 0, X -> 1, Z -> w, Y -> w_bar
     n = tableau.shape[1] // 2
     r = tableau.shape[0]
-    gf4_matrix = np.zeros((r, n), dtype=object)
+    gf4_matrix = np.zeros([[ZERO for _ in range(n)] for _ in range(r)], dtype=object)
     for q in range(n):
         for i in range(r):
             x = tableau[i, q]
@@ -167,7 +168,31 @@ def _gf4_rank(matrix: np.ndarray) -> int:
 def _gf4_rref(matrix: np.ndarray) -> np.ndarray:
     return _gf4_rank_rref(matrix)[1]
 
-def _kernel_basis(A: np.ndarray) -> np.ndarray:
+def _gf4_kernel_basis(A: np.ndarray, n: int) -> list[np.ndarray]:
+    # basis of the set of vectors x such that A @ x = 0, with operations done in GF(4)
+    if A.size == 0 or A.shape[0] == 0:
+        return [np.array([ZERO] * i + [ONE] + [ZERO] * (n - i - 1), dtype=object) for i in range(n)]
+    rref = _gf4_rref(A)
+    m, n = rref.shape
+    pivot_cols = []
+    for r in range(m):
+        for c in range(n):
+            if not rref[r, c].is_zero():
+                pivot_cols.append(c)
+                break
+    free_cols = [c for c in range(n) if c not in pivot_cols]
+
+    basis = []
+    for free_col in free_cols:
+        vec = np.array([ZERO for _ in range(n)], dtype=object)
+        vec[free_col] = ONE
+        for i, pivot_col in enumerate(pivot_cols):
+            vec[pivot_col] = -rref[i, free_col]
+        basis.append(vec)
+
+    return basis
+
+def _gf2_kernel_basis(A: np.ndarray) -> np.ndarray:
     A = (np.asarray(A) & 1).astype(np.uint8)
     K = mod2.nullspace(A)
     if hasattr(K, "toarray"):
@@ -183,76 +208,118 @@ def _kernel_basis(A: np.ndarray) -> np.ndarray:
         )
     return K
 
-def _row_basis(M: np.ndarray) -> np.ndarray:
-    M = (np.asarray(M) & 1).astype(np.uint8)
-    if M.size == 0:
-        return np.zeros((0, M.shape[1]), dtype=np.uint8)
-    B = mod2.row_basis(M)
-    if hasattr(B, "toarray"):
-        B = B.toarray()
-    B = (np.asarray(B) & 1).astype(np.uint8)
-    if B.size == 0:
-        return np.zeros((0, M.shape[1]), dtype=np.uint8)
-    if B.ndim == 1:
-        B = B.reshape(1, -1)
-    return B
+def _gf4_row_basis(M: np.ndarray) -> list[np.ndarray]:
+    # basis (base vectors as columns) of the row space of M, with operations done in GF(4)
+    if M.shape[0] == 0:
+        return [np.array([ZERO] * M.shape[1], dtype=object)]
+    rref = _gf4_rref(M)
+    pivot_rows = []
+    for i in range(rref.shape[0]):
+        if not all(rref[i, c].is_zero() for c in range(rref.shape[1])):
+            pivot_rows.append(i)
+    return [rref[i, :] for i in pivot_rows]
 
-def _compute_signatures(G1: np.ndarray, G2: np.ndarray) -> list[int]:
-    """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the CSS code.
+def _gf4_trace_inner_product(a: np.ndarray, b: np.ndarray) -> GF4:
+    sum = ZERO
+    for i in range(len(a)):
+        sum += a[i].conjugate() * b[i] + a[i] * b[i].conjugate()
+    return sum
+
+def _gf4_gram(G: np.ndarray) -> np.ndarray:
+    # gram matrix of G and G in GF(4) but stabilizer semantics
+    k = G.shape[0]
+
+    gram = np.zeros((k, k), dtype=np.uint8)
+
+    for i in range(k):
+        for j in range(k):
+            gram[i, j] = _gf4_trace_inner_product(G[i], G[j]).value
+
+    return gram
+
+def _gf4_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    # gram matrix of A and B in GF(4)
+    m, ra = A.shape
+    rb, n = B.shape
+    if ra != rb:
+        raise ValueError("Incompatible shapes for matrix multiplication.")
+    
+    C = np.empty((m, n), dtype=object)
+    for i in range(m):
+        for j in range(n):
+            s = ZERO
+            for t in range(ra):
+                s += A[i, t] * B[t, j]
+            C[i, j] = s
+    return C
+
+def _gf2_gf4_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+    # gram matrix of A in GF(2) and B in GF(4)
+    m, ra = A.shape
+    rb, n = B.shape
+    if ra != rb:
+        raise ValueError("Incompatible shapes for matrix multiplication.")
+    
+    C = np.empty((m, n), dtype=object)
+    for i in range(m):
+        for j in range(n):
+            s = ZERO
+            for t in range(ra):
+                s += GF4(A[i, t]) * B[t, j]
+            C[i, j] = s
+    return C
+
+def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
+    """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the code.
     """
     def _weight_enumerator_of_hull_punctured(G: np.ndarray, col_idx: int) -> list[int]:
-        Gp = np.delete(G, col_idx, axis=1).astype(np.uint8) & 1
+        Gp = np.delete(G, col_idx, axis=1)
         g_p = Gp.shape[1]
 
-        gram = (Gp @ Gp.T) & 1
+        if Gp.shape[0] == 0:
+            return [1] + [0] * g_p
 
-        if gram.size == 0:
-            hull_basis = np.zeros((0, g_p), dtype=np.uint8)
-        elif not gram.any():
-            hull_basis = _row_basis(Gp)
+        # gram is in GF(2) due to the trace inner product that simulates the symplectic product (aka commutation/anti-commutation)
+        gram = _gf4_gram(Gp)
+
+        coeff_basis = _gf2_kernel_basis(gram.T) # c @ gram = gram.T @ c.T = 0 -> x = c @ Gp with <x, Gp[i]> = 0 for all rows j -> x orthogonal to all rows of Gp -> x in Gp perp
+            
+        if coeff_basis.shape[0] == 0:
+            hull_basis = np.zeros((0, g_p), dtype=object)
         else:
-            coeff_basis = _kernel_basis(gram)
+            hull_basis = np.array(_gf4_row_basis(_gf2_gf4_matmul(coeff_basis, Gp)), dtype=object) # c @ Gp = x -> words in Gp that are orthogonal to all rows of Gp -> hull
 
-            if coeff_basis.shape[0] == 0:
-                hull_basis = np.zeros((0, g_p), dtype=np.uint8)
-            else:
-                hull_basis = _row_basis((coeff_basis @ Gp) & 1)
-
-        h = hull_basis.shape[0]
+        hull_h, hull_n = hull_basis.shape
         enumerator = [1] + [0] * g_p
 
-        word = np.zeros(g_p, dtype=np.uint8)
+        word = np.array([ZERO for _ in range(hull_n)], dtype=object)
         previous_gray = 0
 
-        for t in range(1, 1 << h):
+        for t in range(1, 1 << hull_h):
             gray = t ^ (t >> 1)
             changed = gray ^ previous_gray
             row_idx = changed.bit_length() - 1
 
-            word ^= hull_basis[row_idx]
-            enumerator[int(word.sum())] += 1
+            # GF(2)-additive
+            for j in range(hull_n):
+                word[j] += hull_basis[row_idx, j]
 
+            wt = sum(not x.is_zero() for x in word)
+            enumerator[wt] += 1
+            
             previous_gray = gray
 
         return enumerator
-
-    def _combine_invariants(inv_hx: list[int], inv_hz: list[int]) -> int:
-        payload = (
-            ",".join(map(str, inv_hx))
-            + "|"
-            + ",".join(map(str, inv_hz))
-        ).encode("ascii")
-        return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
     
-
+    def _hash_enumerator(enum: list[int]) -> int:
+        payload = (",".join(map(str, enum))).encode("ascii")
+        return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
 
     invariants = []
 
-    for col_idx in range(G1.shape[1]):
-        inv1 = _weight_enumerator_of_hull_punctured(G1, col_idx)
-        inv2 = _weight_enumerator_of_hull_punctured(G2, col_idx)
-
-        invariants.append(_combine_invariants(inv1, inv2))
+    for col_idx in range(generator_matrix.shape[1]):
+        inv = _hash_enumerator(_weight_enumerator_of_hull_punctured(generator_matrix, col_idx))
+        invariants.append(inv)
 
     return invariants
 
@@ -276,7 +343,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
         pivot_row = 0
 
         for c in range(i):
-            if _rank(M[:, : c + 1]) > _rank(M[:, :c]): # independent column, bring it to semi-canonical form (dependent case not important for binary matrices)
+            if _gf4_rank(M[:, : c + 1]) > _gf4_rank(M[:, :c]): # independent column, bring it to semi-canonical form (dependent case not important for binary matrices)
                 if pivot_row >= k_m:
                     continue
 
@@ -378,18 +445,12 @@ def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     This algorithm should be more efficient than the brute-force algorithm, since it avoids checking all permutations, BUT it is still not efficient in the worst case. And using GF(4) instead of a binary code like in the CSS case make the computations more complex.
     """  
-    gf4_tableau_c1 = c1.symplectic.astype(np.uint8) & 1
-    gf4_tableau_c2 = c2.symplectic.astype(np.uint8) & 1
+    gf4_tableau_c1 = _symplectic_to_gf4(c1.symplectic)
+    gf4_tableau_c2 = _symplectic_to_gf4(c2.symplectic)
 
     # Sendrier
-
-    def _generator_matrix_from_parity_check(H: np.ndarray, n: int) -> np.ndarray:
-        if H.size == 0 or H.shape[0] == 0:
-            return np.eye(n, dtype=np.uint8)
-        return _kernel_basis(H)
-
-    G1 = _generator_matrix_from_parity_check(gf4_tableau_c1, c1.n)
-    G2 = _generator_matrix_from_parity_check(gf4_tableau_c2, c2.n)
+    G1 = np.array(_gf4_kernel_basis(gf4_tableau_c1, c1.n), dtype=object) 
+    G2 = np.array(_gf4_kernel_basis(gf4_tableau_c2, c2.n), dtype=object) 
 
     signatures_c1 = _compute_signatures(G1)
     signatures_c2 = _compute_signatures(G2)
