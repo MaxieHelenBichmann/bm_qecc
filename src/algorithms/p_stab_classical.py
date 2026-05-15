@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 import hashlib
 
@@ -105,7 +106,7 @@ W = GF4(2)
 W_BAR = GF4(3)
 
 def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
-    # I -> 0, X -> 1, Z -> w, Y -> w_bar
+    # I = (0|0) -> 0, X = (1|0) -> 1, Z = (0|1) -> w, Y = (1|1) -> w_bar
     n = tableau.shape[1] // 2
     r = tableau.shape[0]
     gf4_matrix = np.zeros([[ZERO for _ in range(n)] for _ in range(r)], dtype=object)
@@ -124,18 +125,29 @@ def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
 
     return gf4_matrix
 
-def _gf4_rank_rref(matrix: np.ndarray) -> tuple[int, np.ndarray]:
-    # matrix has GF(4) entries
+def _gf4_rref(matrix: np.ndarray, to_col: int | None = None) -> tuple[int, np.ndarray, list[int]]:
+    # matrix has GF(4) entries, this is NOT the normal RREF of GF(4)-linear codes, but of GF(4)-additive codes!
+    def _gf4_bit(x: GF4, bit_col: int, n: int) -> int:
+        return x.value >> (bit_col // n) & 1
+
     if matrix.shape[0] == 0:
-        return 0, matrix
+        return 0, matrix, []
+    
     matrix = matrix.copy()
     m, n = matrix.shape
     rank = 0
     row = 0
-    for col in range(n):
+    pivot_columns = []
+
+    if to_col is None:
+        to_col = n
+
+    for bit_col in range(2*to_col):
+        col = bit_col % to_col
+
         pivot = None
         for r in range(row, m):
-            if not matrix[r, col].is_zero():
+            if _gf4_bit(matrix[r, col], bit_col, to_col):
                 pivot = r
                 break
 
@@ -145,79 +157,17 @@ def _gf4_rank_rref(matrix: np.ndarray) -> tuple[int, np.ndarray]:
         if pivot != row:
             matrix[[row, pivot]] = matrix[[pivot, row]]
 
-        pivot_value = matrix[row, col]
-        matrix[row, :] = [x / pivot_value for x in matrix[row, :]]
-
         for r in range(m):
-            if r != row and not matrix[r, col].is_zero():
-                factor = matrix[r, col]
+            if r != row and _gf4_bit(matrix[r, col], bit_col, to_col):
+                for c in range(n):
+                    matrix[r, c] += matrix[row, c]
 
-                matrix[r, :] = [
-                    matrix[r, c] - factor * matrix[row, c]
-                    for c in range(n)
-                ]
+        pivot_columns.append(col)
         rank += 1
         row += 1
         if row == m:
             break
-    return rank, matrix
-
-def _gf4_rank(matrix: np.ndarray) -> int:
-    return _gf4_rank_rref(matrix)[0]
-
-def _gf4_rref(matrix: np.ndarray) -> np.ndarray:
-    return _gf4_rank_rref(matrix)[1]
-
-def _gf4_kernel_basis(A: np.ndarray, n: int) -> list[np.ndarray]:
-    # basis of the set of vectors x such that A @ x = 0, with operations done in GF(4)
-    if A.size == 0 or A.shape[0] == 0:
-        return [np.array([ZERO] * i + [ONE] + [ZERO] * (n - i - 1), dtype=object) for i in range(n)]
-    rref = _gf4_rref(A)
-    m, n = rref.shape
-    pivot_cols = []
-    for r in range(m):
-        for c in range(n):
-            if not rref[r, c].is_zero():
-                pivot_cols.append(c)
-                break
-    free_cols = [c for c in range(n) if c not in pivot_cols]
-
-    basis = []
-    for free_col in free_cols:
-        vec = np.array([ZERO for _ in range(n)], dtype=object)
-        vec[free_col] = ONE
-        for i, pivot_col in enumerate(pivot_cols):
-            vec[pivot_col] = -rref[i, free_col]
-        basis.append(vec)
-
-    return basis
-
-def _gf2_kernel_basis(A: np.ndarray) -> np.ndarray:
-    A = (np.asarray(A) & 1).astype(np.uint8)
-    K = mod2.nullspace(A)
-    if hasattr(K, "toarray"):
-        K = K.toarray()
-    K = (np.asarray(K) & 1).astype(np.uint8)
-    if K.size == 0:
-        return np.zeros((0, A.shape[1]), dtype=np.uint8)
-    if K.ndim == 1:
-        K = K.reshape(1, -1)
-    if K.shape[1] != A.shape[1]:
-        raise ValueError(
-            "Kernel basis must have the same number of columns as the input matrix."
-        )
-    return K
-
-def _gf4_row_basis(M: np.ndarray) -> list[np.ndarray]:
-    # basis (base vectors as columns) of the row space of M, with operations done in GF(4)
-    if M.shape[0] == 0:
-        return [np.array([ZERO] * M.shape[1], dtype=object)]
-    rref = _gf4_rref(M)
-    pivot_rows = []
-    for i in range(rref.shape[0]):
-        if not all(rref[i, c].is_zero() for c in range(rref.shape[1])):
-            pivot_rows.append(i)
-    return [rref[i, :] for i in pivot_rows]
+    return rank, matrix, pivot_columns
 
 def _gf4_trace_inner_product(a: np.ndarray, b: np.ndarray) -> GF4:
     sum = ZERO
@@ -225,53 +175,68 @@ def _gf4_trace_inner_product(a: np.ndarray, b: np.ndarray) -> GF4:
         sum += a[i].conjugate() * b[i] + a[i] * b[i].conjugate()
     return sum
 
-def _gf4_gram(G: np.ndarray) -> np.ndarray:
-    # gram matrix of G and G in GF(4) but stabilizer semantics
-    k = G.shape[0]
-
-    gram = np.zeros((k, k), dtype=np.uint8)
-
-    for i in range(k):
-        for j in range(k):
-            gram[i, j] = _gf4_trace_inner_product(G[i], G[j]).value
-
-    return gram
-
-def _gf4_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-    # gram matrix of A and B in GF(4)
-    m, ra = A.shape
-    rb, n = B.shape
-    if ra != rb:
-        raise ValueError("Incompatible shapes for matrix multiplication.")
-    
-    C = np.empty((m, n), dtype=object)
-    for i in range(m):
-        for j in range(n):
-            s = ZERO
-            for t in range(ra):
-                s += A[i, t] * B[t, j]
-            C[i, j] = s
-    return C
-
-def _gf2_gf4_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-    # gram matrix of A in GF(2) and B in GF(4)
-    m, ra = A.shape
-    rb, n = B.shape
-    if ra != rb:
-        raise ValueError("Incompatible shapes for matrix multiplication.")
-    
-    C = np.empty((m, n), dtype=object)
-    for i in range(m):
-        for j in range(n):
-            s = ZERO
-            for t in range(ra):
-                s += GF4(A[i, t]) * B[t, j]
-            C[i, j] = s
-    return C
-
 def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
     """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the code.
     """
+    def _gf2_kernel_basis(A: np.ndarray) -> np.ndarray:
+        A = (np.asarray(A) & 1).astype(np.uint8)
+        K = mod2.nullspace(A)
+        if hasattr(K, "toarray"):
+            K = K.toarray()
+        K = (np.asarray(K) & 1).astype(np.uint8)
+        if K.size == 0:
+            return np.zeros((0, A.shape[1]), dtype=np.uint8)
+        if K.ndim == 1:
+            K = K.reshape(1, -1)
+        if K.shape[1] != A.shape[1]:
+            raise ValueError(
+               "Kernel basis must have the same number of columns as the input matrix."
+            )
+        return K
+    
+    def _gf4_row_basis(M: np.ndarray) -> list[np.ndarray]:
+        # basis (base vectors as columns) of the row space of M, with operations done in GF(4)
+        if M.shape[0] == 0:
+            return [np.array([ZERO] * M.shape[1], dtype=object)]
+        rank, rref , _ = _gf4_rref(M)
+
+        if rank == M.shape[0]:
+            return [rref[i, :] for i in range(rank)]
+    
+        pivot_rows = []
+        for i in range(rref.shape[0]):
+            if not all(rref[i, c].is_zero() for c in range(rref.shape[1])):
+                pivot_rows.append(i)
+        return [rref[i, :] for i in pivot_rows]
+    
+    def _gf4_gram(G: np.ndarray) -> np.ndarray:
+        # gram matrix of G and G in GF(4) but stabilizer semantics
+        k = G.shape[0]
+
+        gram = np.zeros((k, k), dtype=np.uint8)
+
+        for i in range(k):
+            for j in range(k):
+                gram[i, j] = _gf4_trace_inner_product(G[i], G[j]).value
+
+        return gram
+    
+    def _gf2_gf4_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
+        # gram matrix of A in GF(2) and B in GF(4)
+        m, ra = A.shape
+        rb, n = B.shape
+        if ra != rb:
+            raise ValueError("Incompatible shapes for matrix multiplication.")
+    
+        C = np.empty((m, n), dtype=object)
+        for i in range(m):
+            for j in range(n):
+                s = ZERO
+                for t in range(ra):
+                    s += GF4(A[i, t]) * B[t, j]
+                C[i, j] = s
+        return C
+
     def _weight_enumerator_of_hull_punctured(G: np.ndarray, col_idx: int) -> list[int]:
         Gp = np.delete(G, col_idx, axis=1)
         g_p = Gp.shape[1]
@@ -306,7 +271,7 @@ def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
 
             wt = sum(not x.is_zero() for x in word)
             enumerator[wt] += 1
-            
+
             previous_gray = gray
 
         return enumerator
@@ -324,72 +289,38 @@ def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
     return invariants
 
 def _partition_columns_by_invariants(invariants: list[int]) -> dict[int, list[int]]:
-    partition = {}
+    partition = defaultdict(list)
     for idx, inv in enumerate(invariants):
-        if inv not in partition:
-            partition[inv] = []
         partition[inv].append(idx)
     return {k: sorted(v) for k, v in sorted(partition.items(), key=lambda item: item[0])}
 
-def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.ndarray, list[list[int]]]:
-    """Compute the canonical form of Hx of the CSS code, using Feulner's algorithm, and return the canonical form and the corresponding permutation of the columns. Partition is used for pruning the search tree.
+def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.ndarray:
+    """Compute the canonical form of the GF(4) representation of the  code, using Feulner's algorithm, and return the canonical form and the corresponding permutation of the columns. Partition is used for pruning the search tree.
     """
     def _prefix_semicanonical(G: np.ndarray, i: int) -> np.ndarray:
-        """Bring the first i columns of G into semi-canonical form only using row operations."""
-        M = np.array(G, dtype=np.int8, copy=True) & 1
-        k_m, n_m = M.shape
-        if i == 0:
-            return M
-        pivot_row = 0
-
-        for c in range(i):
-            if _gf4_rank(M[:, : c + 1]) > _gf4_rank(M[:, :c]): # independent column, bring it to semi-canonical form (dependent case not important for binary matrices)
-                if pivot_row >= k_m:
-                    continue
-
-                pivot_candidates = np.flatnonzero(M[pivot_row:, c])
-
-                if pivot_candidates.size == 0:
-                    continue
-
-                pivot = pivot_row + int(pivot_candidates[0])
-
-                # swap row with potential pivot up
-                if pivot != pivot_row:
-                    M[[pivot_row, pivot], :] = M[[pivot, pivot_row], :]
-
-                # make pivot column a unit vector
-                for r in range(k_m):
-                    if r != pivot_row and M[r, c]:
-                        M[r, :] ^= M[pivot_row, :]
-
-                pivot_row += 1
-
-        return M
+        """Bring the first i columns of G into semi-canonical form only using GF(2) row operations."""
+        _, rref_to_i , _ = _gf4_rref(G.copy(), to_col=i)
+        return rref_to_i
 
     def _flatten(cells_: list[list[int]]) -> list[int]:
         return [c for cell in cells_ for c in cell]
 
     def matrix_key(M: np.ndarray) -> tuple[tuple[int, ...], ...]:
-        M = np.asarray(M, dtype=np.int8) & 1
         k_m, n_m = M.shape
-        return tuple(tuple(int(M[r, c]) for r in range(k_m)) for c in range(n_m))
+        return tuple(tuple(M[r, c].value for r in range(k_m)) for c in range(n_m))
 
     def prefix_key(M: np.ndarray, i: int) -> tuple[tuple[int, ...], ...]:
         return matrix_key(M[:, :i]) # lexicographic key of the first i columns of M, because python can compare tuples
 
-
-    G = np.array(G, dtype=np.int8, copy=True) & 1
-    k_g, n_g = G.shape
+    n_g = matrix.shape[1]
     best_matrix: np.ndarray | None = None
     best_full_key: tuple[tuple[int, ...], ...] | None = None
-    best_perms: list[list[list[int]]] = []
 
     def _search(prefix: list[int], remaining_cells: list[list[int]]) -> None: # recursive search over the space of permutations
-        nonlocal best_matrix, best_full_key, best_perms
+        nonlocal best_matrix, best_full_key
         i = len(prefix)
         trial_perm = prefix + _flatten(remaining_cells)
-        M_trial = G[:, trial_perm]
+        M_trial = matrix[:, trial_perm]
         M_semi = _prefix_semicanonical(M_trial, i)
 
         # Prefix pruning.
@@ -404,7 +335,6 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
             if current_prefix < best_prefix: # update the best prefix, since we found a better one on current path
                 best_matrix = None 
                 best_full_key = None
-                best_perms = []
 
         if i == n_g: # we are at leaf (have a full permutation)
             full_key = matrix_key(M_semi)
@@ -412,10 +342,6 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
             if best_full_key is None or full_key < best_full_key:
                 best_full_key = full_key
                 best_matrix = M_semi
-                best_perms = [prefix.copy()]
-
-            elif full_key == best_full_key:
-                best_perms.append(prefix.copy())
             return
 
         # Select first nonempty cell
@@ -431,17 +357,19 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
 
     _search([], cells)
 
-    return best_matrix, best_perms
+    return best_matrix
 
 
 def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:  
     """Check permutation equivalence mapping a tableau to GF(4) and using algorithms for classical code equivalence. A two-layer approach is used, where the first layer uses Sendrier's Support Splitting Algorithm to partition the columns of the generator matrices into equivalence classes based on the weight enumerator of the hull of the punctured code. 
     The second layer then checks for permutation equivalence by traversing the search tree of possible permutations, and pruning branches based on the canonical form of Feulner's Algorithm.
-    
+
+    ! ATTENTION ! I might map the stabilizer tableau to a classical code over GF(4), but i cannot use all the operations in GF(4) since the original stabilizer code is only GF(2)-additive and i have to keep that property. Thus computing the RREF is NOT the normal RREF of GF(4)-linear codes, similar for the semicanonical form, and as the inner product I use the trace inner product.
+
     For each code, the following is done:
     1.) Map the stabilizer tableau to a classical code over GF(4).
-    2.) Partition the columns of the generator matrix into equivalence classes according to the weight enumerator of Sendrier (we risk a complex computation O(2^k) for both Hx and Hz to have a better chance of a fine-grained partition)
-    3.) Canonicalize the generator matrices using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations. 
+    2.) Partition the columns of the matrix into equivalence classes according to the weight enumerator of Sendrier
+    3.) Canonicalize the matrices using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations. 
 
     This algorithm should be more efficient than the brute-force algorithm, since it avoids checking all permutations, BUT it is still not efficient in the worst case. And using GF(4) instead of a binary code like in the CSS case make the computations more complex.
     """  
@@ -449,11 +377,8 @@ def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     gf4_tableau_c2 = _symplectic_to_gf4(c2.symplectic)
 
     # Sendrier
-    G1 = np.array(_gf4_kernel_basis(gf4_tableau_c1, c1.n), dtype=object) 
-    G2 = np.array(_gf4_kernel_basis(gf4_tableau_c2, c2.n), dtype=object) 
-
-    signatures_c1 = _compute_signatures(G1)
-    signatures_c2 = _compute_signatures(G2)
+    signatures_c1 = _compute_signatures(gf4_tableau_c1)
+    signatures_c2 = _compute_signatures(gf4_tableau_c2)
 
     partition_c1 = _partition_columns_by_invariants(signatures_c1)
     partition_c2 = _partition_columns_by_invariants(signatures_c2)
@@ -465,7 +390,7 @@ def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
             return False
 
     # Feulner
-    canon_c1 = _compute_canonical_form(G1, list(partition_c1.values()))
-    canon_c2 = _compute_canonical_form(G2, list(partition_c2.values()))
+    canon_c1 = _compute_canonical_form(gf4_tableau_c1, list(partition_c1.values()))
+    canon_c2 = _compute_canonical_form(gf4_tableau_c2, list(partition_c2.values()))
 
     return np.array_equal(canon_c1, canon_c2) 
