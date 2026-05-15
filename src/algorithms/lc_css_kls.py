@@ -266,7 +266,7 @@ class ZXGraph:
 def _code_to_encoder_circuit(code) -> zx.Circuit:
     def _delete_first_row_and_qubit(tab: np.ndarray) -> np.ndarray:
         n = tab.shape[1] // 2
-        return np.delete(np.delete(np.delete(tab, 0, axis=0), 0, axis=0) , n, axis=0)
+        return np.delete(np.delete(np.delete(tab, 0, axis=0), 0, axis=1) , n-1, axis=1)
 
     tableau = np.asarray(code.symplectic.copy(), dtype=np.uint8) & 1
     n = code.n
@@ -293,16 +293,16 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
             z_q = bool(tableau[0, cur_n + q])
             if x_q and z_q:
                 # Y -> X under S
-                tableau[:, q + n] ^= tableau[:, q]
-                tableau[:, [q, q + n]] = tableau[:, [q + n, q]]
+                tableau[:, q + cur_n] ^= tableau[:, q]
+                tableau[:, [q, q + cur_n]] = tableau[:, [q + cur_n, q]]
                 elimination_gates.append(("S", (original_qubits[q],)))
                 elimination_gates.append(("H", (original_qubits[q],)))
             elif x_q and not z_q:
                 # X -> Z under H
-                tableau[:, [q, q + n]] = tableau[:, [q + n, q]]
+                tableau[:, [q, q + cur_n]] = tableau[:, [q + cur_n, q]]
                 elimination_gates.append(("H", (original_qubits[q],)))
 
-        # 2.) make the first qubit Z CNOT(0 -> pivot)
+        # 2.) make the first qubit Z (pivot) CNOT(0 -> pivot)
         z_support = np.flatnonzero(tableau[0, cur_n:])
 
         if len(z_support) == 0:
@@ -317,7 +317,7 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
         # control: (x_c|z_c) --CNOT--> (  x_c  |z_c^z_t)
         # target : (x_t|z_t) --CNOT--> (x_t^x_c|  z_t  )
         for q in range(1, cur_n):
-            if tableau[:, cur_n + q] == 1:
+            if tableau[0, cur_n + q] == 1:
                 tableau[:, 0] ^= tableau[:, q]
                 tableau[:, cur_n + q] ^= tableau[:, cur_n + 0]
 
@@ -328,22 +328,22 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
         if (
             np.count_nonzero(tableau[0, :cur_n]) != 0
             or np.count_nonzero(tableau[0, cur_n:]) != 1
-            or tableau[0, cur_n + pivot] != 1
+            or tableau[0, cur_n] != 1
         ):
             raise RuntimeError("Failed to isolate a stabilizer as a single Z.")
-
+        
         # 4.) clear pivot column
         for r in range(1, tableau.shape[0]):
-            if tableau[r, cur_n + pivot]:
+            if tableau[r, cur_n]:
                 tableau[r] ^= tableau[0]
-            if tableau[r, pivot]:
+            if tableau[r, 0]:
                 raise RuntimeError(
                     "A remaining row has X on the pivot qubit."
                 )
 
         # 5.) remove stabilizer and qubit
         tableau = _delete_first_row_and_qubit(tableau)
-        del original_qubits[pivot]
+        del original_qubits[0]
 
     # encoder = inverse elimination Cliffords
     circuit = zx.Circuit(n)
