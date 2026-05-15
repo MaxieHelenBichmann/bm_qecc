@@ -73,7 +73,7 @@ def are_peq_stab_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     V = {1,...,n} union { S_i | S_i ∈ S } with color(S_i) 
     E = { (j, S_i, red) | S_i has X on qubit j } union { (j, S_i, green) | S_i has Z on qubit j }
 
-    2.) Check if the resulting graphs are isomorphic
+    2.) Check if the resulting graphs are isomorphic.
 
     By creating a node for each element of the stabilizer group, this being independent from the generator basis, and by splitting the X and Z edges, we create a graph of an exponential size, which is not efficient.
     """   

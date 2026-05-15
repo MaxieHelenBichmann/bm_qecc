@@ -368,8 +368,8 @@ def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     For each code, the following is done:
     1.) Map the stabilizer tableau to a classical code over GF(4).
-    2.) Partition the columns of the matrix into equivalence classes according to the weight enumerator of Sendrier
-    3.) Canonicalize the matrices using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations. 
+    2.) Partition the columns of the matrix into equivalence classes according to the weight enumerator of Sendrier.
+    3.) Canonicalize the matrices using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations.
 
     This algorithm should be more efficient than the brute-force algorithm, since it avoids checking all permutations, BUT it is still not efficient in the worst case. And using GF(4) instead of a binary code like in the CSS case make the computations more complex.
     """  
