@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from collections import Counter
+from itertools import combinations
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
@@ -154,14 +156,29 @@ def non_permutation_equivalent_stabilizer_code(code: StabilizerCode, seed: int |
     rng = np.random.default_rng(seed)
     if code.k == code.n:
         raise ValueError("No non-equivalent stabilizer code exists with these small invariants.")
-    invariant = _stabilizer_weight_enumerator(code)
+
+    if code.n - code.k < 10:
+        invariant = _stabilizer_weight_enumerator(code)
+    elif code.n < 20:
+        invariant = _cheap_invariant(code)
+    else:
+        invariant = _very_cheap_invariant(code)
+
     for _ in range(10_000):
         candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
         candidate = random_stabilizer_code(code.n, code.k, seed=candidate_seed)
-        if _stabilizer_weight_enumerator(candidate) != invariant:
-            return candidate
+        if code.n - code.k < 10:
+            if _stabilizer_weight_enumerator(candidate) != invariant:
+                return candidate
+        elif code.n < 20:
+            if _cheap_invariant(candidate) != invariant:
+                return candidate
+        else:
+            if _very_cheap_invariant(candidate) != invariant:
+                return candidate
 
-    raise ValueError("Could not find a candidate with a different stabilizer weight enumerator.")
+
+    raise ValueError("Could not find a candidate with a different invariant.")
 
 def random_permuted_stabilizer_pair(
     n: int,
@@ -191,7 +208,11 @@ def random_non_permuted_stabilizer_pair(
     other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
 
     code = random_stabilizer_code(n, k, seed=code_seed)
-    return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed)
+    try:
+        return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed)
+    except ValueError:
+        code = random_stabilizer_code(n, k, seed=code_seed+42)
+        return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed+69)
 
 def random_non_permuted_css_pair(    
     n: int,
@@ -207,7 +228,11 @@ def random_non_permuted_css_pair(
     rx = int(rng.integers(0, n - k + 1))
 
     code = random_css_code(n, k, rx, seed=code_seed)
-    return code, non_permutation_equivalent_css_code(code, seed=other_seed)
+    try:
+        return code, non_permutation_equivalent_css_code(code, seed=other_seed)
+    except ValueError:
+        code = random_css_code(n, k, rx, seed=code_seed+42)
+        return code, non_permutation_equivalent_css_code(code, seed=other_seed+69)
 
 def random_permuted_css_pair(
     n: int,
@@ -266,6 +291,60 @@ def _rank_binary(matrix: np.ndarray) -> int:
     matrix = np.asarray(matrix, dtype=np.int8) % 2
     return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
 
+def _very_cheap_invariant(code: StabilizerCode) -> int:
+    return int(np.any(np.sum(code.symplectic, axis=1) % 2))
+
+def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
+    M = np.asarray(code.symplectic, dtype=np.uint8) & 1
+    n = code.n
+    r = _rank_binary(M)
+
+    profile = []
+
+    for w in range(1, max_w + 1):
+        projection_ranks = Counter()
+        normalizer_support_dims = Counter()
+        stabilizer_support_dims = Counter()
+
+        for qubits in combinations(range(n), w):
+            qubits = set(qubits)
+
+            cols = [c for q in qubits for c in (q, q + n)]
+            proj_rank = _rank_binary(M[:, cols])
+
+            projection_ranks[proj_rank] += 1
+
+            # Dimension of normalizer elements supported inside this subset.
+            normalizer_support_dims[2 * w - proj_rank] += 1
+
+            complement_cols = [
+                c
+                for q in range(n)
+                if q not in qubits
+                for c in (q, q + n)
+            ]
+
+            # Dimension of stabilizers supported inside this subset.
+            stabilizer_support_dims[r - _rank_binary(M[:, complement_cols])] += 1
+
+        profile.append((
+            tuple(sorted(projection_ranks.items())),
+            tuple(sorted(normalizer_support_dims.items())),
+            tuple(sorted(stabilizer_support_dims.items())),
+        ))
+
+    return tuple(profile)
+
+def _cheap_invariant(code: StabilizerCode) -> tuple[int, int, int, int]:
+    M = np.asarray(code.symplectic, dtype=np.uint8) & 1
+    n = code.n
+    return (
+        _rank_binary(M),
+        _rank_binary(M[:, :n]),
+        _rank_binary(M[:, n:]),
+        _rank_binary(M[:, :n] ^ M[:, n:]),
+        _support_rank_invariant(code, max_w=3)
+    )
 
 def _stabilizer_weight_enumerator(code: StabilizerCode) -> tuple[tuple[tuple[int, int, int, int], int], ...]:
     enumerator: dict[tuple[int, int, int, int], int] = {}

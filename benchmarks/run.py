@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
 
-from matplotlib.pylab import seed
 import numpy as np
 
 from src.algorithms.lc_css_bruteforce import is_lceq_css_bruteforce
@@ -114,32 +113,42 @@ def default_cases(seed: int) -> list[Case]:
     shor = CSSCode.from_file("data/shor")
     tetrahedral = CSSCode.from_file("data/tetrahedral")
 
-    random_case_stab1, random_case_stab2 = random_permuted_stabilizer_pair(4, 2, seed=seed)
-    random_case_css1, random_case_css2 = random_permuted_css_pair(8, 3, seed=seed + 1)
-    random_case_non_permuted_css1 , random_case_non_permuted_css2 = random_non_permuted_css_pair(10, 3, seed=seed + 2)
-    random_case_non_permuted_stab1 , random_case_non_permuted_stab2 = random_non_permuted_stabilizer_pair(10, 3, seed=seed + 3)
+    def random_non_permuted_css_case(n: int, k: int, case_seed: int) -> Case:
+        code1, code2 = random_non_permuted_css_pair(n, k, seed=case_seed)
+        return Case(
+            name=f"random_non_permuted_css_{n}",
+            inputs=(code1, code2),
+            expected_p=False,
+            expected_lc=None,
+        )
 
-    random_stb1_5, random_stb2_5 = random_permuted_stabilizer_pair(5, 1, seed=seed + 16)
-    random_stb1_10, random_stb2_10 = random_permuted_stabilizer_pair(10, 4, seed=seed + 17)
-    random_stb1_12, random_stb2_12 = random_permuted_stabilizer_pair(12, 4, seed=seed + 18)
-    random_stb1_14, random_stb2_14 = random_permuted_stabilizer_pair(14, 3, seed=seed + 19)
-    random_stb1_20, random_stb2_20 = random_permuted_stabilizer_pair(20, 4, seed=seed + 20)
-    random_stb1_30, random_stb2_30 = random_permuted_stabilizer_pair(30, 5, seed=seed + 21)
-    random_stb1_40, random_stb2_40 = random_permuted_stabilizer_pair(40, 10, seed=seed + 22)
-    random_stb1_50, random_stb2_50 = random_permuted_stabilizer_pair(50, 15, seed=seed + 23)
-    random_stb1_60, random_stb2_60 = random_permuted_stabilizer_pair(60, 20, seed=seed + 24)
-    random_stb1_70, random_stb2_70 = random_permuted_stabilizer_pair(70, 12, seed=seed + 25)
+    def random_permuted_css_case(n: int, k: int, case_seed: int) -> Case:
+        code1, code2 = random_permuted_css_pair(n, k, seed=case_seed)
+        return Case(
+            name=f"random_permuted_css_{n}",
+            inputs=(code1, code2),
+            expected_p=True,
+            expected_lc=None,
+        )
 
-    random_stb1_non_5, random_stb2_non_5 = random_non_permuted_stabilizer_pair(5, 1, seed=seed + 20)
-    random_stb1_non_10, random_stb2_non_10 = random_non_permuted_stabilizer_pair(10, 4, seed=seed + 21)
-    random_stb1_non_12, random_stb2_non_12 = random_non_permuted_stabilizer_pair(12, 4, seed=seed + 22)
-    random_stb1_non_14, random_stb2_non_14 = random_non_permuted_stabilizer_pair(14, 3, seed=seed + 23)
-    random_stb1_non_20, random_stb2_non_20 = random_non_permuted_stabilizer_pair(20, 4, seed=seed + 20)
-    random_stb1_non_30, random_stb2_non_30 = random_non_permuted_stabilizer_pair(30, 5, seed=seed + 21)
-    random_stb1_non_40, random_stb2_non_40 = random_non_permuted_stabilizer_pair(40, 10, seed=seed + 22)
-    random_stb1_non_50, random_stb2_non_50 = random_non_permuted_stabilizer_pair(50, 15, seed=seed + 23)
-    random_stb1_non_60, random_stb2_non_60 = random_non_permuted_stabilizer_pair(60, 20, seed=seed + 24)
-    random_stb1_non_70, random_stb2_non_70 = random_non_permuted_stabilizer_pair(70, 12, seed=seed + 25)
+    def random_non_permuted_stabilizer_case(n: int, k: int, case_seed: int) -> Case:
+        code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
+        return Case(
+            name=f"random_non_permuted_stb_{n}",
+            inputs=(code1, code2),
+            expected_p=False,
+            expected_lc=None,
+        )
+    
+    def random_permuted_stabilizer_case(n: int, k: int, case_seed: int) -> Case:
+        code1, code2 = random_permuted_stabilizer_pair(n, k, seed=case_seed)
+        return Case(
+            name=f"random_permuted_stb_{n}",
+            inputs=(code1, code2),
+            expected_p=True,
+            expected_lc=None,
+        )
+
 
 
     # ---------------------
@@ -207,174 +216,6 @@ def default_cases(seed: int) -> list[Case]:
             expected_lc=None,
     )
 
-    case_random_permuted_css = Case(
-            name="random_permuted_stb",
-            inputs=(random_case_stab1, random_case_stab2),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_permuted_stb = Case(
-            name="random_permuted_css", 
-            inputs=(random_case_css1, random_case_css2),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_non_permuted_css = Case(
-            name="random_non_permuted_css",
-            inputs=(random_case_non_permuted_css1, random_case_non_permuted_css2),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_non_permuted_stb = Case(
-            name="random_non_permuted_stb", 
-            inputs=(random_case_non_permuted_stab1, random_case_non_permuted_stab2),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_5 = Case(
-            name="random_permuted_stb_5",
-            inputs=(random_stb1_5, random_stb2_5),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_10 = Case(
-            name="random_permuted_stb_10",
-            inputs=(random_stb1_10, random_stb2_10),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_12 = Case(
-            name="random_permuted_stb_12",
-            inputs=(random_stb1_12, random_stb2_12),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_14 = Case(
-            name="random_permuted_stb_14",
-            inputs=(random_stb1_14, random_stb2_14),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_20 = Case(
-            name="random_permuted_stb_20",
-            inputs=(random_stb1_20, random_stb2_20),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_30 = Case(
-            name="random_permuted_stb_30",
-            inputs=(random_stb1_30, random_stb2_30),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_40 = Case(
-            name="random_permuted_stb_40",
-            inputs=(random_stb1_40, random_stb2_40),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_50 = Case(
-            name="random_permuted_stb_50",
-            inputs=(random_stb1_50, random_stb2_50),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_60 = Case(
-            name="random_permuted_stb_60",
-            inputs=(random_stb1_60, random_stb2_60),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_70 = Case(
-            name="random_permuted_stb_70",
-            inputs=(random_stb1_70, random_stb2_70),
-            expected_p=True,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_5 = Case(
-            name="random_non_permuted_stb_5",
-            inputs=(random_stb1_non_5, random_stb2_non_5),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_10 = Case(
-            name="random_non_permuted_stb_10",
-            inputs=(random_stb1_non_10, random_stb2_non_10),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_12 = Case(
-            name="random_non_permuted_stb_12",
-            inputs=(random_stb1_non_12, random_stb2_non_12),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_14 = Case(
-            name="random_non_permuted_stb_14",
-            inputs=(random_stb1_non_14, random_stb2_non_14),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_20 = Case(
-            name="random_non_permuted_stb_20",
-            inputs=(random_stb1_non_20, random_stb2_non_20),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_30 = Case(
-            name="random_non_permuted_stb_30",
-            inputs=(random_stb1_non_30, random_stb2_non_30),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_40 = Case(
-            name="random_non_permuted_stb_40",
-            inputs=(random_stb1_non_40, random_stb2_non_40),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_50 = Case(
-            name="random_non_permuted_stb_50",
-            inputs=(random_stb1_non_50, random_stb2_non_50),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_60 = Case(
-            name="random_non_permuted_stb_60",
-            inputs=(random_stb1_non_60, random_stb2_non_60),
-            expected_p=False,
-            expected_lc=None,
-    )
-
-    case_random_stb_non_70 = Case(
-            name="random_non_permuted_stb_70",
-            inputs=(random_stb1_non_70, random_stb2_non_70),
-            expected_p=False,
-            expected_lc=None,
-    )
-
     case_five_qubits_lc_only = Case(
             name="five_qubits_lc_only",
             inputs=(five_qubit_perfect, lc_equivalent_code(five_qubit_perfect, seed=seed + 3)),
@@ -409,33 +250,32 @@ def default_cases(seed: int) -> list[Case]:
     ]
 
     random_permuted = [
-        case_random_permuted_css, # n = 4 , k = 2
-        case_random_permuted_stb, # n = 8 , k = 3
-        case_random_stb_5, # n = 5 , k = 1
-        case_random_stb_10, # n = 10 , k = 4
-        case_random_stb_12, # n = 12 , k = 4
-        case_random_stb_14, # n = 14 , k = 3
-        case_random_stb_20, # n = 20 , k = 4
-        case_random_stb_30, # n = 30 , k = 5
-        case_random_stb_40, # n = 40 , k = 10
-        case_random_stb_50, # n = 50 , k = 15
-        case_random_stb_60, # n = 60 , k = 20
-        case_random_stb_70, # n = 70 , k = 12
+        random_permuted_css_case(4, 2, seed + 0),
+        random_permuted_stabilizer_case(4, 2, seed + 1),
+        random_permuted_stabilizer_case(5, 1, seed + 2),
+        random_permuted_stabilizer_case(10, 4, seed + 3), 
+        random_permuted_stabilizer_case(12, 4, seed + 4), 
+        random_permuted_stabilizer_case(14, 3, seed + 5), 
+        random_permuted_stabilizer_case(20, 4, seed + 6), 
+        random_permuted_stabilizer_case(30, 5, seed + 7),
+        random_permuted_stabilizer_case(40, 10, seed + 8), 
+        random_permuted_stabilizer_case(50, 15, seed + 9), 
+        random_permuted_stabilizer_case(60, 20, seed + 10), 
+        random_permuted_stabilizer_case(70, 12, seed + 11), 
     ]
 
     random_non_permuted = [
-        case_random_non_permuted_css, #  n = 10 , k = 4
-        case_random_non_permuted_stb, #  n = 10 , k = 4
-        case_random_stb_non_5, # n = 5 , k = 1
-        case_random_stb_non_10, # n = 10 , k = 4
-        case_random_stb_non_12, # n = 12 , k = 4
-        case_random_stb_non_14, # n = 14 , k = 3
-        case_random_stb_non_20, # n = 20 , k = 4
-        case_random_stb_non_30, # n = 30 , k = 5
-        case_random_stb_non_40, # n = 40 , k = 10
-        case_random_stb_non_50, # n = 50 , k = 15
-        case_random_stb_non_60, # n = 60 , k = 20
-        case_random_stb_non_70, # n = 70 , k = 12
+        random_non_permuted_css_case(8, 3, seed + 19), 
+        random_non_permuted_stabilizer_case(5, 1, seed + 20), 
+        random_non_permuted_stabilizer_case(10, 4, seed + 21), 
+        random_non_permuted_stabilizer_case(12, 4, seed + 22), 
+        random_non_permuted_stabilizer_case(14, 3, seed + 23), 
+        random_non_permuted_stabilizer_case(20, 4, seed + 20), 
+        random_non_permuted_stabilizer_case(30, 5, seed + 21), 
+        random_non_permuted_stabilizer_case(40, 10, seed + 22), 
+        random_non_permuted_stabilizer_case(50, 15, seed + 23), 
+        random_non_permuted_stabilizer_case(60, 20, seed + 24),
+        random_non_permuted_stabilizer_case(70, 12, seed + 25),
     ]
 
     known_lc = [
