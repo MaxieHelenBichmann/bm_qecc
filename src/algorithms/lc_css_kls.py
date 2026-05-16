@@ -73,7 +73,7 @@ class ZXGraph:
         elif d == 7:
             return ["H", "S"], True
         else:
-            raise ValueError(f"Invalid local Clifford decoration {d}.")
+            raise ValueError(f"After simplifying the ZX graph: Invalid local Clifford decoration {d}.")
         
     @staticmethod
     def word_to_decoration(word: tuple[list[str], bool]) -> int:
@@ -90,6 +90,8 @@ class ZXGraph:
             return 4
         elif s == ["H"] and z:
             return 6
+        else:
+            raise ValueError(f"After reduction of decorations: Expected only I, S, or H decorations, but got: {s}")
 
     @staticmethod
     def from_pyzx_diagram(diagram: zx.Graph) -> ZXGraph:
@@ -362,7 +364,7 @@ def _code_to_graph(code) -> ZXGraph:
     zx.to_graph_like(zx_diagram)
 
     if not zx.is_graph_like(zx_diagram, strict=True):
-        raise ValueError("Expected the ZX diagram to be graph-like after normalization, but it was not.")
+        raise ValueError("Expected the ZX diagram to be graph-like, but it was not.")
 
     # 4.) graph state -> ZXGraph
     graph = ZXGraph.from_pyzx_diagram(zx_diagram)
@@ -373,35 +375,26 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     """Requirements HK normal form:
     1.) graph like state (only Z nodes, one Z node per boundary, no inner Z edges, only H-edges between Z nodes)
     2.) Requirements on LC decorations:
-        - only decorations I , S , H allowed
+        - only decorations I , S , H allowed (apart from additional Z phases)
         - if vertex has a H decoration, then it cannot have a neighbor with a smaller index
     """ 
-    def _h_slide_down(g: ZXGraph, upper: int, lower: int) -> ZXGraph:
+    def _h_slide_down(g: ZXGraph, words: list[tuple[list[str], bool]], upper: int, lower: int) -> ZXGraph:
         # (Eq. 13) H_upper |G> = H_lower Z_upper Z_lower prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(upper) union {upper}, B = N(lower) union {lower}
-        def _add_z_decoration(v: int):
-            if g.vertices[v] in (0, 4): # I -> Z, H -> HZ
-                g.vertices[v] += 2
-            elif g.vertices[v] in (1, 5): # S -> S†, SH -> S†H
-                g.vertices[v] += 2
-            elif g.vertices[v] in (2, 6): # Z -> I, ZH -> H
-                g.vertices[v] -= 2
-            elif g.vertices[v] in (3, 7): # S† -> S, S†H -> SH
-                g.vertices[v] -= 2
-
         A = set(g.neighbors(upper)) | {upper}
         B = set(g.neighbors(lower)) | {lower}
 
-        g.vertices[upper] -= 4 # remove H decoration
-        g.vertices[lower] += 4 # add H decoration
+        words[upper] = ( words[upper][0][:-1] , words[upper][1] ^ True ) # remove H, add Z
 
-        g.vertices[upper] = _add_z_decoration(g.vertices[upper])
-        g.vertices[lower] = _add_z_decoration(g.vertices[lower])
+        if words[lower][0] and words[lower][0][-1] == "H": # add H, add Z
+            words[lower] = ( words[lower][0][:-1] , words[lower][1] ^ True )
+        else:
+            words[lower] = ( words[lower][0] + ["H"] , words[lower][1] ^ True )
 
         for p in A:
             for q in B:
                 if p == q:
-                    g.vertices[p] = _add_z_decoration(g.vertices[p])
+                    words[p] = ( words[p][0] , words[p][1] ^ True ) # add Z
                 else:
                     g.apply_cz_edge(p, q)
 
@@ -515,7 +508,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     n = graph.n + graph.k
 
     # 1.) reduce LC decorations to either I, S, or H (and potentially additional Z bit)
-    words : list[tuple[list[str], bool]]= [ZXGraph.decoration_to_word(d) for d in graph.vertices] # during step 1 this is the ONLY valid state of the decorations, not the graph.vertices array
+    words : list[tuple[list[str], bool]]= [ZXGraph.decoration_to_word(d) for d in graph.vertices] # during HK simplification this is the ONLY valid state of the decorations, not the graph.vertices array, probably improve that
     changed = True
     while changed:
         changed = False 
@@ -537,32 +530,43 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
                 changed = True
                 break
 
-    graph.vertices = [ZXGraph.word_to_decoration(_reduce_word(w)) for w in words] # should only be I, S, or H decorations left I hope
+    for i in range(n):
+        deco, _ = words[i] # should only be I, S, or H decorations (+ additional Z bits) left I hope (aka I, Z, S, SZ = S†, H, HZ)
+        if deco not in ([], ["S"], ["H"]):
+            raise ValueError(f"After reduction of decorations: Expected only I, S, or H decorations, but got: {deco}.")
 
+     # I -> 0, S -> 1, Z -> 2, S† -> 3,  H -> 4, HS -> 5, HZ -> 6, HS† -> 7
+            
     # 2.) slides H down
     for x in reversed(range(n)):
-        while graph.vertices[x] in (5, 7): # x has a Hadamard component
-            low_neighbors = [v for v in range(graph.n + graph.k) if (v, x) in graph.edges]
+        while words[x][0] == ["H"]: # x has a Hadamard component
+            low_neighbors = [v for v in range(n) if (v, x) in graph.edges]
             if len(low_neighbors) == 0:
                 break
 
             y = min(low_neighbors)
-            graph = _h_slide_down(graph, x, y)
+            _h_slide_down(graph, words, x, y)
+
+    for x in range(n):
+        if not words[x][0] in ([], ["H"], ["S"], ["S", "H"]):
+            raise ValueError(f"After sliding down all H: Expected only I, S, H decorations, but got: {words[x][0]}.")
+    # now should only have decorations I , H, S, SH
     
-    # 3.) cleanup decorations
-    changed = True
-    while changed:
-        changed = False
-        for i in range(n):
-            if graph.vertices[i] == 5: # SH
-                changed = True
-                graph.vertices[i] = 4 # H
-                for p in graph.neighbors(i):
-                    for q in graph.neighbors(i):
-                        if p == q:
-                            graph.vertices[p] = 1 if graph.vertices[p] == 0 else 5
-                    else:
-                        graph.apply_cs_edge(p, q)
+    # 3.) cleanup SH decorations
+    for i in range(n):
+        if words[i][0] == ["S", "H"]: # apply Eq. 11
+            words[i] = (["H"], words[i][1])
+            for p in graph.neighbors(i):
+                if words[p][0] == []:
+                    words[p] = (["S"], words[p][1])
+                if words[p][0] == ["S"]:
+                    words[p] = ([], words[p][1] ^ True)
+                else:
+                    raise ValueError(f"Expected only I, S decorations in the neighborhood of a H-decorated vertex, but got: {words[p][0]}")
+            graph.local_complementation(i)
+
+    graph.vertices = [ZXGraph.word_to_decoration(_reduce_word(w)) for w in words] 
+
     return graph
 
 def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
