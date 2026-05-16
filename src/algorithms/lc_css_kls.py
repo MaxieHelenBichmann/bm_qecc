@@ -360,7 +360,6 @@ def _code_to_graph(code) -> ZXGraph:
 
     # 3.) zx diagram -> graph like state
     zx.to_graph_like(zx_diagram)
-    zx_diagram.normalize() 
 
     if not zx.is_graph_like(zx_diagram, strict=True):
         raise ValueError("Expected the ZX diagram to be graph-like after normalization, but it was not.")
@@ -408,69 +407,58 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
 
         return g
     
-    def _reduce_trailing_HS(g: ZXGraph, words: list[list[str]], i: int):
+    def _reduce_trailing_HS(g: ZXGraph, words: list[tuple[list[str], bool]], i: int):
         # (Eq. 12) H_i S_i |G> = S_i^3 prod_{p in N(i)} Z_p prod_{p,q in N(i)} CS_{p,q} |G>
-        words[i] = words[i][:-2]
-
-        words[i] += ["S", "S", "S"]
+        words[i] = ( words[i][0][:-2] + ["S", "S", "S"], words[i][1] )
 
         for j in g.neighbors(i):
-            words[j] += ["S", "S"]
+            words[j][0].extend(["S", "S"])
 
         # as we handle every subset {p,q} of N(i) twice - as apply_cs_edge(p, q) and apply_cs_edge(q, p) - it effectively applies a CZ between them -> local complementation, with applying S to every neighbor of i (I THINK)
         #
         # for p in g.neighbors(i):
         #     for q in g.neighbors(i):
         #         if p == q:
-        #            words[p] += ["S"]
+        #            words[p][0] += ["S"]
         #         else:
         #             g.apply_cs_edge(p, q) 
-        
+
         for p in g.neighbors(i):
-            words[p] += ["S"]
+            words[p][0].append("S")
 
         g.local_complementation(i)
 
-    def _reduce_solo_trailing_SH(g: ZXGraph, words: list[list[str]], i: int):
+    def _reduce_solo_trailing_SH(g: ZXGraph, words: list[tuple[list[str], bool]], i: int):
         # (Eq. 11) S_i H_i |G> = H_i prod_{p,q in N(i)} CS_{p,q} |G>
-        words[i] = words[i][:-2] + ["H"]
+        words[i] = (words[i][0][:-2] + ["H"], words[i][1])
 
         # as we handle every subset {p,q} of N(i) twice - as apply_cs_edge(p, q) and apply_cs_edge(q, p) - it effectively applies a CZ between them -> local complementation, with applying S to every neighbor of i (I THINK)
         #
         # for p in g.neighbors(i):
         #    for q in g.neighbors(i):
         #        if p == q:
-        #            words[p] += ["S"]
+        #            words[p][0] += ["S"]
         #        else:
         #            g.apply_cs_edge(p, q)
 
         for p in g.neighbors(i):
-            words[p] += ["S"]
-        
+            words[p][0].append("S")
+
         g.local_complementation(i)
 
-    def _reduce_shared_trailing_SH(g: ZXGraph, words: list[list[str]], i: int, j: int):
+    def _reduce_shared_trailing_SH(g: ZXGraph, words: list[tuple[list[str], bool]], i: int, j: int):
         # (Eq. 11) H_i H_j|G> = Z_i Z_j prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(i) union {i}, B = N(j) union {j}
-        def _add_z_decoration(v: int) -> list[str]:
-            if v[-2:] == ["S", "S"]:
-                return v[-2:]
-            return v + ["S", "S"]
-            
-
         A = set(g.neighbors(i)) | {i}
         B = set(g.neighbors(j)) | {j}
 
-        words[i] = words[i][:-1]
-        words[j] = words[j][:-1]
-
-        words[i] = _add_z_decoration(words[i])
-        words[j] = _add_z_decoration(words[j])
+        words[i] = ( words[i][0][:-1] + ["S", "S"], words[i][1] )
+        words[j] = ( words[j][0][:-1] + ["S", "S"], words[j][1] )
 
         for p in A:
             for q in B:
                 if p == q:
-                    words[p] = _add_z_decoration(words[p])
+                    words[p][0].extend(["S", "S"])
                 else:
                     g.apply_cz_edge(p, q)
 
@@ -541,7 +529,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
                 changed = True
                 break
             if words[i][-2:][0] == ["S", "H"]:
-                h_neighbors = [ j for j in graph.neighbors(i) if len(words[j][0]) >= 2 and words[j][0][-1:] == ["H"] ]
+                h_neighbors = [ j for j in graph.neighbors(i) if words[j][0][-1:] == ["H"] ]
                 if len(h_neighbors) == 0:
                     _reduce_solo_trailing_SH(graph, words, i)
                 else:
@@ -620,7 +608,6 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
     zx_diagram = graph_hk.to_pyzx_diagram(cnots=cnots_gates)
 
     zx.to_graph_like(zx_diagram)
-    zx_diagram.normalize() 
 
     # 4.) graph state -> ZXGraph
     graph = ZXGraph.from_pyzx_diagram(zx_diagram)
