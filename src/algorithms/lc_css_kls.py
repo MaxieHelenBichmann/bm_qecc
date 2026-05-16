@@ -234,15 +234,12 @@ class ZXGraph:
         n = self.n + self.k
         colors = np.full(n, -1, dtype=np.int8)
 
-        print("neighbors")
         neighbors_list = [ set() for _ in range(n) ]
         for u, v , _ in self.edges:
             (neighbors_list[u]).add(v)
             (neighbors_list[v]).add(u)
 
-        print("start BFS")
         for start in range(n):
-            print(start)
             if colors[start] != -1:
                 continue
 
@@ -250,7 +247,6 @@ class ZXGraph:
             frontier = np.array([start], dtype=int)
 
             while frontier.size:
-                print(frontier)
                 current_color = colors[frontier[0]]
                 next_color = 1 - current_color
 
@@ -262,7 +258,7 @@ class ZXGraph:
                 if np.any(colors[neighbors] == current_color):
                     return False
 
-                new = list(neighbors)[colors[neighbors] == -1]
+                new = neighbors[colors[neighbors] == -1]
                 colors[new] = next_color
                 frontier = new
 
@@ -607,5 +603,4 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
     graph = _code_to_graph(code)
     graph_hk = _hk_normal_form(graph)
     graph_kls = _kls_normal_form(graph_hk)
-    print("Checking if graph is bipartite...")
     return graph_kls.is_bipartite()
