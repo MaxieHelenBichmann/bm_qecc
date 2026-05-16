@@ -15,12 +15,12 @@ class ZXGraph:
         # each node is represented as its local clifford decoration, and identified with the index in the array, input nodes before output nodes
         # I -> 0, S -> 1, Z -> 2, S† -> 3,  H -> 4, HS -> 5, HZ -> 6, HS† -> 7
         self.vertices = []
-        self.edges : set[tuple[int, int, bool]]= set() # (u,v) with u < v ;  bool is True if edge is a CS edge (aka phase 1/2), only needed temporarily during HK normal form reduction
+        self.edges : set[tuple[int, int]]= set() # (u,v) with u < v ;  bool is True if edge is a CS edge (aka phase 1/2), only needed temporarily during HK normal form reduction
     
     def get_input_output_adjacency(self) -> np.ndarray:
         adj = np.zeros((self.k, self.n), dtype=bool)
         for edge in self.edges:
-            u, v, _ = edge
+            u, v = edge
             if u < self.k and v >= self.k:
                 adj[u, v - self.k] = True
         return adj
@@ -28,7 +28,7 @@ class ZXGraph:
     def get_full_adjacency(self) -> np.ndarray:
         adj = np.zeros((self.n + self.k, self.n + self.k), dtype=bool)
         for edge in self.edges:
-            u, v, _ = edge
+            u, v = edge
             i = self.vertices.index(u)
             j = self.vertices.index(v)
             adj[i, j] = True
@@ -36,29 +36,23 @@ class ZXGraph:
         return adj
     
     def neighbors(self, v: int) -> list[int]:
-        return [u for u in range(self.n + self.k) if (u, v, True) in self.edges or (u, v, False) in self.edges or (v, u, True) in self.edges or (v, u, False) in self.edges]
+        return [u for u in range(self.n + self.k) if (u, v) in self.edges or (v, u) in self.edges]
+    
+    def local_complementation(self, v: int):
+        neighbors = self.neighbors(v)
+        for i in range(len(neighbors)):
+            for j in range(i + 1, len(neighbors)):
+                p = neighbors[i]
+                q = neighbors[j]
+                self.apply_cz_edge(p, q)
 
-    def apply_cz_edge(self, u: int, v: int):
+    def apply_cz_edge(self, u: int, v: int): # toggle the edge (u,v)
         min_u_v = min(u, v)
         max_u_v = max(u, v)
-        if (min_u_v, max_u_v, False) in self.edges: # toggle edge
-            self.edges.remove((min_u_v, max_u_v, False))
-        elif (min_u_v, max_u_v, True) in self.edges: # cs + cz = csss = cs
-            pass
-        else: # toggle edge
-            self.edges.add((min_u_v, max_u_v, False))
-
-    def apply_cs_edge(self, u: int, v: int):
-        min_u_v = min(u, v)
-        max_u_v = max(u, v)
-        if (min_u_v, max_u_v, False) in self.edges: # cs + cz = csss = cs
-            self.edges.remove((min_u_v, max_u_v, False))
-            self.edges.add((min_u_v, max_u_v, True))
-        elif (min_u_v, max_u_v, True) in self.edges: # cs + cs = cz
-            self.edges.remove((min_u_v, max_u_v, True))
-            self.edges.add((min_u_v, max_u_v, False))
-        else:
-            self.edges.add((min_u_v, max_u_v, True))
+        if (min_u_v, max_u_v) in self.edges: 
+            self.edges.remove((min_u_v, max_u_v))
+        else: 
+            self.edges.add((min_u_v, max_u_v))
 
     @staticmethod
     def decoration_to_word(d : int) -> tuple[list[str], bool]:
@@ -222,7 +216,7 @@ class ZXGraph:
         diagram.set_outputs(output_boundaries)
 
         for edge in self.edges:
-            u, v , _ = edge
+            u, v = edge
             diagram.add_edge((vertex_map[u], vertex_map[v]), edgetype=zx.EdgeType.HADAMARD)
 
         return diagram
@@ -232,7 +226,7 @@ class ZXGraph:
         colors = np.full(n, -1, dtype=np.int8)
 
         neighbors_list = [ set() for _ in range(n) ]
-        for u, v , _ in self.edges:
+        for u, v in self.edges:
             (neighbors_list[u]).add(v)
             (neighbors_list[v]).add(u)
 
@@ -423,23 +417,37 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
         for j in g.neighbors(i):
             words[j] += ["S", "S"]
 
+        # as we handle every subset {p,q} of N(i) twice - as apply_cs_edge(p, q) and apply_cs_edge(q, p) - it effectively applies a CZ between them -> local complementation, with applying S to every neighbor of i (I THINK)
+        #
+        # for p in g.neighbors(i):
+        #     for q in g.neighbors(i):
+        #         if p == q:
+        #            words[p] += ["S"]
+        #         else:
+        #             g.apply_cs_edge(p, q) 
+        
         for p in g.neighbors(i):
-            for q in g.neighbors(i):
-                if p == q:
-                    words[p] += ["S"]
-                else:
-                    g.apply_cs_edge(p, q)
+            words[p] += ["S"]
+
+        g.local_complementation(i)
 
     def _reduce_solo_trailing_SH(g: ZXGraph, words: list[list[str]], i: int):
         # (Eq. 11) S_i H_i |G> = H_i prod_{p,q in N(i)} CS_{p,q} |G>
         words[i] = words[i][:-2] + ["H"]
 
+        # as we handle every subset {p,q} of N(i) twice - as apply_cs_edge(p, q) and apply_cs_edge(q, p) - it effectively applies a CZ between them -> local complementation, with applying S to every neighbor of i (I THINK)
+        #
+        # for p in g.neighbors(i):
+        #    for q in g.neighbors(i):
+        #        if p == q:
+        #            words[p] += ["S"]
+        #        else:
+        #            g.apply_cs_edge(p, q)
+
         for p in g.neighbors(i):
-            for q in g.neighbors(i):
-                if p == q:
-                    words[p] += ["S"]
-                else:
-                    g.apply_cs_edge(p, q)
+            words[p] += ["S"]
+        
+        g.local_complementation(i)
 
     def _reduce_shared_trailing_SH(g: ZXGraph, words: list[list[str]], i: int, j: int):
         # (Eq. 11) H_i H_j|G> = Z_i Z_j prod_{p in A, q in B} CZ_{p,q} |G>
@@ -546,7 +554,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
     # 2.) slides H down
     for x in reversed(range(n)):
         while graph.vertices[x] in (5, 7): # x has a Hadamard component
-            low_neighbors = [v for v in range(graph.n + graph.k) if (v, x, True) in graph.edges or (v, x, False) in graph.edges]
+            low_neighbors = [v for v in range(graph.n + graph.k) if (v, x) in graph.edges]
             if len(low_neighbors) == 0:
                 break
 
@@ -579,8 +587,8 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
     for q in range(graph_hk.k):
         graph_hk.vertices[q] = 0
         for i in range(q + 1, graph_hk.k):
-            if {q, i} in graph_hk.edges:
-                graph_hk.edges.remove({q, i})
+            if (q, i) in graph_hk.edges:
+                graph_hk.edges.remove((q, i))
 
     # 2.) bring the IO-adjacency matrix into RREF
     adj = graph_hk.get_input_output_adjacency()
