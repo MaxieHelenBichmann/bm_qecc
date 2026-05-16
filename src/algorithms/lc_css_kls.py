@@ -546,7 +546,7 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
     """
     # 1.) set input vertices to have no decoration and no edges
     for q in range(graph_hk.k):
-        graph_hk.vertices[q] = 0
+        graph_hk.vertices[q] = ([], False)
         for i in range(q + 1, graph_hk.k):
             if (q, i) in graph_hk.edges:
                 graph_hk.edges.remove((q, i))
