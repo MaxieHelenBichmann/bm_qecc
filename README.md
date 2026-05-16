@@ -35,7 +35,7 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 #### Stabilizer Codes
 - [x] Brute Force
 - [x] Graph State Machinery
-- [ ] Classical Algorithms
+- [x] Classical Algorithms
 - [x] Automorphisms
 - [x] Graph Isomorphism
 - [x] SAT
@@ -46,7 +46,7 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 
 #### $C \thicksim_{LC} \ C_{CSS}$
 - [x] Brute Force
-- [ ] KLS Normal Form
+- [x] KLS Normal Form
 - [x] Graph State Machinery with LC Orbit
 
 
