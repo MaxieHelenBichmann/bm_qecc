@@ -61,44 +61,41 @@ class ZXGraph:
             self.edges.add((min_u_v, max_u_v, True))
 
     @staticmethod
-    def decoration_to_word(d : int) -> list[str]:
+    def decoration_to_word(d : int) -> tuple[list[str], bool]:
         if d == 0:
-            return []
+            return [], False
         elif d == 1:
-            return ["S"]
+            return ["S"], False
         elif d == 2:
-            return ["S", "S"]
+            return [], True
         elif d == 3:
-            return ["S", "S", "S"]
+            return ["S"], True
         elif d == 4:
-            return ["H"]
+            return ["H"], False
         elif d == 5:
-            return ["H", "S"]
+            return ["H", "S"], False
         elif d == 6:
-            return ["H", "S", "S"]
+            return ["H"], True
         elif d == 7:
-            return ["H", "S", "S", "S"]
+            return ["H", "S"], True
         else:
             raise ValueError(f"Invalid local Clifford decoration {d}.")
         
     @staticmethod
-    def word_to_decoration(s: list[str]) -> int:
-        if s == []:
+    def word_to_decoration(word: tuple[list[str], bool]) -> int:
+        s, z = word
+        if s == [] and not z:
             return 0
-        elif s == ["S"]:
+        elif s == ["S"] and not z:
             return 1
-        elif s == ["S", "S"]:
+        elif s == [] and z:
             return 2
-        elif s == ["S", "S", "S"]:
+        elif s == ["S"] and z:
             return 3
-        elif s == ["H"]:
+        elif s == ["H"] and not z:
             return 4
-        elif s == ["H", "S"]:
-            return 5
-        elif s == ["H", "S", "S"]:
+        elif s == ["H"] and z:
             return 6
-        elif s == ["H", "S", "S", "S"]:
-            return 7
 
     @staticmethod
     def from_pyzx_diagram(diagram: zx.Graph) -> ZXGraph:
@@ -471,47 +468,79 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
 
         return g
     
-    def _reduce_word(word: list[str]) -> list[str]:
+    def _reduce_word(word: tuple[list[str], bool]) -> tuple[list[str], bool]:
+        new_z_bit = word[1]
+        deco = word[0]
+        # remove identities and push Z back
         changed = True
         while changed:
-            new_word = []
+            new_deco = []
             changed = False
-            for i in range(len(word)):
-                if i < len(word) - 1 and ((word[i] == "H" and word[i + 1] == "H") or (word[i] == "Z" and word[i + 1] == "Z")):
-                    changed = True
-                elif i < len(word) - 1 and (word[i] == "S" and word[i + 1] == "S"):
-                    new_word += ["Z"]
-                    changed = True
-                else:
-                    new_word.append(word[i])
-            word = new_word
+            i = 0
+
+            while i < len(deco):
+                if i + 1 < len(deco):
+                    a, b = deco[i], deco[i + 1]
+
+                    if (a == "H" and b == "H") or (a == "Z" and b == "Z"):
+                        changed = True
+                        i += 2
+                        continue
+                    if a == "S" and b == "S":
+                        changed = True
+                        new_deco += ["Z"]
+                        i += 2
+                        continue
+                    if a == "Z" and b == "S":
+                        changed = True
+                        new_deco += ["S", "Z"]
+                        i += 2
+                        continue
+                new_deco.append(deco[i])
+                i += 1
+            
+            deco = new_deco
         
-        return word
+        # remove Z at the end
+        while deco and deco[-1] == "Z":
+            deco = deco[:-1]
+            new_z_bit ^= True
+
+        # make valid decoration
+        extended_deco = []
+        for i in range(len(deco)):
+            if deco[i] == "Z":
+                extended_deco += ["S", "S"]
+            else:
+                extended_deco.append(deco[i])
+        
+        return extended_deco, new_z_bit
     
     n = graph.n + graph.k
 
-    # 1.) reduce LC decorations to either I, S, or H
-    words = [ZXGraph.decoration_to_word(d) for d in graph.vertices] # during step 1 this is the ONLY valid state of the decorations, not the graph.vertices array
+    # 1.) reduce LC decorations to either I, S, or H (and potentially additional Z bit)
+    words : list[tuple[list[str], bool]]= [ZXGraph.decoration_to_word(d) for d in graph.vertices] # during step 1 this is the ONLY valid state of the decorations, not the graph.vertices array
     changed = True
     while changed:
         changed = False 
 
         for i in range(n):
             words[i] = _reduce_word(words[i])
-            if len(words[i]) < 2:
+            if len(words[i][0]) < 2:
                 continue
-            if words[i][-2:] == ["H", "S"]:
+            if words[i][-2:][0] == ["H", "S"]:
                 _reduce_trailing_HS(graph, words, i)
                 changed = True
                 break
-            if words[i][-2:] == ["S", "H"]:
-                h_neighbors = [ j for j in graph.neighbors(i) if len(words[j]) >= 2 and words[j][-1:] == ["H"] ]
+            if words[i][-2:][0] == ["S", "H"]:
+                h_neighbors = [ j for j in graph.neighbors(i) if len(words[j][0]) >= 2 and words[j][0][-1:] == ["H"] ]
                 if len(h_neighbors) == 0:
                     _reduce_solo_trailing_SH(graph, words, i)
                 else:
                     _reduce_shared_trailing_SH(graph, words, i, h_neighbors[0])
                 changed = True
                 break
+
     graph.vertices = [ZXGraph.word_to_decoration(_reduce_word(w)) for w in words] # should only be I, S, or H decorations left I hope
 
     # 2.) slides H down
