@@ -97,10 +97,17 @@ python3 -m benchmarks.run
 
 Certain parameters can be set as well, e.g. in the following commands
 ```bash
-python -m benchmarks.run --repeats 1
-python -m benchmarks.run --output results/bm_output.csv
-python -m benchmarks.run --seed 69
-python -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
+python3 -m benchmarks.run --repeats 1
+python3 -m benchmarks.run --output results/bm_output.csv
+python3 -m benchmarks.run --seed 69
+python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
+```
+
+### Tests
+
+There are also **some** (not extensive) tests, which can be run from the project root in the directory `tests/test_*.py`. For the near future, they won't be particularly substantial, only some scripts testing some algorithm sections in more detail.
+```bash
+python3 -m tests.test_*
 ```
 
 ### Dependencies
