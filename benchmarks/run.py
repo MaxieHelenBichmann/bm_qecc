@@ -36,6 +36,7 @@ from .utils import (
     random_permuted_css_pair,
     random_non_permuted_stabilizer_pair,
     random_non_permuted_css_pair,
+    random_css_code,
 )
 
 @dataclass(frozen=True)
@@ -148,8 +149,15 @@ def default_cases(seed: int) -> list[Case]:
             expected_p=True,
             expected_lc=None,
         )
-
-
+    
+    def random_lcc_css_case(n: int, k: int, case_seed: int) -> Case:
+        code = random_css_code(n, k, seed=case_seed)
+        return Case(
+            name=f"random_lcc_css_{n}",
+            inputs=(lc_equivalent_code(code, seed=case_seed + 420),),
+            expected_p=None,
+            expected_lc=True,
+        )
 
     # ---------------------
 
@@ -237,6 +245,20 @@ def default_cases(seed: int) -> list[Case]:
             expected_lc=True,
     )
 
+    case_three_qubits_lc_css = Case(
+            name="three_qubits_lc_css",
+            inputs=tuple([lc_equivalent_code(three_bit_repetition, seed=seed + 1337)]),
+            expected_p=None, 
+            expected_lc=True,
+    )
+
+    case_steane_lc_css = Case(
+            name="steane_lc_css",
+            inputs=tuple([lc_equivalent_code(steane, seed=seed + 1337)]),
+            expected_p=None, 
+            expected_lc=True,
+    )
+
     known_permuted = [
         case_bell_pair_same, # n = 2 , k = 0
         case_three_qubits_permuted, # n = 3 , k = 1
@@ -280,11 +302,20 @@ def default_cases(seed: int) -> list[Case]:
 
     known_lc = [
         case_five_qubits_lc_only, # n = 5 , k = 1
-        case_shor_lc_only, # n = 9 , k = 1
+        case_shor_lc_only, # n = 9 , k = 1 
+    ]
+
+    known_lc_css = [
+        case_three_qubits_lc_css, # n = 3 , k = 1
+        case_steane_lc_css, # n = 7 , k = 1
         case_shor_lc_css, # n = 9 , k = 1
     ]
 
-    return known_permuted + random_permuted + random_non_permuted + known_lc
+    random_lc_css = [
+        random_lcc_css_case(10, 4, seed + 69),
+    ]
+
+    return random_lc_css
 
 
 def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
@@ -354,6 +385,9 @@ def write_csv(results: Sequence[Result], seed: int, output: Path) -> None:
         for result in results
     ]
 
+    if len(rows) == 0:
+        return
+
     with output.open("w", newline="", encoding="utf-8") as file:
         csv.writer(file).writerow([seed])
         writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
@@ -386,6 +420,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     algorithm_names = args.algorithm or all_algorithm_names()
     results = run_benchmarks(default_cases(seed=args.seed), algorithm_names, args.repeats)
     write_csv(results, args.seed, args.output)
+
+    if len(results) == 0:
+        print("No cases ran, no results to show.")
+        return 0
+    
     print(f"Benchmark results for global seed {args.seed}:\n")
 
     for result in results:
