@@ -29,7 +29,7 @@ def test_are_peq_css_bruteforce_random_positive(seed: int) -> None:
     try:
         code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
     except RandomizeError as re:
-        pytest.skip(f"Skipping test [[{n}, {k}]] with seed {seed} due to randomization error: {re}")
+        pytest.skip(f"Skip test random_positive: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
     assert are_peq_css_bruteforce(code1, code2) is True
 
@@ -37,10 +37,10 @@ def test_are_peq_css_bruteforce_random_positive(seed: int) -> None:
 def test_are_peq_css_bruteforce_random_negative(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)
-    
+
     try:
         code1, code2 = random_non_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
     except RandomizeError as re:
-        pytest.skip(f"Skipping test [[{n}, {k}]] with seed {seed} due to randomization error: {re}")
+        pytest.skip(f"Skip test random_negative: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
     assert are_peq_css_bruteforce(code1, code2) is False
