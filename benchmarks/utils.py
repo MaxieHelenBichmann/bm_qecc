@@ -262,7 +262,7 @@ def lc_equivalent_code(
     *,
     row_steps: int | None = None,
 ) -> StabilizerCode:
-    """Return an LC-equivalent code with randomized stabilizer generators."""
+    """Return an LC-equivalent code."""
     rng = np.random.default_rng(seed)
     tableau = code.generators.copy()
     local_cliffords = [str(rng.choice(_LOCAL_CLIFFORDS)) for _ in range(tableau.n)]
@@ -275,6 +275,30 @@ def lc_equivalent_code(
 
     base_changed_tableau = _random_tableau_row_space_base_change(tableau, rng=rng, steps=row_steps)
     return StabilizerCode(base_changed_tableau, distance=code.distance)
+
+def lc_equivalent_code_and_log_ops(
+    code: StabilizerCode,
+    seed: int | None = None,
+    *,
+    row_steps: int | None = None,
+) -> StabilizerCode:
+    """Return an LC-equivalent code, where the logical operators are transferred with the same local cliffords."""
+    rng = np.random.default_rng(seed)
+    tableau = code.generators.copy()
+    x_logicals = code.x_logicals.copy()
+    z_logicals = code.z_logicals.copy()
+    local_cliffords = [str(rng.choice(_LOCAL_CLIFFORDS)) for _ in range(tableau.n)]
+
+    if tableau.n > 0 and all(local_clifford == "I" for local_clifford in local_cliffords):
+        local_cliffords[int(rng.integers(0, tableau.n))] = str(rng.choice(_LOCAL_CLIFFORDS[1:]))
+
+    for qubit, local_clifford in enumerate(local_cliffords):
+        _apply_local_clifford(tableau, local_clifford, qubit)
+        _apply_local_clifford(x_logicals, local_clifford, qubit)
+        _apply_local_clifford(z_logicals, local_clifford, qubit)
+
+    base_changed_tableau = _random_tableau_row_space_base_change(tableau, rng=rng, steps=row_steps)
+    return StabilizerCode(generators=base_changed_tableau, distance=code.distance, x_logicals=x_logicals, z_logicals=z_logicals)
 
 
 # ------------------------------------------------------------------------------------------------------------------------------------------------
