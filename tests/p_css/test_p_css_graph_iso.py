@@ -116,8 +116,24 @@ def test_invariant_b_case2() -> None:
     ]
 
 # ----------------------------------------------------------------------------------------------------
-# _graph_from_invariants TODO
+# _graph_from_invariants
 # ----------------------------------------------------------------------------------------------------
+
+def test_graph_from_invariants() -> None:
+    graph = _graph_from_invariants(3, [[7, 7, 9], [4, 5, 4]])
+
+    assert graph.number_of_vertices == 7
+    assert graph.directed is False
+    assert graph.vertex_coloring == [{0, 1, 2}, {3, 4}, {5, 6}]
+    assert {v: set(neighbors) for v, neighbors in graph.adjacency_dict.items()} == {
+        0: {3, 5},
+        1: {3, 6},
+        2: {4, 5},
+        3: {0, 1},
+        4: {2},
+        5: {0, 2},
+        6: {1},
+    }
 
 # ----------------------------------------------------------------------------------------------------
 # _extract_qubit_permutations
