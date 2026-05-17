@@ -31,8 +31,13 @@ def is_lceq_css_bruteforce(code: StabilizerCode) -> bool:
 
     Each row space check should be done in O(n^3) time, and there are O(n^6) Local Clifford actions on the tableau, so the overall runtime is O(n^6 * n^3) which is obviously not efficient at all.
     """
+    def _rank(matrix: np.ndarray) -> int:
+        if matrix.shape[0] == 0:
+            return 0
+        return rank(matrix)
+    
     n = code.n
-    r = rank(code.symplectic)
+    r = _rank(code.symplectic)
 
     def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> npt.NDArray[np.int8]:
         if lc == "I":
@@ -58,7 +63,7 @@ def is_lceq_css_bruteforce(code: StabilizerCode) -> bool:
         for qubit, lc in enumerate(action):
             lc_tableau = apply_lc(lc_tableau, lc, qubit)
 
-        if (rank(lc_tableau[:, :n]) + rank(lc_tableau[:, n:]) == r):
+        if (_rank(lc_tableau[:, :n]) + _rank(lc_tableau[:, n:]) == r):
             return True
     
     return False
