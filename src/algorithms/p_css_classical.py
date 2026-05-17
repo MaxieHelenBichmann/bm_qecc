@@ -212,7 +212,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
 
     return best_matrix, best_perms
 
-def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, g1_to_can: list[list[list[int]]], g2_to_can: list[list[list[int]]]) -> list[int]:
+def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: list[list[list[int]]], can_to_g2: list[list[list[int]]]) -> list[int]:
     def _inverse_perm(p):
         inv = [None] * len(p)
         for i, x in enumerate(p):
@@ -227,9 +227,9 @@ def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, g1_to_can: lis
 
     # find all permutations that map g1 to g2
     perms = []
-    for p1 in g1_to_can:
-        for p2 in g2_to_can:
-            perms.append(_compose(_inverse_perm(p2), p1))
+    for p1 in can_to_g1:
+        for p2 in can_to_g2:
+            perms.append(_compose(p1, _inverse_perm(p2)))
     return perms
 
 def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: list[int]) -> bool:
