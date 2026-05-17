@@ -14,14 +14,6 @@ from src.algorithms.lc_eq_graph_state import (
 )
 from src.core.stabilizer_code import StabilizerCode
 
-
-def _adjacency(n: int, edges: list[tuple[int, int]]) -> np.ndarray:
-    graph = np.zeros((n, n), dtype=np.uint8)
-    for u, v in edges:
-        graph[u, v] = 1
-        graph[v, u] = 1
-    return graph
-
 def _assert_same_matrix(actual: np.ndarray, expected: np.ndarray) -> None:
     np.testing.assert_array_equal(actual.astype(np.uint8), expected.astype(np.uint8))
 

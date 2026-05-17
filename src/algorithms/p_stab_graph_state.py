@@ -21,6 +21,7 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
              [Lx_x | I | Lx_z | 0]
              [Lz_x | 0 | Lz_z | I]
     """
+    # TODO: with this approach, the resulting state is dependent on the choice of logical operators, aka it die NOT solve the issue: is tableu 1 P-equivalent to tableu 2? and also NOT: is code 1 (generated solely by a given stabilizer tableau) P-equivalent to code 2 (generated solely by a different stabilizer tableau)? because the generation of logical operators is NOT unique
     if code.k == 0:
         return code.symplectic
     

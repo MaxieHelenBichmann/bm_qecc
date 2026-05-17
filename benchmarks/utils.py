@@ -201,6 +201,22 @@ def random_permuted_stabilizer_pair(
     permutation = _random_permutation(n, seed=permutation_seed)
     return code, _permute_stabilizer_code(code, permutation)
 
+def random_permuted_stabilizer_pair_and_log_ops(
+    n: int,
+    k: int,
+    *,
+    seed: int | None = None,
+    clifford_steps: int | None = None,
+) -> tuple[StabilizerCode, StabilizerCode]:
+    """Return a seeded random code together with a permuted equivalent copy."""
+    rng = np.random.default_rng(seed)
+    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    permutation_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+
+    code = random_stabilizer_code(n, k, seed=code_seed, clifford_steps=clifford_steps)
+    permutation = _random_permutation(n, seed=permutation_seed)
+    return code, _permute_stabilizer_code_and_log_ops(code, permutation)
+
 def random_non_permuted_stabilizer_pair(    
     n: int,
     k: int,
@@ -471,8 +487,12 @@ def _permute_tableau(tableau: StabilizerTableau, permutation: Sequence[int]) -> 
 
 
 def _permute_stabilizer_code(code: StabilizerCode, permutation: Sequence[int]) -> StabilizerCode:
-    """Return a copy of ``code`` with physical qubits permuted."""
-    return StabilizerCode(_permute_tableau(code.generators, permutation), distance=code.distance)
+    """Return a copy of ``code`` with physical qubits permuted in generators, but logical operators are recomputed."""
+    return StabilizerCode(_permute_tableau(code.generators.copy(), permutation), distance=code.distance)
+
+def _permute_stabilizer_code_and_log_ops(code: StabilizerCode, permutation: Sequence[int]) -> StabilizerCode:
+    """Return a copy of ``code`` with physical qubits permuted in generators and logical operators."""
+    return StabilizerCode(_permute_tableau(code.generators.copy(), permutation), x_logicals=_permute_tableau(code.x_logicals.copy(), permutation), z_logicals=_permute_tableau(code.z_logicals.copy(), permutation), distance=code.distance)
 
 
 def _apply_local_clifford(tableau: StabilizerTableau, local_clifford: str, qubit: int) -> None:
