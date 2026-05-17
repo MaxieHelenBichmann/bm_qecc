@@ -2,30 +2,236 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
+import numpy as np
 import pytest
 
-from benchmarks.utils import RandomizeError, random_permuted_stabilizer_pair, random_non_permuted_stabilizer_pair
-from src.algorithms.p_stab_classical import are_peq_stab_classical
+from benchmarks.utils import (
+    RandomizeError,
+    random_non_permuted_stabilizer_pair,
+    random_permuted_stabilizer_pair,
+)
+from src.algorithms.p_stab_classical import (
+    GF4,
+    ONE,
+    W,
+    W_BAR,
+    ZERO,
+    _compute_canonical_form,
+    _compute_signatures,
+    _gf4_rref,
+    _gf4_trace_inner_product,
+    _partition_columns_by_invariants,
+    _symplectic_to_gf4,
+    are_peq_stab_classical,
+)
+from src.core.stabilizer_code import StabilizerCode
+
+
+def _gf4_values(matrix: np.ndarray) -> np.ndarray:
+    return np.array([[entry.value for entry in row] for row in matrix], dtype=np.uint8)
+
+
+def _random_positive_stabilizer_pair(
+    seed: int,
+) -> tuple[int, int, tuple[StabilizerCode, StabilizerCode]]:
+    n = 2 + (5 * seed + 1) % 8
+    k = 1 + (3 * seed + 1) % (n - 1)
+    return n, k, random_permuted_stabilizer_pair(n, k, seed=1000 + 17 * n + k)
 
 # ----------------------------------------------------------------------------------------------------
 # GF4
 # ----------------------------------------------------------------------------------------------------
 
+def test_gf4_arithmetic() -> None:
+    elements = [ZERO, ONE, W, W_BAR]
+
+    addition = np.array(
+        [[(a + b).value for b in elements] for a in elements],
+        dtype=np.uint8,
+    )
+    multiplication = np.array(
+        [[(a * b).value for b in elements] for a in elements],
+        dtype=np.uint8,
+    )
+
+    np.testing.assert_array_equal(
+        addition,
+        np.array(
+            [
+                [0, 1, 2, 3],
+                [1, 0, 3, 2],
+                [2, 3, 0, 1],
+                [3, 2, 1, 0],
+            ],
+            dtype=np.uint8,
+        ),
+    )
+    np.testing.assert_array_equal(
+        multiplication,
+        np.array(
+            [
+                [0, 0, 0, 0],
+                [0, 1, 2, 3],
+                [0, 2, 3, 1],
+                [0, 3, 1, 2],
+            ],
+            dtype=np.uint8,
+        ),
+    )
+    assert W.conjugate() == W_BAR
+    assert W.inverse() == W_BAR
+    with pytest.raises(ValueError):
+        GF4(4)
+
 # ----------------------------------------------------------------------------------------------------
 # _symplectic_to_gf4
 # ----------------------------------------------------------------------------------------------------
+
+def test_symplectic_to_gf4() -> None:
+    tableau = np.array(
+        [
+            [0, 1, 0, 1, 0, 0, 1, 1],
+            [1, 0, 1, 0, 1, 1, 0, 0],
+        ],
+        dtype=np.uint8,
+    )
+
+    gf4_matrix = _symplectic_to_gf4(tableau)
+
+    np.testing.assert_array_equal(
+        _gf4_values(gf4_matrix),
+        np.array(
+            [
+                [0, 1, 2, 3],
+                [3, 2, 1, 0],
+            ],
+            dtype=np.uint8,
+        ),
+    )
 
 # ----------------------------------------------------------------------------------------------------
 # _gf4_rref
 # ----------------------------------------------------------------------------------------------------
 
+def test_gf4_rref() -> None:
+    matrix = np.array(
+        [
+            [ONE, ZERO],
+            [ZERO, ONE],
+            [W, ZERO],
+        ],
+        dtype=object,
+    )
+
+    rank, rref, pivot_columns = _gf4_rref(matrix)
+
+    assert rank == 3
+    assert pivot_columns == [0, 1, 0]
+    np.testing.assert_array_equal(
+        _gf4_values(rref),
+        np.array(
+            [
+                [1, 0],
+                [0, 1],
+                [2, 0],
+            ],
+            dtype=np.uint8,
+        ),
+    )
+
+
+def test_gf4_trace_inner_product_matches_symplectic_commutation() -> None:
+    commuting1 = np.array([ONE, W, W_BAR, ZERO], dtype=object)
+    commuting2 = np.array([ONE, W, W_BAR, ZERO], dtype=object)
+    anticommuting = np.array([W, W, W_BAR, ZERO], dtype=object)
+
+    assert _gf4_trace_inner_product(commuting1, commuting2) == ZERO
+    assert _gf4_trace_inner_product(commuting1, anticommuting) == ONE
+
 # ----------------------------------------------------------------------------------------------------
 # _compute_signatures
 # ----------------------------------------------------------------------------------------------------
 
+def test_compute_signatures() -> None:
+    generator_matrix = np.array(
+        [
+            [ONE, ZERO, W, W_BAR, ZERO],
+            [ZERO, W, W_BAR, ONE, W],
+            [ONE, ONE, ZERO, ZERO, W_BAR],
+        ],
+        dtype=object,
+    )
+    permutation = (2, 4, 0, 3, 1)
+
+    signatures = _compute_signatures(generator_matrix, generator_matrix.shape[1])
+    permuted_signatures = _compute_signatures(
+        generator_matrix[:, permutation],
+        generator_matrix.shape[1],
+    )
+
+    assert permuted_signatures == [signatures[i] for i in permutation]
+
 # ----------------------------------------------------------------------------------------------------
 # _compute_canonical_form
 # ----------------------------------------------------------------------------------------------------
+
+def test_compute_canonical_form_stable_under_gf2_row_operations() -> None:
+    generator_matrix = np.array(
+        [
+            [ONE, ZERO, W, W_BAR],
+            [ZERO, ONE, W_BAR, W],
+            [W, W_BAR, ZERO, ONE],
+        ],
+        dtype=object,
+    )
+    row_changed = np.array(
+        [
+            [generator_matrix[0, col] + generator_matrix[1, col] for col in range(4)],
+            [generator_matrix[1, col] for col in range(4)],
+            [generator_matrix[2, col] for col in range(4)],
+        ],
+        dtype=object,
+    )
+
+    canonical = _compute_canonical_form(generator_matrix, [[0, 1, 2, 3]])
+    row_changed_canonical = _compute_canonical_form(row_changed, [[0, 1, 2, 3]])
+
+    assert np.array_equal(canonical, row_changed_canonical)
+
+
+def test_compute_canonical_form_manual() -> None:
+    code = StabilizerCode(["XZ", "IZ"])
+    permuted_code = StabilizerCode(["ZX", "ZI"])
+    generator_matrix = _symplectic_to_gf4(code.symplectic)
+    permuted_generator_matrix = _symplectic_to_gf4(permuted_code.symplectic)
+
+    canonical = _compute_canonical_form(generator_matrix, [[0, 1]])
+    permuted_canonical = _compute_canonical_form(
+        permuted_generator_matrix,
+        [[0, 1]],
+    )
+
+    assert np.array_equal(canonical, permuted_canonical)
+
+
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in (4, 9)])
+def test_compute_canonical_form_known_positive_seed_regression(seed: int) -> None:
+    _, _, (code1, code2) = _random_positive_stabilizer_pair(seed)
+    gf4_code1 = _symplectic_to_gf4(code1.symplectic)
+    gf4_code2 = _symplectic_to_gf4(code2.symplectic)
+    partition_code1 = _partition_columns_by_invariants(
+        _compute_signatures(gf4_code1, code1.n)
+    )
+    partition_code2 = _partition_columns_by_invariants(
+        _compute_signatures(gf4_code2, code2.n)
+    )
+
+    canonical_code1 = _compute_canonical_form(gf4_code1, list(partition_code1.values()))
+    canonical_code2 = _compute_canonical_form(gf4_code2, list(partition_code2.values()))
+
+    assert np.array_equal(canonical_code1, canonical_code2)
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_stab_classical

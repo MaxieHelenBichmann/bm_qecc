@@ -124,6 +124,28 @@ def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
 
     return gf4_matrix
 
+def _gf4_to_symplectic(tableau: np.ndarray) -> np.ndarray:
+    # 0 -> I = (0|0), 1 -> X = (1|0), w -> Z = (0|1), w_bar -> Y = (1|1)
+    n = tableau.shape[1]
+    r = tableau.shape[0]
+    symplectic_matrix = np.empty((r, 2*n), dtype=object)
+    for q in range(n):
+        for i in range(r):
+            if tableau[i, q] == ZERO:
+                symplectic_matrix[i, q] = 0
+                symplectic_matrix[i, q + n] = 0
+            elif tableau[i, q] == ONE:
+                symplectic_matrix[i, q] = 1
+                symplectic_matrix[i, q + n] = 0
+            elif tableau[i, q] == W:
+                symplectic_matrix[i, q] = 0
+                symplectic_matrix[i, q + n] = 1
+            elif tableau[i, q] == W_BAR:
+                symplectic_matrix[i, q] = 1
+                symplectic_matrix[i, q + n] = 1
+
+    return symplectic_matrix
+
 def _gf4_rref(matrix: np.ndarray, to_col: int | None = None) -> tuple[int, np.ndarray, list[int]]:
     # matrix has GF(4) entries, this is NOT the normal RREF of GF(4)-linear codes, but of GF(4)-additive codes!
     def _gf4_bit(x: GF4, bit_col: int, n: int) -> int:
@@ -310,7 +332,8 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
 
     def matrix_key(M: np.ndarray) -> tuple[tuple[int, ...], ...]:
         k_m, n_m = M.shape
-        return tuple(tuple(M[r, c].value for r in range(k_m)) for c in range(n_m))
+        symplectic = _gf4_to_symplectic(M)
+        return tuple(tuple(symplectic[r, c] for r in range(k_m)) for c in range(2 * n_m))
 
     def prefix_key(M: np.ndarray, i: int) -> tuple[tuple[int, ...], ...]:
         return matrix_key(M[:, :i]) # lexicographic key of the first i columns of M, because python can compare tuples
