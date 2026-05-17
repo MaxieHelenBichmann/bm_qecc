@@ -14,6 +14,11 @@ import ldpc.mod2.mod2_numpy as mod2
 
 from ..core.stabilizer_code import StabilizerCode
 
+def _rank(matrix: np.ndarray) -> int:
+    if matrix.shape[0] == 0:
+        return 0
+    return mod2.rank(matrix)
+
 _GAP_BEGIN = "__BM_QECC_GAP_AUT_PERMS_BEGIN__"
 _GAP_END = "__BM_QECC_GAP_AUT_PERMS_END__"
 
@@ -87,7 +92,7 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     def _compose(p, q):
         return tuple(p[q[i]] for i in range(len(q)))
 
-    c2_rank = mod2.rank(c2.symplectic)
+    c2_rank = _rank(c2.symplectic)
     aut_c2 = _automorphisms(c2.symplectic, c2.n)
 
     remaining_permutations = set(permutations(range(c1.n)))
@@ -98,7 +103,7 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         perm = np.array(perm)
         perm_symplectic = np.concatenate([perm, perm + c1.n])
 
-        if (mod2.rank(c1.symplectic[:, perm_symplectic]) == c2_rank == mod2.rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic]))):
+        if (_rank(c1.symplectic[:, perm_symplectic]) == c2_rank == _rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic]))):
             return True
         else:
             # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2

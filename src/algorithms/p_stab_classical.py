@@ -108,7 +108,7 @@ def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
     # I = (0|0) -> 0, X = (1|0) -> 1, Z = (0|1) -> w, Y = (1|1) -> w_bar
     n = tableau.shape[1] // 2
     r = tableau.shape[0]
-    gf4_matrix = np.array([[ZERO for _ in range(n)] for _ in range(r)], dtype=object)
+    gf4_matrix = np.empty((r, n), dtype=object)
     for q in range(n):
         for i in range(r):
             x = tableau[i, q]
@@ -174,7 +174,7 @@ def _gf4_trace_inner_product(a: np.ndarray, b: np.ndarray) -> GF4:
         sum += a[i].conjugate() * b[i] + a[i] * b[i].conjugate()
     return sum
 
-def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
+def _compute_signatures(generator_matrix: np.ndarray, n: int) -> list[int]:
     """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the code.
     """
     def _gf2_kernel_basis(A: np.ndarray) -> np.ndarray:
@@ -251,7 +251,11 @@ def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
         if coeff_basis.shape[0] == 0:
             hull_basis = np.zeros((0, g_p), dtype=object)
         else:
-            hull_basis = np.array(_gf4_row_basis(_gf2_gf4_matmul(coeff_basis, Gp)), dtype=object) # c @ Gp = x -> words in Gp that are orthogonal to all rows of Gp -> hull
+            basis_rows = _gf4_row_basis(_gf2_gf4_matmul(coeff_basis, Gp))
+            if len(basis_rows) == 0:
+                hull_basis = np.zeros((0, g_p), dtype=object)
+            else:
+                hull_basis = np.array(basis_rows, dtype=object) # c @ Gp = x -> words in Gp that are orthogonal to all rows of Gp -> hull
 
         hull_h, hull_n = hull_basis.shape
         enumerator = [1] + [0] * g_p
@@ -376,8 +380,8 @@ def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     gf4_tableau_c2 = _symplectic_to_gf4(c2.symplectic)
 
     # Sendrier
-    signatures_c1 = _compute_signatures(gf4_tableau_c1)
-    signatures_c2 = _compute_signatures(gf4_tableau_c2)
+    signatures_c1 = _compute_signatures(gf4_tableau_c1, c1.n)
+    signatures_c2 = _compute_signatures(gf4_tableau_c2, c2.n)
 
     partition_c1 = _partition_columns_by_invariants(signatures_c1)
     partition_c2 = _partition_columns_by_invariants(signatures_c2)
