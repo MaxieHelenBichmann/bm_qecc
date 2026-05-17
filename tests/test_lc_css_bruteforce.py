@@ -1,0 +1,26 @@
+"""Focused checks for the brute-force solution to whether a stabilizer code is LC-equivalent to a CSS code."""
+
+from __future__ import annotations
+
+import pytest
+
+from benchmarks.utils import random_stabilizer_code, random_css_code, lc_equivalent_code
+from src.algorithms.lc_css_bruteforce import is_lceq_css_bruteforce
+
+# ----------------------------------------------------------------------------------------------------
+# is_lceq_css_bruteforce
+# ----------------------------------------------------------------------------------------------------
+
+def test_is_lceq_css_bruteforce_random_smoke() -> None:
+    for n in range(3, 6):
+        for k in range(n + 1):
+            code = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
+            assert isinstance(is_lceq_css_bruteforce(code), bool)
+
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
+def test_is_lceq_css_bruteforce_random_positive(seed: int) -> None:
+    n = 1 + seed % 4
+    k = seed % (n + 1)
+    css_code = random_css_code(n, k, seed=1000 + seed)
+    code = lc_equivalent_code(css_code, seed=2000 + seed)
+    assert is_lceq_css_bruteforce(code) is True
