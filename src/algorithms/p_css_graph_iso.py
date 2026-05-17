@@ -148,7 +148,7 @@ def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: list[i
             return 0
         return mod2.rank(A)
 
-    return _rank(c2.Hx) == _rank(c1.Hx[:, permutation]) == _rank(np.vstack([c2.Hx, c1.Hx[:, permutation]])) and _rank(c2.Hz) == _rank(c1.Hz[:, permutation]) == _rank(np.vstack([c2.Hz, c1.Hz[:, permutation]]))
+    return _rank(c2.Hx[:, permutation]) == _rank(c1.Hx) == _rank(np.vstack([c2.Hx[:, permutation], c1.Hx])) and _rank(c2.Hz[:, permutation]) == _rank(c1.Hz) == _rank(np.vstack([c2.Hz[:, permutation], c1.Hz]))
 
 def _extract_qubit_permutations(g1: Graph, g2: Graph, n: int) -> list[int]:
     def _inverse_perm(p):
@@ -188,8 +188,11 @@ def _extract_qubit_permutations(g1: Graph, g2: Graph, n: int) -> list[int]:
     # isomorphisms(g1, g2) = { α ∘ φ | α ∈ Aut(g2) } with φ: g1 -> g2
     isomorphisms = [_compose(alpha, phi) for alpha in aut_g2]
 
-    # extract the permutations of only the qubit vertices from the isomorphisms
-    qubit_permutations = { tuple(isomorphism[i] for i in range(n)) for isomorphism in isomorphisms }
+    # extract the permutations of only the qubit vertices from the isomorphisms (permutations map columns of c2 to columns of c1)
+    qubit_permutations = {
+        tuple(isomorphism[i] for i in range(n))
+        for isomorphism in isomorphisms
+    }
 
     return list(qubit_permutations)
 
