@@ -139,7 +139,7 @@ def test_graph_from_invariants() -> None:
 # _extract_qubit_permutations
 # ----------------------------------------------------------------------------------------------------
 
-def test_full_graph_permutations() -> None:
+def test_extract_qubit_permutations_full_graph() -> None:
     g1 = Graph(
         number_of_vertices=7,
         directed=False,
@@ -172,7 +172,7 @@ def test_full_graph_permutations() -> None:
 
     assert _extract_qubit_permutations(g1, g2, n=7) == expected_permutations
 
-def test_only_qubit_permutations() -> None:
+def test_extract_qubit_permutations_only_qubit() -> None:
     g1 = Graph(
         number_of_vertices=7,
         directed=False,
@@ -209,7 +209,7 @@ def test_only_qubit_permutations() -> None:
 # _check_permutation_equivalence
 # ----------------------------------------------------------------------------------------------------
 
-def test_matching_convention() -> None:
+def test_check_permutation_equivalence_matching_convention() -> None:
     code1 = CSSCode(
         Hx=np.array([[1, 0, 1, 1, 1], 
                      [0, 0, 1, 0, 1],

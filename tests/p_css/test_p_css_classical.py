@@ -25,7 +25,7 @@ from src.core.css_code import CSSCode
 # _compute_signatures
 # ----------------------------------------------------------------------------------------------------
 
-def test_column_permutation() -> None:
+def test_compute_signatures_column_permutation() -> None:
     Gx = np.array(
         [
             [1, 0, 1, 1, 0],
@@ -51,7 +51,7 @@ def test_column_permutation() -> None:
 # _compute_canonical_form
 # ----------------------------------------------------------------------------------------------------
 
-def test_stable_row_operations() -> None:
+def test_compute_canonical_form_stable_row_operations() -> None:
     G = np.array(
         [
             [1, 0, 1, 1],
@@ -80,7 +80,7 @@ def test_stable_row_operations() -> None:
 # _extract_permutations
 # ----------------------------------------------------------------------------------------------------
 
-def test_matching_convention() -> None:
+def test_extract_permutations_matching_convention() -> None:
     canon = np.array([[1, 0, 1, 0],
                       [0, 1, 1, 0]], dtype=np.uint8)
     can_to_g1 = [[1, 0, 3, 2]]
