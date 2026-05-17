@@ -203,20 +203,20 @@ def _lc_equiv_graph_states(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
 
     if dim == 0: # trivial nullspace
         return False
-
-    if dim <= 4:
-        for coeffs in product([0, 1], repeat=dim):
-            x = np.zeros(4 * n, dtype=np.uint8)
-            for bit, basis_vec in zip(coeffs, V):
-                if bit:
-                    x ^= basis_vec
-            if _satisfy_constraints(x):
-                return True
-        return False
-
-    for i in range(dim):
-        for j in range(i, dim):
-            x = V[i] ^ V[j]
+    
+    # TODO: false assumption of the paper of Van den Nest, as Bouchet (lemma Van de Nest uses) requires the graph to be connected for the proof to work (which we do not guarantee, thus code broken) -> not polynomial anymore
+    # if dim > 4:
+    #    for i in range(dim):
+    #        for j in range(i, dim):
+    #            x = V[i] ^ V[j]
+    #            if _satisfy_constraints(x):
+    #                return True
+ 
+    for coeffs in product([0, 1], repeat=dim):
+        x = np.zeros(4 * n, dtype=np.uint8)
+        for bit, basis_vec in zip(coeffs, V):
+            if bit:
+                x ^= basis_vec
             if _satisfy_constraints(x):
                 return True
 
