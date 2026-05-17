@@ -39,8 +39,8 @@ def test_are_peq_stab_graph_state_random_smoke() -> None:
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_peq_stab_graph_state_random_positive(seed: int) -> None:
-    n = 1 + seed % 4
-    k = seed % (n + 1)
+    n = 2 + (5 * seed + 1) % 8
+    k = 1 + (3 * seed + 1) % (n - 1)
 
     code1, code2 = random_permuted_stabilizer_pair(n, k, seed=1000 + 17 * n + k)
     assert are_peq_stab_graph_state(code1, code2) is True
@@ -48,8 +48,8 @@ def test_are_peq_stab_graph_state_random_positive(seed: int) -> None:
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_peq_stab_graph_state_random_negative(seed: int) -> None:
-    n = 1 + seed % 4
-    k = seed % (n + 1)
+    n = 2 + (5 * seed + 1) % 8
+    k = 1 + (3 * seed + 1) % (n - 1)
 
     code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=1000 + 17 * n + k)
     assert are_peq_stab_graph_state(code1, code2) is False

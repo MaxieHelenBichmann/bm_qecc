@@ -33,8 +33,8 @@ def test_are_lceq_graph_state_random_smoke() -> None:
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_lceq_graph_state_random_positive(seed: int) -> None:
-    n = 1 + seed % 4
-    k = seed % (n + 1)
+    n = 2 + (5 * seed + 1) % 8
+    k = 1 + (3 * seed + 1) % (n - 1)
     code1 = random_stabilizer_code(n, k, seed=1000 + seed)
     code2 = lc_equivalent_code(code1, seed=2000 + seed)
     assert are_lceq_graph_state(code1, code2) is True

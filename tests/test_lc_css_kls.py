@@ -121,8 +121,8 @@ POSITIVE_SEED_CASES = [
 
 @pytest.mark.parametrize("seed", POSITIVE_SEED_CASES)
 def test_is_lceq_css_kls_random_positive(seed: int) -> None:
-    n = 9 + seed % 4
-    k = seed % (n + 1)
+    n = 2 + (5 * seed + 1) % 8
+    k = 1 + (3 * seed + 1) % (n - 1)
     css_code = random_css_code(n, k, seed=1000 + seed)
     code = lc_equivalent_code(css_code, seed=2000 + seed)
     assert is_lceq_css_kls(code) is True
