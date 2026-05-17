@@ -117,7 +117,6 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
             return matrix
 
         rre = _rref_no_column_swaps(tableau)
-        print(f"RREF:\n{rre}")
 
         if _rank(rre[:, :n]) != n:
             raise ValueError("X part of the tableau is not full rank, something went wrong.")
@@ -129,11 +128,8 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
         np.fill_diagonal(tableau, 0)
         return tableau
     
-    print(f"start\n{tableau}")
     state = _make_X_invertible(tableau)
-    print(f"Made X part invertible...\n{state}")
     gamma = _extract_adjacency_matrix(state)
-    print(f"Extracted adjacency matrix...\n{gamma}")
     gamma = _remove_diagonal(gamma)
 
     if not np.array_equal(gamma, gamma.T):
@@ -251,9 +247,6 @@ def are_peq_stab_graph_state(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """
     stab_state_1 = _stab_code_to_stab_state(c1)
     stab_state_2 = _stab_code_to_stab_state(c2)
-    print(f"Code 1:\n{c1.symplectic}")
-    print(f"Code 2:\n{c2.symplectic}")
-    print(f"State 2:\n{stab_state_2}")
 
     graph_state_1 = _stab_state_to_graph_state(stab_state_1, c1.n + c1.k)
     graph_state_2 = _stab_state_to_graph_state(stab_state_2, c2.n + c2.k)
