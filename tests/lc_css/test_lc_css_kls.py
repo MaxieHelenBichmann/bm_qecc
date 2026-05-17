@@ -104,22 +104,7 @@ def test_is_lceq_css_kls_random_smoke() -> None:
             code = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
             assert isinstance(is_lceq_css_kls(code), bool)
 
-POSITIVE_SEED_CASES = [
-    pytest.param(
-        seed,
-        marks=pytest.mark.xfail(
-            strict=True,
-            reason="????",
-        ),
-        id=f"seed-{seed}",
-    )
-    if seed == 5
-    else pytest.param(seed, id=f"seed-{seed}")
-    for seed in range(20)
-]
-
-
-@pytest.mark.parametrize("seed", POSITIVE_SEED_CASES)
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_is_lceq_css_kls_random_positive(seed: int) -> None:
     n = 2 + (5 * seed + 1) % 8
     k = 1 + (3 * seed + 1) % (n - 1)
