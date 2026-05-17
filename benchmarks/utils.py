@@ -13,6 +13,11 @@ from src.core.pauli import StabilizerTableau
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 
+class RandomizeError(ValueError):
+    """Raised when a randomization helper fails to find a suitable code."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
 
 def random_stabilizer_code(
     n: int,
@@ -89,7 +94,7 @@ def random_css_code(
     ker_hx = np.asarray(ker_hx, dtype=np.int8) % 2
 
     if rz > ker_hx.shape[0]:
-        raise ValueError(
+        raise RandomizeError(
             f"Cannot construct {rz} independent Z checks: "
             f"ker(Hx) has dimension {ker_hx.shape[0]}."
         )
@@ -140,7 +145,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
     rx = _rank_binary(code.Hx)
     rz = _rank_binary(code.Hz)
     if (rx, rz) in {(0, 0), (code.n, 0), (0, code.n)}:
-        raise ValueError("No non-equivalent CSS code exists with these small invariants.")
+        raise RandomizeError("No non-equivalent CSS code exists with these small invariants.")
     invariant = _stabilizer_weight_enumerator(code)
     for _ in range(10_000):
         candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
@@ -148,14 +153,14 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
         if _stabilizer_weight_enumerator(candidate) != invariant:
             return candidate
 
-    raise ValueError("Could not find a candidate with a different stabilizer weight enumerator.")
+    raise RandomizeError("Could not find a candidate with a different stabilizer weight enumerator.")
 
 
 def non_permutation_equivalent_stabilizer_code(code: StabilizerCode, seed: int | None = None) -> StabilizerCode:
     """Return a same-[[n,k]] stabilizer code certified non-equivalent by stabilizer weights."""
     rng = np.random.default_rng(seed)
     if code.k == code.n:
-        raise ValueError("No non-equivalent stabilizer code exists with these small invariants.")
+        raise RandomizeError("No non-equivalent stabilizer code exists with these small invariants.")
 
     if code.n - code.k < 10:
         invariant = _stabilizer_weight_enumerator(code)
@@ -178,7 +183,7 @@ def non_permutation_equivalent_stabilizer_code(code: StabilizerCode, seed: int |
                 return candidate
 
 
-    raise ValueError("Could not find a candidate with a different invariant.")
+    raise RandomizeError("Could not find a candidate with a different invariant.")
 
 def random_permuted_stabilizer_pair(
     n: int,
@@ -210,7 +215,7 @@ def random_non_permuted_stabilizer_pair(
     code = random_stabilizer_code(n, k, seed=code_seed)
     try:
         return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed)
-    except ValueError:
+    except RandomizeError:
         code = random_stabilizer_code(n, k, seed=code_seed+42)
         return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed+69)
 
@@ -230,7 +235,7 @@ def random_non_permuted_css_pair(
     code = random_css_code(n, k, rx, seed=code_seed)
     try:
         return code, non_permutation_equivalent_css_code(code, seed=other_seed)
-    except ValueError:
+    except RandomizeError:
         code = random_css_code(n, k, rx, seed=code_seed+42)
         return code, non_permutation_equivalent_css_code(code, seed=other_seed+69)
 
