@@ -63,9 +63,12 @@ def _automorphisms(tableau: np.ndarray, n: int) -> list[tuple[int, ...]]:
                 perms.append(tuple(perm[:n]))
         return perms
     
+    if tableau.shape[0] == 0:
+        return list(permutations(range(n)))
+    
     script = f"""
 if LoadPackage("guava") = fail then
-    Print("Could not load GAP package guava.\n");
+    Print("Could not load GAP package guava.");
     QUIT_GAP(1);
 fi;
 
