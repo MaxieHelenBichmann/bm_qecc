@@ -110,7 +110,7 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
             return True
         else:
             # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2
-            isomorphisms = { _compose(alpha, perm) for alpha in aut_c2 }
+            isomorphisms = { _compose(perm, alpha) for alpha in aut_c2 }
             remaining_permutations -= isomorphisms
     
     return False
