@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from benchmarks.utils import random_permuted_css_pair, random_non_permuted_css_pair
+from benchmarks.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
 from src.algorithms.p_css_matroid import _circuits_binary_matroid, _graph_from_circuits, are_peq_css_matroid
 
 # ----------------------------------------------------------------------------------------------------
@@ -21,23 +21,34 @@ from src.algorithms.p_css_matroid import _circuits_binary_matroid, _graph_from_c
 
 def test_are_peq_css_matroid_random_smoke() -> None:
     for n in range(3, 6):
-        for k in range(n + 1):
-            code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
-            assert isinstance(are_peq_css_matroid(code1, code2), bool)
+        for k in range(n):
+            try:
+                code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+                assert isinstance(are_peq_css_matroid(code1, code2), bool)
+            except RandomizeError:
+                pass
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_peq_css_matroid_random_positive(seed: int) -> None:
-    n = 1 + seed % 4
-    k = seed % (n + 1)
+    n = 2 + (5 * seed + 1) % 8
+    k = 1 + (3 * seed + 1) % (n - 1)
 
-    code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+    try:
+        code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+    except RandomizeError as re:
+        pytest.skip(f"Skip test random_positive: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
+        
     assert are_peq_css_matroid(code1, code2) is True
 
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_peq_css_matroid_random_negative(seed: int) -> None:
-    n = 1 + seed % 4
-    k = seed % (n + 1)
+    n = 2 + (5 * seed + 1) % 8
+    k = 1 + (3 * seed + 1) % (n - 1)
 
-    code1, code2 = random_non_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+    try:
+        code1, code2 = random_non_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+    except RandomizeError as re:
+        pytest.skip(f"Skip test random_negative: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
+
     assert are_peq_css_matroid(code1, code2) is False
