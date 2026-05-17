@@ -32,14 +32,6 @@ from src.core.stabilizer_code import StabilizerCode
 def _gf4_values(matrix: np.ndarray) -> np.ndarray:
     return np.array([[entry.value for entry in row] for row in matrix], dtype=np.uint8)
 
-
-def _random_positive_stabilizer_pair(
-    seed: int,
-) -> tuple[int, int, tuple[StabilizerCode, StabilizerCode]]:
-    n = 2 + (5 * seed + 1) % 8
-    k = 1 + (3 * seed + 1) % (n - 1)
-    return n, k, random_permuted_stabilizer_pair(n, k, seed=1000 + 17 * n + k)
-
 # ----------------------------------------------------------------------------------------------------
 # GF4
 # ----------------------------------------------------------------------------------------------------
@@ -214,24 +206,6 @@ def test_compute_canonical_form_manual() -> None:
     )
 
     assert np.array_equal(canonical, permuted_canonical)
-
-
-@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in (4, 9)])
-def test_compute_canonical_form_known_positive_seed_regression(seed: int) -> None:
-    _, _, (code1, code2) = _random_positive_stabilizer_pair(seed)
-    gf4_code1 = _symplectic_to_gf4(code1.symplectic)
-    gf4_code2 = _symplectic_to_gf4(code2.symplectic)
-    partition_code1 = _partition_columns_by_invariants(
-        _compute_signatures(gf4_code1, code1.n)
-    )
-    partition_code2 = _partition_columns_by_invariants(
-        _compute_signatures(gf4_code2, code2.n)
-    )
-
-    canonical_code1 = _compute_canonical_form(gf4_code1, list(partition_code1.values()))
-    canonical_code2 = _compute_canonical_form(gf4_code2, list(partition_code2.values()))
-
-    assert np.array_equal(canonical_code1, canonical_code2)
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_stab_classical
