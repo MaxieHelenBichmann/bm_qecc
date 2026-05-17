@@ -141,7 +141,7 @@ def test_stab_code_to_stab_state_small_codes(code: StabilizerCode, expected: np.
         ),
     ],
 )
-def test_stab_state_to_graph_state_small_tableaux(
+def test_stab_state_to_graph_state_small_tableau(
     tableau: np.ndarray,
     expected: np.ndarray,
 ) -> None:
