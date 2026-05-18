@@ -395,7 +395,7 @@ def test_are_lceq_graph_state_failing_choi(seed: int) -> None:
     35: < XZZ > | < ZXX >
     """
     code1 = random_stabilizer_code(3, 2, seed=1000 + seed)
-    code2 = lc_equivalent_code(code1, seed=2000 + seed)
+    code2 = lc_equivalent_code_and_log_ops(code1, seed=2000 + seed)
     assert are_lceq_graph_state(code1, code2) is True
 
 def test_are_lceq_graph_state_random_smoke() -> None:
