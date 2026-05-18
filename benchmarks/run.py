@@ -15,6 +15,7 @@ from src.algorithms.lc_css_bruteforce import is_lceq_css_bruteforce
 from src.algorithms.lc_css_kls import is_lceq_css_kls
 from src.algorithms.lc_css_orbit import is_lceq_css_orbit
 from src.algorithms.lc_eq_graph_state import are_lceq_graph_state
+from src.algorithms.lc_eq_bruteforce import are_lceq_bruteforce
 from src.algorithms.p_css_bruteforce import are_peq_css_bruteforce
 from src.algorithms.p_css_classical import are_peq_css_classical
 from src.algorithms.p_css_graph_iso import are_peq_css_graph_iso
@@ -77,6 +78,7 @@ ALGORITHMS: dict[str, Algorithm] = {
     "pm_stb_graph_state": are_peq_stab_graph_state,
     "pm_stb_sat": are_peq_stab_sat,
     "lc_equ_graph_state": are_lceq_graph_state,
+    "lc_equ_bruteforce": are_lceq_bruteforce,
     "lc_css_bruteforce": is_lceq_css_bruteforce,
     "lc_css_kls": is_lceq_css_kls,
     "lc_css_orbit": is_lceq_css_orbit,

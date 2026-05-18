@@ -42,6 +42,7 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 
 ### Local-Clifford Equivalence
 #### $C \thicksim_{LC} \ C'$
+- [x] Brute Force
 - [x] Graph State Machinery
 
 #### $C \thicksim_{LC} \ C_{CSS}$
