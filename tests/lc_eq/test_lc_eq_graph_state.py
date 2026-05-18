@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import random_stabilizer_code, lc_equivalent_code_and_log_ops
+from benchmarks.utils import lc_equivalent_code, random_stabilizer_code, lc_equivalent_code_and_log_ops
 from src.algorithms.lc_eq_graph_state import (
     _lc_equiv_graph_states,
     _stab_code_to_stab_state,
@@ -386,6 +386,19 @@ def test_are_lceq_graph_state_small_codes(
     expected: bool,
 ) -> None:
     assert are_lceq_graph_state(code1, code2) is expected
+
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [3, 28, 35]])
+def test_are_lceq_graph_state_random_positive(seed: int) -> None:
+    """
+    3:  < IZI > |  < IXI > 
+    28: < IXI > | < IYI >
+    35: < XZZ > | < ZXX >
+    """
+    n = 2 + (3 * seed + 1) % 5
+    k = 1 + (2 * seed + 1) % (n - 1)
+    code1 = random_stabilizer_code(n, k, seed=1000 + seed)
+    code2 = lc_equivalent_code(code1, seed=2000 + seed)
+    assert are_lceq_graph_state(code1, code2) is True
 
 def test_are_lceq_graph_state_random_smoke() -> None:
     for n in range(3, 6):
