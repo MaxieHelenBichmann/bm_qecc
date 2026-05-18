@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import lc_equivalent_code, random_stabilizer_code, lc_equivalent_code_and_log_ops
+from benchmarks.utils import lc_equivalent_code, random_stabilizer_code
 from src.core.stabilizer_code import StabilizerCode
 from src.algorithms.lc_eq_bruteforce import are_lceq_bruteforce
 
@@ -44,7 +44,7 @@ from src.algorithms.lc_eq_bruteforce import are_lceq_bruteforce
         ),
     ],
 )
-def test_are_lceq_graph_state_small_codes(
+def test_are_lceq_bruteforce_small_codes(
     code1: StabilizerCode,
     code2: StabilizerCode,
     expected: bool,
