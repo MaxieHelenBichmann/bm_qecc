@@ -314,7 +314,7 @@ class StabilizerCode:
                         break
                     test = np.vstack((extended_basis, v))
                     if mod2_rank(test) > extended_basis_rank:
-                        logical_basis_arr = np.vstack((logical_basis_arr, v.copy))
+                        logical_basis_arr = np.vstack((logical_basis_arr, v.copy()))
                         extended_basis = test
                         extended_basis_rank += 1
                 if len(logical_basis_arr) == target:
