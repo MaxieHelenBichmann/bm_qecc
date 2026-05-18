@@ -106,6 +106,8 @@ python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph
 
 ### Tests
 
+[![Tests](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml/badge.svg)](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml)
+
 There are also **some** (not yet extensive) tests in the directory `tests/test_*.py`. For the near future, they won't be particularly substantial, only testing some algorithm sections in more detail.
 ```bash
 python3 -m pytest
