@@ -388,15 +388,13 @@ def test_are_lceq_graph_state_small_codes(
     assert are_lceq_graph_state(code1, code2) is expected
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [3, 28, 35]])
-def test_are_lceq_graph_state_random_positive(seed: int) -> None:
+def test_are_lceq_graph_state_failing_cases(seed: int) -> None:
     """
-    3:  < IZI > |  < IXI > 
+    3:  < IZI > | < IXI > 
     28: < IXI > | < IYI >
     35: < XZZ > | < ZXX >
     """
-    n = 2 + (3 * seed + 1) % 5
-    k = 1 + (2 * seed + 1) % (n - 1)
-    code1 = random_stabilizer_code(n, k, seed=1000 + seed)
+    code1 = random_stabilizer_code(3, 2, seed=1000 + seed)
     code2 = lc_equivalent_code(code1, seed=2000 + seed)
     assert are_lceq_graph_state(code1, code2) is True
 
