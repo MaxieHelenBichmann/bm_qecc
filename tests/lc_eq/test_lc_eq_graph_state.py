@@ -388,7 +388,7 @@ def test_are_lceq_graph_state_small_codes(
     assert are_lceq_graph_state(code1, code2) is expected
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [3, 28, 35]])
-def test_are_lceq_graph_state_failing_cases(seed: int) -> None:
+def test_are_lceq_graph_state_failing_choi(seed: int) -> None:
     """
     3:  < IZI > | < IXI > 
     28: < IXI > | < IYI >
