@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections import Counter
-
 import numpy as np
 import pytest
 
@@ -22,7 +20,6 @@ from src.algorithms.p_stab_classical import (
     _compute_signatures,
     _gf4_rref,
     _gf4_trace_inner_product,
-    _partition_columns_by_invariants,
     _symplectic_to_gf4,
     are_peq_stab_classical,
 )

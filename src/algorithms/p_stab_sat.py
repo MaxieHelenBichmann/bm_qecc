@@ -78,9 +78,9 @@ def are_peq_stab_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         for q in range(2 * n):
             
             row_contributions = []
-            for l in range(r):
-                if c2.symplectic[l, q] == 1:
-                    row_contributions.append(row_operation_coefficients[row * r + l])
+            for contribution in range(r):
+                if c2.symplectic[contribution, q] == 1:
+                    row_contributions.append(row_operation_coefficients[row * r + contribution])
 
             solver.add(aux_tableau[row * (2*n) + q] == _xor_list(row_contributions))
 

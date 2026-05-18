@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 from benchmarks.utils import lc_equivalent_code, random_stabilizer_code

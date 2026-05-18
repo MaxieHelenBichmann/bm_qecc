@@ -519,7 +519,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
             _h_slide_down(graph, graph.vertices, x, y)
 
     for x in range(n):
-        if not graph.vertices[x][0] in ([], ["H"], ["S"], ["S", "H"]):
+        if graph.vertices[x][0] not in ([], ["H"], ["S"], ["S", "H"]):
             raise ValueError(f"After sliding down all H: Expected only I, S, H decorations, but got: {graph.vertices[x][0]}.")
     # now should only have decorations I , H, S, SH
     

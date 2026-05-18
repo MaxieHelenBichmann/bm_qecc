@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from numpy.random import seed
 import pytest
 
 from benchmarks.utils import random_permuted_css_pair, random_non_permuted_css_pair, RandomizeError
