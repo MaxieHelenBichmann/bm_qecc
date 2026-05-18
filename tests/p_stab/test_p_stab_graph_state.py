@@ -150,11 +150,45 @@ def test_stab_state_to_graph_state_small_tableau(
 # _traverse_lc_orbit
 # ----------------------------------------------------------------------------------------------------
 
+def test_traverse_lc_orbit() -> None:
+    triangle = np.array(
+        [
+            [0, 1, 1],
+            [1, 0, 1],
+            [1, 1, 0],
+        ],
+        dtype=np.uint8,
+    )
+    path = np.array(
+        [
+            [0, 1, 1],
+            [1, 0, 0],
+            [1, 0, 0],
+        ],
+        dtype=np.uint8,
+    )
+
+    assert (0, 1, 2) in _traverse_lc_orbit(triangle, path, n_code=3, k_code=0)
 
 # ----------------------------------------------------------------------------------------------------
 # _extract_qubit_permutations
 # ----------------------------------------------------------------------------------------------------
 
+def test_extract_qubit_permutations_path_graphs() -> None:
+    path = np.array(
+        [
+            [0, 1, 1],
+            [1, 0, 0],
+            [1, 0, 0],
+        ],
+        dtype=np.uint8,
+    )
+    permuted_path = path[[1, 0, 2]][:, [1, 0, 2]]
+
+    assert set(_extract_qubit_permutations(path, permuted_path, n=3, k=0)) == {
+        (1, 0, 2),
+        (1, 2, 0),
+    }
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_stab_graph_state
