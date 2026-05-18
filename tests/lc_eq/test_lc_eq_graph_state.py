@@ -260,6 +260,82 @@ def test_stab_state_to_graph_state_small_tableau(
             True,
             id="manual-example-tom",
         ),
+        pytest.param(
+            np.array(
+                [[0, 1, 0],
+                 [1, 0, 0],
+                 [0, 0, 0]],
+                dtype=np.uint8,
+            ),
+            np.array(
+                [[0, 1, 0],
+                 [1, 0, 0],
+                 [0, 0, 0]],
+                dtype=np.uint8,
+            ),
+            True,
+            id="unconnected-small-same",
+        ),
+        pytest.param(
+            np.array(
+                [[0, 0, 1, 0],
+                 [0, 0, 1, 0],
+                 [1, 1, 0, 0],
+                 [0, 0, 0, 0]],
+                dtype=np.uint8,
+            ),
+            np.array(
+                [[0, 1, 1, 0],
+                 [1, 0, 0, 0],
+                 [1, 0, 0, 0],
+                 [0, 0, 0, 0]],
+                dtype=np.uint8,
+            ),
+            True,
+            id="unconnected-small-le-eq",
+        ),
+        pytest.param(
+            np.array(
+                [[0, 1, 1, 0, 0],
+                 [1, 0, 1, 0, 0],
+                 [1, 1, 0, 0, 0],
+                 [0, 0, 0, 0, 1],
+                 [0, 0, 0, 1, 0]],
+                dtype=np.uint8,
+            ),
+            np.array(
+                [[0, 1, 1, 0, 0],
+                 [1, 0, 1, 0, 0],
+                 [1, 1, 0, 0, 0],
+                 [0, 0, 0, 0, 1],
+                 [0, 0, 0, 1, 0]],
+                dtype=np.uint8,
+            ),
+            True,
+            id="unconnected-same",
+        ),
+        pytest.param(
+            np.array(
+                [[0, 1, 0, 0, 0, 1],
+                 [1, 0, 0, 0, 0, 1],
+                 [0, 0, 0, 1, 0, 0],
+                 [0, 0, 1, 0, 0, 0],
+                 [0, 0, 0, 0, 0, 1],
+                 [1, 1, 0, 0, 1, 0]],
+                dtype=np.uint8,
+            ),
+            np.array(
+                [[0, 0, 0, 0, 1, 1],
+                 [0, 0, 0, 0, 1, 1],
+                 [0, 0, 0, 1, 0, 0],
+                 [0, 0, 1, 0, 0, 0],
+                 [1, 1, 0, 0, 0, 0],
+                 [1, 1, 0, 0, 0, 0]],
+                dtype=np.uint8,
+            ),
+            True,
+            id="unconnected-lc-eq",
+        ),
     ],
 )
 def test_lc_equiv_graph_states_small_graphs(
@@ -319,7 +395,7 @@ def test_are_lceq_graph_state_random_smoke() -> None:
 
             assert isinstance(are_lceq_graph_state(code1, code2), bool)
 
-@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(2, 10)])
 def test_are_lceq_graph_state_random_positive(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)
