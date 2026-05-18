@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from benchmarks.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
@@ -11,9 +12,34 @@ from src.algorithms.p_css_matroid import _circuits_binary_matroid, _graph_from_c
 # _circuits_binary_matroid
 # ----------------------------------------------------------------------------------------------------
 
+def test_circuits_binary_matroid_simple_dependency() -> None:
+    matrix = np.array(
+        [
+            [1, 0, 1],
+            [0, 1, 1],
+        ],
+        dtype=np.int8,
+    )
+
+    assert _circuits_binary_matroid(matrix) == [(0, 1, 2)]
+
 # ----------------------------------------------------------------------------------------------------
 # _graph_from_circuits
 # ----------------------------------------------------------------------------------------------------
+
+def test_graph_from_circuits_small_incidence_graph() -> None:
+    graph = _graph_from_circuits(3, circuits_hx=[(0, 2)], circuits_hz=[(1, 2)])
+
+    assert graph.number_of_vertices == 5
+    assert graph.directed is False
+    assert graph.vertex_coloring == [{0, 1, 2}, {3}, {4}]
+    assert {v: set(neighbors) for v, neighbors in graph.adjacency_dict.items()} == {
+        0: {3},
+        1: {4},
+        2: {3, 4},
+        3: {0, 2},
+        4: {1, 2},
+    }
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_css_matroid
