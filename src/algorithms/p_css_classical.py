@@ -162,7 +162,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
     k_g, n_g = G.shape
     best_matrix: np.ndarray | None = None
     best_full_key: tuple[tuple[int, ...], ...] | None = None
-    best_perms: list[list[list[int]]] = []
+    best_perms: list[list[int]] = []
 
     def _search(prefix: list[int], remaining_cells: list[list[int]]) -> None: # recursive search over the space of permutations
         nonlocal best_matrix, best_full_key, best_perms
@@ -212,7 +212,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
 
     return best_matrix, best_perms
 
-def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: list[list[list[int]]], can_to_g2: list[list[list[int]]]) -> list[int]:
+def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: list[list[int]], can_to_g2: list[list[int]]) -> list[list[int]]:
     def _inverse_perm(p):
         inv = [None] * len(p)
         for i, x in enumerate(p):

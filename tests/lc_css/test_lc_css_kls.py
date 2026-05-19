@@ -248,7 +248,7 @@ def _graph(
 
 
 def _assert_rref(matrix: np.ndarray) -> None:
-    pivots = []
+    pivots : list[int] = []
     zero_row_seen = False
 
     for row_idx, row in enumerate(matrix.astype(np.uint8)):

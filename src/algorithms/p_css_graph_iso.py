@@ -142,7 +142,7 @@ def _graph_from_invariants(n: int, invariants: list[list[int]]) -> Graph:
         vertex_coloring=[set(range(n))] + coloring
     )
 
-def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: list[int]) -> bool:
+def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: tuple[int, ...]) -> bool:
     def _rank(A: np.ndarray) -> int:
         if A.shape[0] == 0 or A.shape[1] == 0:
             return 0
@@ -150,7 +150,7 @@ def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: list[i
 
     return _rank(c2.Hx[:, permutation]) == _rank(c1.Hx) == _rank(np.vstack([c2.Hx[:, permutation], c1.Hx])) and _rank(c2.Hz[:, permutation]) == _rank(c1.Hz) == _rank(np.vstack([c2.Hz[:, permutation], c1.Hz]))
 
-def _extract_qubit_permutations(g1: Graph, g2: Graph, n: int) -> list[int]:
+def _extract_qubit_permutations(g1: Graph, g2: Graph, n: int) -> list[tuple[int, ...]]:
     def _inverse_perm(p):
         inv = [None] * len(p)
         for i, x in enumerate(p):
