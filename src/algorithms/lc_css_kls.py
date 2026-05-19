@@ -8,6 +8,8 @@ from typing import Any
 import numpy as np
 import pyzx as zx
 
+import ldpc.mod2.mod2_numpy as mod2
+
 from ..core.stabilizer_code import StabilizerCode
 
 class ZXGraph:
@@ -311,40 +313,188 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
         del original_qubits[0]
 
     # encoder = inverse elimination Cliffords
-    circuit = zx.Circuit(n)
-    circuit.initialize_qubits([True] * (n-k) + [False] * k)
+    circuit = zx.Circuit(n + k)
+    circuit.initialize_qubits([True] * (n+k))
+    # already prep with choi in mind
+    for j in range(k):
+        ref = j
+        inp = j + (n-k)
+        circuit.add_gate("HAD", ref)
+        circuit.add_gate("CNOT", ref, inp)
+
     for name, qubits in reversed(elimination_gates):
         if name == "H":
-            circuit.add_gate("HAD", qubits[0])
+            circuit.add_gate("HAD", qubits[0] + k)
         elif name == "S":
             # S† = Z phase 3π/2
-            circuit.add_gate("ZPhase", qubits[0], phase=3 / 2)
+            circuit.add_gate("ZPhase", qubits[0] + k, phase=3 / 2)
         elif name == "CNOT":
-            circuit.add_gate("CNOT", qubits[0], qubits[1])
+            circuit.add_gate("CNOT", qubits[0] + k, qubits[1] + k)
 
     return circuit
 
-def _code_to_graph(code) -> ZXGraph:
-    # 1.) code -> encoder circuit
-    circuit = _code_to_encoder_circuit(code)
-
-    # 2.) Encoder circuit -> zx diagram
-    zx_diagram = circuit.to_graph()
-
-    # 3.) zx diagram -> graph like state  in encoder-respecting form (TODO: currently only graph-like, not encoder-respecting, so inner nodes possible!!!)
-    zx.to_graph_like(zx_diagram)
+def _to_encoder_respecting_form(zx_diagram: zx.BaseGraph, n : int) -> ZXGraph:
+    # zx diagram -> graph like state  in encoder-respecting form (TODO: currently only graph-like, not encoder-respecting, so inner nodes possible!!!)
 
     if not zx.is_graph_like(zx_diagram, strict=True):
         raise ValueError("Expected the ZX diagram to be graph-like, but it was not.")
     
-    if (code.n + code.k) != len(zx_diagram.inputs()) + len(zx_diagram.outputs()):
+    if n != len(zx_diagram.inputs()) + len(zx_diagram.outputs()):
         raise ValueError("Expected the number of input and output boundaries to match the number of logical and physical qubits in the code.")
     
-    if zx_diagram.num_vertices() != 2 * (code.n + code.k):
-        raise ValueError(f"Expected the ZX diagram in encoder-respecting form to have exactly 2N = {2 * (code.n + code.k)} vertices (Z-nodes + in/outputs), but it had {zx_diagram.num_vertices()}.")
+    if zx_diagram.num_vertices() != 2 * n:
+        raise ValueError(f"Expected the ZX diagram in encoder-respecting form to have exactly 2N = {2 * n} vertices (Z-nodes + in/outputs), but it had {zx_diagram.num_vertices()}.")
+    
+    return ZXGraph.from_pyzx_diagram(zx_diagram)
 
-    # 4.) graph state -> ZXGraph
-    graph = ZXGraph.from_pyzx_diagram(zx_diagram)
+def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) -> ZXGraph:
+    """Convert a stabilizer state into a graph state under local Clifford operations.
+    Returns the adjacency matrix of the graph state."""
+    n = tableau.shape[1] // 2
+    local_clifords = [ [] for _ in range(n) ]
+
+    def _rank(matrix: np.ndarray) -> int:
+        if matrix.shape[0] == 0:
+            return 0
+        return mod2.rank(matrix)
+
+    def _make_X_invertible(t: np.ndarray) -> np.ndarray:
+        old_x_rank = _rank(t[:, :n])
+        while old_x_rank < n:
+            improved = False
+
+            for q in range(n):
+                if old_x_rank == n:
+                    break
+
+                best_rank = old_x_rank
+                best_choice = (None, None)
+                best_op = None
+
+                x_col = t[:, q].copy()
+                z_col = t[:, q + n].copy()
+
+                for new_x, new_z , op in [ (x_col, z_col, []), (z_col, x_col, ["H"]), ((x_col + z_col) % 2, x_col, ["H","S"]) ]:
+                    t[:, q] = new_x
+                    new_x_rank = _rank(t[:, :n])
+                    if new_x_rank > best_rank:
+                        best_rank = new_x_rank
+                        best_choice = (new_x, new_z)
+                        best_op = op
+
+                if best_choice[0] is not None:
+                    t[:, q] = best_choice[0]
+                    t[:, q + n] = best_choice[1]
+                    old_x_rank = best_rank
+                    local_clifords[q] = best_op
+                    improved = True
+                else:
+                    t[:, q] = x_col
+                    t[:, q + n] = z_col
+                    local_clifords[q] = []
+
+            if not improved:
+                break
+
+        return t
+
+    def _extract_adjacency_matrix(tableau: np.ndarray) -> np.ndarray:
+        """Extract the adjacency matrix from the stabilizer state."""
+        def _rref_no_column_swaps(matrix: np.ndarray) -> np.ndarray:
+            matrix = matrix.copy()
+            n_rows, n_cols = matrix.shape
+            pivot_row = 0
+            for col in range(n_cols):
+                if pivot_row >= n_rows:
+                    break
+
+                pivot_candidates = np.flatnonzero(matrix[pivot_row:, col])
+
+                if pivot_candidates.size == 0:
+                    continue
+
+                pivot = pivot_row + int(pivot_candidates[0])
+
+                # swap row with potential pivot up
+                if pivot != pivot_row:
+                    matrix[[pivot_row, pivot], :] = matrix[[pivot, pivot_row], :]
+
+                # make pivot column a unit vector
+                for r in range(n_rows):
+                    if r != pivot_row and matrix[r, col]:
+                        matrix[r, :] ^= matrix[pivot_row, :]
+                pivot_row += 1
+
+            return matrix
+
+        rre = _rref_no_column_swaps(tableau)
+
+        if _rank(rre[:, :n]) != n:
+            raise ValueError("X part of the tableau is not full rank, something went wrong.")
+
+        return rre[:, n:]
+
+    def _remove_diagonal(tableau: np.ndarray) -> np.ndarray:
+        """Basically apply S gate on all qubits to remove self-loops in the graph state."""
+        for r in range(tableau.shape[0]):
+            if tableau[r, r + n]:
+                tableau[r, r + n] = 0
+                local_clifords[r] = ["S"] + local_clifords[r]
+        return tableau
+
+    state = _make_X_invertible(tableau)
+    gamma = _extract_adjacency_matrix(state)
+    gamma = _remove_diagonal(gamma)
+
+    if not np.array_equal(gamma, gamma.T):
+        raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
+
+    graph = ZXGraph()
+    graph.n = old_n
+    graph.k = old_k
+    graph.vertices = [ (local_clifords[i], False) for i in range(n) ]
+    graph.edges = set()
+    for i in range(n):
+        for j in range(i + 1, n):
+            if gamma[i, j]:
+                graph.edges.add((i, j))
+
+    return gamma
+
+def _code_to_graph(code) -> ZXGraph:
+    # 1.) code -> encoder circuit
+    circuit = _code_to_encoder_circuit(code)
+    print(circuit.to_emoji())
+    print()
+
+    # 2.) Encoder circuit -> state tableau
+    n = code.n + code.k
+    initial_state = np.hstack([np.zeros((n, n), dtype=np.uint8), np.eye(n, dtype=np.uint8)])
+    for gate in circuit.gates:
+        if gate.name == "HAD":
+            q = gate.qubits[0]
+            initial_state[:, [q, n + q]] = initial_state[:, [n + q, q]]
+        elif gate.name == "ZPhase":
+            q = gate.qubits[0]
+            phase = gate.phase
+            if phase == 1 / 2:
+                initial_state[:, n + q] ^= initial_state[:, q]
+            elif phase == 1:
+                pass # Z has no effect on tableau
+            elif phase == 3 / 2:
+                initial_state[:, n + q] ^= initial_state[:, q]
+                # S† = SZ, but Z has no effect on tableau, so only apply S part to tableau
+            else:
+                raise ValueError(f"Unexpected Z phase {phase} in encoder circuit.")
+        elif gate.name == "CNOT":
+            control, target = gate.qubits
+            initial_state[:, target] ^= initial_state[:, control]
+            initial_state[:, n + control] ^= initial_state[:, n + target]
+        else:
+            raise ValueError(f"Unexpected gate {gate.name} in encoder circuit.")
+
+    # 3.) state tableau -> ZXGraph
+    graph = _stab_state_to_graph_state(initial_state, code.n, code.k)
 
     return graph
 
@@ -578,10 +728,7 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
 
     # 3.) simplify the graph with the added CNOTS
     zx_diagram = graph_hk.to_pyzx_diagram(cnots=cnots_gates)
-
-    zx.to_graph_like(zx_diagram)
-
-    graph = ZXGraph.from_pyzx_diagram(zx_diagram)
+    graph = _to_encoder_respecting_form(zx_diagram, graph_hk.n + graph_hk.k)
 
     # 4.) remove pivot-pivot edges
     adj = graph.get_input_output_adjacency()
@@ -615,6 +762,10 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
         while "S" in new_deco:
             new_deco.remove("S")
         graph.vertices[pivot] = (new_deco, False)
+
+    # 3.) simplify the graph with the added CNOTS
+    zx_diagram = graph.to_pyzx_diagram(cnots=cnots_gates)
+    graph = _to_encoder_respecting_form(zx_diagram, graph_hk.n + graph_hk.k)
 
     return graph
 
