@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from collections import Counter
 from itertools import combinations
+from typing import Any
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
@@ -162,7 +163,7 @@ def non_permutation_equivalent_stabilizer_code(code: StabilizerCode, seed: int |
     if code.k == code.n:
         raise RandomizeError("No non-equivalent stabilizer code exists with these small invariants.")
 
-    invariant : tuple = None
+    invariant : tuple[Any, ...] = ()
     if code.n - code.k < 10:
         invariant = _stabilizer_weight_enumerator(code)
     elif code.n < 20:
@@ -270,8 +271,7 @@ def random_permuted_css_pair(
     rx = int(rng.integers(0, n - k + 1))
 
     code = random_css_code(n, k, rx, seed=code_seed)
-    permutation = _random_permutation(n, seed=permutation_seed)
-    return code, permutation_equivalent_css_code(code, permutation)
+    return code, permutation_equivalent_css_code(code, permutation_seed)
 
 def lc_equivalent_code(
     code: StabilizerCode,
@@ -338,7 +338,7 @@ def _rank_binary(matrix: np.ndarray) -> int:
     return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
 
 def _very_cheap_invariant(code: StabilizerCode) -> tuple[int]:
-    return tuple(int(np.any(np.sum(code.symplectic, axis=1) % 2)))
+    return (int(np.any(np.sum(code.symplectic, axis=1) % 2)),)
 
 def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1
@@ -348,14 +348,14 @@ def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
     profile = []
 
     for w in range(1, max_w + 1):
-        projection_ranks = Counter()
-        normalizer_support_dims = Counter()
-        stabilizer_support_dims = Counter()
+        projection_ranks : Counter[int] = Counter()
+        normalizer_support_dims : Counter[int] = Counter()
+        stabilizer_support_dims : Counter[int] = Counter()
 
         for qubits in combinations(range(n), w):
-            qubits = set(qubits)
+            qubits_set : set[int] = set(qubits)
 
-            cols = [c for q in qubits for c in (q, q + n)]
+            cols = [c for q in qubits_set for c in (q, q + n)]
             proj_rank = _rank_binary(M[:, cols])
 
             projection_ranks[proj_rank] += 1
@@ -366,7 +366,7 @@ def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
             complement_cols = [
                 c
                 for q in range(n)
-                if q not in qubits
+                if q not in qubits_set
                 for c in (q, q + n)
             ]
 
@@ -381,7 +381,7 @@ def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
 
     return tuple(profile)
 
-def _cheap_invariant(code: StabilizerCode) -> tuple[int, int, int, int]:
+def _cheap_invariant(code: StabilizerCode) -> tuple[int, int, int, int, Any]:
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1
     n = code.n
     return (
