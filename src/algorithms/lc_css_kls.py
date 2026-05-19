@@ -581,8 +581,41 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
 
     zx.to_graph_like(zx_diagram)
 
-    # 4.) graph state -> ZXGraph
     graph = ZXGraph.from_pyzx_diagram(zx_diagram)
+
+    # 4.) remove pivot-pivot edges
+    adj = graph.get_input_output_adjacency()
+    pivots = {}
+    cnots_gates = []
+    for input in range(graph.k):
+        if np.count_nonzero(adj[input]) != 0:
+            pivot = np.flatnonzero(adj[input])[0]
+            pivots[input] = pivot + graph.k
+
+    for input1, pivot1 in pivots.items():
+        for input2, pivot2 in pivots.items():
+            if (pivot1, pivot2) in graph.edges or (pivot2, pivot1) in graph.edges:
+                # delete pivot-pivot edge
+                graph.apply_cz_edge(pivot1, pivot2)
+
+                # swap adjacency
+                graph.apply_cz_edge(input1, pivot1)
+                graph.apply_cz_edge(input1, pivot2)
+                graph.apply_cz_edge(input2, pivot1)
+                graph.apply_cz_edge(input2, pivot2)
+
+                # add swap gate on inputs to keep RREF form
+                cnots_gates.append((input1, input2))
+                cnots_gates.append((input2, input1))
+                cnots_gates.append((input1, input2))
+
+    # 5.) remove pivot vertex decorations
+    for pivot in pivots.values():
+        new_deco = graph.vertices[pivot][0]
+        while "S" in new_deco:
+            new_deco.remove("S")
+        graph.vertices[pivot] = (new_deco, False)
+
     return graph
 
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
