@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from ..core.css_code import CSSCode
+import hashlib
+from collections import deque, defaultdict
 
 import numpy as np
 
-import hashlib
-
-from collections import deque, defaultdict
-
 import ldpc.mod2.mod2_numpy as mod2
 from pynauty import Graph, certificate, canon_label, autgrp
+
+from ..core.css_code import CSSCode
 
 def _compute_invariant_a(code: CSSCode) -> list[int]:
     """Compute combined invariant of (non)zero columns of Hx and Hz for each column of the CSS code.
@@ -97,7 +96,7 @@ def _compute_invariant_b(code: CSSCode) -> list[int]:
             previous_gray = gray
 
         return enumerator
-    
+
     def _combine_invariants(inv_hx: list[int], inv_hz: list[int]) -> int:
         payload = (
             ",".join(map(str, inv_hx))
@@ -105,7 +104,7 @@ def _compute_invariant_b(code: CSSCode) -> list[int]:
             + ",".join(map(str, inv_hz))
         ).encode("ascii")
         return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
-    
+
     invariants = []
     Gx = _generator_matrix_from_parity_check(code.Hx, code.n)
     Gz = _generator_matrix_from_parity_check(code.Hz, code.n)

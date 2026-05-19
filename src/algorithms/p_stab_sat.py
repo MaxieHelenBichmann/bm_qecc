@@ -15,27 +15,26 @@ def _elementwise_map(normal_bool, variables):
             elem.append(z3.Not(variables[k]))
     return z3.And(elem)
 
-def _exactly_one(vars):
+def _exactly_one(variables):
 
     def _at_least_one():
-        return z3.Or(vars)
-    
+        return z3.Or(variables)
+
     def _at_most_one():
         return z3.And([
-            z3.Or(z3.Not(vars[i]), z3.Not(vars[j]))
-            for i in range(len(vars))
-            for j in range(i + 1, len(vars))
+            z3.Or(z3.Not(variables[i]), z3.Not(variables[j]))
+            for i in range(len(variables))
+            for j in range(i + 1, len(variables))
         ])
-        
+
     return z3.And(_at_least_one(), _at_most_one())
 
-def _xor_list(vars):
-    if len(vars) == 0:
+def _xor_list(variables):
+    if len(variables) == 0:
         return z3.BoolVal(False)
-    elif len(vars) == 1:
-        return vars[0]
-    else:
-        return z3.Xor(vars[0], _xor_list(vars[1:]))
+    if len(variables) == 1:
+        return variables[0]
+    return z3.Xor(variables[0], _xor_list(variables[1:]))
 
 def are_peq_stab_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check permutation equivalence by reducing it to a SAT problem and using a SAT solver.
@@ -76,7 +75,7 @@ def are_peq_stab_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     for row in range(r):
         for q in range(2 * n):
-            
+
             row_contributions = []
             for contribution in range(r):
                 if c2.symplectic[contribution, q] == 1:

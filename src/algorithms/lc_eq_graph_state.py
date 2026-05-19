@@ -1,10 +1,10 @@
 """Graph-state machinery for local-Clifford equivalence checking."""
 
 from __future__ import annotations
+from itertools import product
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
-from itertools import product
 
 from ..core.stabilizer_code import StabilizerCode
 
@@ -21,7 +21,7 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
     # TODO: with this approach, the resulting state is dependent on the choice of logical operators, aka it die NOT solve the issue: is tableu 1 LC-equivalent to tableu 2? and also NOT: is code 1 (generated solely by a given stabilizer tableau) LC-equivalent to code 2 (generated solely by a different stabilizer tableau)? because the generation of logical operators is NOT unique
     if code.k == 0:
         return code.symplectic
-    
+
     n = code.n
     r = n - code.k
     k = code.k
@@ -70,7 +70,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
                     if new_x_rank > best_rank:
                         best_rank = new_x_rank
                         best_choice = (new_x, new_z)
-            
+
                 if best_choice[0] is not None:
                     t[:, q] = best_choice[0]
                     t[:, q + n] = best_choice[1]
@@ -94,7 +94,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
             for col in range(n_cols):
                 if pivot_row >= n_rows:
                     break
-    
+
                 pivot_candidates = np.flatnonzero(matrix[pivot_row:, col])
 
                 if pivot_candidates.size == 0:
@@ -125,7 +125,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
         """Basically apply S gate on all qubits to remove self-loops in the graph state."""
         np.fill_diagonal(tableau, 0)
         return tableau
-    
+
     state = _make_X_invertible(tableau)
     gamma = _extract_adjacency_matrix(state)
     gamma = _remove_diagonal(gamma)
@@ -148,10 +148,12 @@ def _lc_equiv_graph_states(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
             d_0,...,d_{n-1}]
         """
         A = np.zeros((n * n, 4 * n), dtype=np.uint8)
-        def a_idx(i): return i
-        def b_idx(i): return n + i
-        def c_idx(i): return 2 * n + i
-        def d_idx(i): return 3 * n + i
+        def a_idx(i):
+            return i
+        def b_idx(i):
+            return n + i
+        def d_idx(i):
+            return 3 * n + i
 
         row = 0
         for j in range(n):
@@ -204,7 +206,7 @@ def _lc_equiv_graph_states(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
 
     if dim == 0: # trivial nullspace
         return False
-    
+
     # TODO: false assumption of the paper of Van den Nest, as Bouchet (lemma 1, in Van de Nest) requires the graph to be connected for the proof to work (which we do not guarantee, thus code broken) -> not polynomial anymore, but maybe preprocess graphs according to connected components (and their size) and run algorithm on each one separately
     # if dim > 4:
     #    for i in range(dim):
@@ -212,7 +214,7 @@ def _lc_equiv_graph_states(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
     #            x = V[i] ^ V[j]
     #            if _satisfy_constraints(x):
     #                return True
- 
+
     for coeffs in product([0, 1], repeat=dim):
         x = np.zeros(4 * n, dtype=np.uint8)
         for bit, basis_vec in zip(coeffs, V):
@@ -239,7 +241,7 @@ def are_lceq_graph_state(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """
     stab_state_1 = _stab_code_to_stab_state(c1)
     stab_state_2 = _stab_code_to_stab_state(c2)
-    
+
     graph_state_1 = _stab_state_to_graph_state(stab_state_1, c1.n + c1.k)
     graph_state_2 = _stab_state_to_graph_state(stab_state_2, c2.n + c2.k)
 

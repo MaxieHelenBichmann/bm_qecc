@@ -27,7 +27,7 @@ def are_peq_stab_bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         perm = np.array(perm)
         perm_symplectic = np.concatenate([perm, perm + c1.n])
 
-        if (c1_rank == _rank(c2.symplectic[:, perm_symplectic]) == _rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]]))):
+        if c1_rank == _rank(c2.symplectic[:, perm_symplectic]) == _rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]])):
             return True
-    
+
     return False

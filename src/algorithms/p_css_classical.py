@@ -3,12 +3,12 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from ..core.css_code import CSSCode
-
 import hashlib
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
+
+from ..core.css_code import CSSCode
 
 def _rank(matrix: np.ndarray) -> int:
     if matrix.shape[0] == 0:
@@ -91,8 +91,6 @@ def _compute_signatures(G1: np.ndarray, G2: np.ndarray) -> list[int]:
             + ",".join(map(str, inv_hz))
         ).encode("ascii")
         return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
-    
-
 
     invariants = []
 
@@ -116,7 +114,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
     def _prefix_semicanonical(G: np.ndarray, i: int) -> np.ndarray:
         """Bring the first i columns of G into semi-canonical form only using row operations."""
         M = np.array(G, dtype=np.int8, copy=True) & 1
-        k_m, n_m = M.shape
+        k_m = M.shape[0]
         if i == 0:
             return M
         pivot_row = 0
@@ -159,7 +157,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
 
 
     G = np.array(G, dtype=np.int8, copy=True) & 1
-    k_g, n_g = G.shape
+    n_g = G.shape[1]
     best_matrix: np.ndarray | None = None
     best_full_key: tuple[tuple[int, ...], ...] | None = None
     best_perms: list[list[int]] = []
@@ -178,10 +176,10 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
             best_prefix = prefix_key(best_matrix, i)
 
             if current_prefix > best_prefix: # prune this branch, since the canonical form must be lexicographically minimal
-                return 
+                return
 
             if current_prefix < best_prefix: # update the best prefix, since we found a better one on current path
-                best_matrix = None 
+                best_matrix = None
                 best_full_key = None
                 best_perms = []
 

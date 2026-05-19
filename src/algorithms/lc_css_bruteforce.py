@@ -35,7 +35,7 @@ def is_lceq_css_bruteforce(code: StabilizerCode) -> bool:
         if matrix.shape[0] == 0:
             return 0
         return rank(matrix)
-    
+
     n = code.n
     r = _rank(code.symplectic)
 
@@ -56,14 +56,13 @@ def is_lceq_css_bruteforce(code: StabilizerCode) -> bool:
             tableau[:, qubit] ^= tableau[:, qubit + n]
         return tableau
 
-        
     for action in product(LOCAL_CLIFFORDS, repeat=n):
         lc_tableau = code.symplectic.copy()
 
         for qubit, lc in enumerate(action):
             lc_tableau = apply_lc(lc_tableau, lc, qubit)
 
-        if (_rank(lc_tableau[:, :n]) + _rank(lc_tableau[:, n:]) == r):
+        if _rank(lc_tableau[:, :n]) + _rank(lc_tableau[:, n:]) == r:
             return True
-    
+
     return False

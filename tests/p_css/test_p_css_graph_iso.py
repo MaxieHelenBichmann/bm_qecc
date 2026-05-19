@@ -211,14 +211,14 @@ def test_extract_qubit_permutations_only_qubit() -> None:
 
 def test_check_permutation_equivalence_matching_convention() -> None:
     code1 = CSSCode(
-        Hx=np.array([[1, 0, 1, 1, 1], 
+        Hx=np.array([[1, 0, 1, 1, 1],
                      [0, 0, 1, 0, 1],
                      [1, 0, 1, 0, 0]], dtype=np.int8),
         Hz=None,
     )
 
     code2 = CSSCode(
-        Hx=np.array([[0, 1, 1, 1, 1], 
+        Hx=np.array([[0, 1, 1, 1, 1],
                      [0, 1, 0, 0, 1],
                      [0, 0, 1, 0, 1]], dtype=np.int8),
         Hz=None,

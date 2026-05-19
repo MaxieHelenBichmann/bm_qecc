@@ -260,7 +260,7 @@ def _assert_rref(matrix: np.ndarray) -> None:
         assert not zero_row_seen
 
         pivot = int(ones[0])
-        assert pivots == [] or pivot > pivots[-1]
+        assert not pivots or pivot > pivots[-1]
 
         expected_col = np.zeros(matrix.shape[0], dtype=np.uint8)
         expected_col[row_idx] = 1

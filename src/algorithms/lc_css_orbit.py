@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
-from collections import deque
 
 from ..core.stabilizer_code import StabilizerCode
 
@@ -20,7 +21,7 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
     """
     if code.k == 0:
         return code.symplectic
-    
+
     n = code.n
     r = n - code.k
     k = code.k
@@ -69,7 +70,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
                     if new_x_rank > best_rank:
                         best_rank = new_x_rank
                         best_choice = (new_x, new_z)
-            
+
                 if best_choice[0] is not None:
                     t[:, q] = best_choice[0]
                     t[:, q + n] = best_choice[1]
@@ -93,7 +94,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
             for col in range(n_cols):
                 if pivot_row >= n_rows:
                     break
-    
+
                 pivot_candidates = np.flatnonzero(matrix[pivot_row:, col])
 
                 if pivot_candidates.size == 0:
@@ -124,7 +125,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
         """Basically apply S gate on all qubits to remove self-loops in the graph state."""
         np.fill_diagonal(tableau, 0)
         return tableau
-    
+
     state = _make_X_invertible(tableau)
     gamma = _extract_adjacency_matrix(state)
     gamma = _remove_diagonal(gamma)
@@ -148,7 +149,7 @@ def _traverse_lc_orbit(graph: np.ndarray) -> bool:
 
         np.fill_diagonal(new_graph, 0)
         return new_graph
-    
+
     def _canonical_key(graph: np.ndarray) -> bytes:
         return np.asarray(graph, dtype=np.uint8).tobytes()
 

@@ -1,12 +1,12 @@
 """Graph-state machinery for local-Clifford equivalence checking."""
 
 from __future__ import annotations
+from itertools import product
 
 from typing import TYPE_CHECKING
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
-from itertools import product
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
@@ -34,7 +34,7 @@ def are_lceq_bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         if matrix.shape[0] == 0:
             return 0
         return mod2.rank(matrix)
-    
+
     n = c1.n
     rank_c1 = _rank(c1.symplectic)
 
@@ -55,14 +55,13 @@ def are_lceq_bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
             tableau[:, qubit] ^= tableau[:, qubit + n]
         return tableau
 
-        
     for action in product(LOCAL_CLIFFORDS, repeat=n):
         lc_tableau = c2.symplectic.copy()
 
         for qubit, lc in enumerate(action):
             lc_tableau = apply_lc(lc_tableau, lc, qubit)
 
-        if (rank_c1 == _rank(lc_tableau) == _rank(np.vstack([c1.symplectic, lc_tableau]))):
+        if rank_c1 == _rank(lc_tableau) == _rank(np.vstack([c1.symplectic, lc_tableau])):
             return True
-    
+
     return False

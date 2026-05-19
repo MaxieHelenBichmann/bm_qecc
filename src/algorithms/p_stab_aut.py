@@ -62,10 +62,10 @@ def _automorphisms(tableau: np.ndarray, n: int) -> list[tuple[int, ...]]:
             if all(x_i + n == z_i for x_i, z_i in zip(perm[:n], perm[n:])):
                 perms.append(tuple(perm[:n]))
         return perms
-    
+
     if tableau.shape[0] == 0:
         return list(permutations(range(n)))
-    
+
     script = f"""
 if LoadPackage("guava") = fail then
     Print("Could not load GAP package guava.");
@@ -87,7 +87,7 @@ QUIT;
 
     return _extract_valid_permutations(gap_perms)
 
-def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:    
+def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check permutation equivalence by brute-force search over all elements of S_n, but reducing the search space using automorphisms.
 
     Can be better than brute-force if the automorphism group of the code is large, but still has factorial worst-case runtime if the automorphism group is trivial.
@@ -106,11 +106,11 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         perm = np.array(perm)
         perm_symplectic = np.concatenate([perm, perm + c1.n])
 
-        if (_rank(c1.symplectic[:, perm_symplectic]) == c2_rank == _rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic]))):
+        if _rank(c1.symplectic[:, perm_symplectic]) == c2_rank == _rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic])):
             return True
-        else:
-            # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2
-            isomorphisms = { _compose(perm, alpha) for alpha in aut_c2 }
-            remaining_permutations -= isomorphisms
-    
+
+        # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2
+        isomorphisms = { _compose(perm, alpha) for alpha in aut_c2 }
+        remaining_permutations -= isomorphisms
+
     return False

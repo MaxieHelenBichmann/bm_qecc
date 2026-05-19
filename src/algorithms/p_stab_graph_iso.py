@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 import numpy as np
 
 from pynauty import Graph, certificate
-
-from collections import defaultdict
 
 from ..core.stabilizer_code import StabilizerCode
 
@@ -44,7 +43,7 @@ def _graph_from_code(code: StabilizerCode) -> Graph:
             adj_dict[edge_id].append(code.n + stabilizer_group_size)
             adj_dict[code.n + stabilizer_group_size].append(edge_id)
             edge_id += 1
-        
+
         for idx in np.flatnonzero(z_part):
             # add new z edge
             z_edges.add(edge_id)
@@ -59,14 +58,14 @@ def _graph_from_code(code: StabilizerCode) -> Graph:
             edge_id += 1
 
 
-    return Graph(number_of_vertices=code.n + stabilizer_group_size + len(z_edges) + len(x_edges), 
+    return Graph(number_of_vertices=code.n + stabilizer_group_size + len(z_edges) + len(x_edges),
                  directed=False,
-                 vertex_coloring=[set(range(code.n))] + [set(range(code.n, code.n + stabilizer_group_size))] + [z_edges] + [x_edges], 
+                 vertex_coloring=[set(range(code.n))] + [set(range(code.n, code.n + stabilizer_group_size))] + [z_edges] + [x_edges],
                  adjacency_dict=adj_dict)
 
-def are_peq_stab_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool: 
+def are_peq_stab_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check permutation equivalence by reducing to graph isomorphism.
-    
+
     For each code, the following is done:
     1.) Convert the stabilizer code into a colored graph G = (V, E) enumerating all elements in the stabilizer group, thus:
     V = {1,...,n} union { S_i | S_i ∈ S } with color(S_i) 
@@ -75,7 +74,7 @@ def are_peq_stab_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     2.) Check if the resulting graphs are isomorphic.
 
     By creating a node for each element of the stabilizer group, this being independent from the generator basis, and by splitting the X and Z edges, we create a graph of an exponential size, which is not efficient.
-    """   
+    """
     graph_1 = _graph_from_code(c1)
     graph_2 = _graph_from_code(c2)
 

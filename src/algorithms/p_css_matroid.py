@@ -1,15 +1,15 @@
 """Matroid-isomorphism based permutation equivalence checking."""
 
 from __future__ import annotations
-
-from ..core.css_code import CSSCode
+from collections import defaultdict
 
 import numpy as np
 import numpy.typing as npt
-from collections import defaultdict
 
 import ldpc.mod2.mod2_numpy as mod2
 from pynauty import Graph, certificate
+
+from ..core.css_code import CSSCode
 
 def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
     """
@@ -22,7 +22,7 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
 
     A = (np.asarray(A) & 1).astype(np.uint8)
     K = mod2.nullspace(A)
- 
+
     if hasattr(K, "toarray"):
         K = K.toarray()
 

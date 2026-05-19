@@ -17,7 +17,6 @@ def are_peq_css_bruteforce(c1: CSSCode, c2: CSSCode) -> bool:
 
     Each row space check should be done in O(n^3) time, and there are O(n!) permutations, so the overall runtime is O(n! * n^3) which is obviously not efficient at all.
     """
-    
     def _rank(matrix: np.ndarray) -> int:
         if matrix.shape[0] == 0:
             return 0
@@ -36,5 +35,5 @@ def are_peq_css_bruteforce(c1: CSSCode, c2: CSSCode) -> bool:
             if c1_hz_rank != rank(np.vstack([c1.Hz, permuted_hz])):
                 continue
         return True
-    
+
     return False

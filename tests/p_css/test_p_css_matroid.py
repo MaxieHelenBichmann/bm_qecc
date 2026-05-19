@@ -63,7 +63,7 @@ def test_are_peq_css_matroid_random_positive(seed: int) -> None:
         code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
     except RandomizeError as re:
         pytest.skip(f"Skip test random_positive: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
-        
+
     assert are_peq_css_matroid(code1, code2) is True
 
 

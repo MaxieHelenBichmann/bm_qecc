@@ -28,7 +28,7 @@ class GF4:
     def __post_init__(self):
         if self.value not in (0, 1, 2, 3):
             raise ValueError("GF(4) elements must be 0, 1, 2, or 3.")
-        
+
     def __add__(self, other: GF4) -> GF4:
         return GF4(self.value ^ other.value)
 
@@ -153,7 +153,7 @@ def _gf4_rref(matrix: np.ndarray, to_col: int | None = None) -> tuple[int, np.nd
 
     if matrix.shape[0] == 0:
         return 0, matrix, []
-    
+
     matrix = matrix.copy()
     m, n = matrix.shape
     rank = 0
@@ -191,12 +191,12 @@ def _gf4_rref(matrix: np.ndarray, to_col: int | None = None) -> tuple[int, np.nd
     return rank, matrix, pivot_columns
 
 def _gf4_trace_inner_product(a: np.ndarray, b: np.ndarray) -> GF4:
-    sum = ZERO
+    s = ZERO
     for i in range(len(a)):
-        sum += a[i].conjugate() * b[i] + a[i] * b[i].conjugate()
-    return sum
+        s += a[i].conjugate() * b[i] + a[i] * b[i].conjugate()
+    return s
 
-def _compute_signatures(generator_matrix: np.ndarray, n: int) -> list[int]:
+def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
     """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the code.
     """
     def _gf2_kernel_basis(A: np.ndarray) -> np.ndarray:
@@ -214,7 +214,7 @@ def _compute_signatures(generator_matrix: np.ndarray, n: int) -> list[int]:
                "Kernel basis must have the same number of columns as the input matrix."
             )
         return K
-    
+
     def _gf4_row_basis(M: np.ndarray) -> list[np.ndarray]:
         # basis (base vectors as columns) of the row space of M, with operations done in GF(4)
         if M.shape[0] == 0:
@@ -223,13 +223,13 @@ def _compute_signatures(generator_matrix: np.ndarray, n: int) -> list[int]:
 
         if rank == M.shape[0]:
             return [rref[i, :] for i in range(rank)]
-    
+
         pivot_rows = []
         for i in range(rref.shape[0]):
             if not all(rref[i, c].is_zero() for c in range(rref.shape[1])):
                 pivot_rows.append(i)
         return [rref[i, :] for i in pivot_rows]
-    
+
     def _gf4_gram(G: np.ndarray) -> np.ndarray:
         # gram matrix of G and G in GF(4) but stabilizer semantics
         k = G.shape[0]
@@ -241,14 +241,14 @@ def _compute_signatures(generator_matrix: np.ndarray, n: int) -> list[int]:
                 gram[i, j] = _gf4_trace_inner_product(G[i], G[j]).value
 
         return gram
-    
+
     def _gf2_gf4_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
         # gram matrix of A in GF(2) and B in GF(4)
         m, ra = A.shape
         rb, n = B.shape
         if ra != rb:
             raise ValueError("Incompatible shapes for matrix multiplication.")
-    
+
         C = np.empty((m, n), dtype=object)
         for i in range(m):
             for j in range(n):
@@ -269,7 +269,7 @@ def _compute_signatures(generator_matrix: np.ndarray, n: int) -> list[int]:
         gram = _gf4_gram(Gp)
 
         coeff_basis = _gf2_kernel_basis(gram.T) # c @ gram = gram.T @ c.T = 0 -> x = c @ Gp with <x, Gp[i]> = 0 for all rows j -> x orthogonal to all rows of Gp -> x in Gp perp
-            
+
         if coeff_basis.shape[0] == 0:
             hull_basis = np.zeros((0, g_p), dtype=object)
         else:
@@ -300,7 +300,7 @@ def _compute_signatures(generator_matrix: np.ndarray, n: int) -> list[int]:
             previous_gray = gray
 
         return enumerator
-    
+
     def _hash_enumerator(enum: list[int]) -> int:
         payload = (",".join(map(str, enum))).encode("ascii")
         return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
@@ -356,10 +356,10 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
             best_prefix = prefix_key(best_matrix, i)
 
             if current_prefix > best_prefix: # prune this branch, since the canonical form must be lexicographically minimal
-                return 
+                return
 
             if current_prefix < best_prefix: # update the best prefix, since we found a better one on current path
-                best_matrix = None 
+                best_matrix = None
                 best_full_key = None
 
         if i == n_g: # we are at leaf (have a full permutation)
@@ -386,7 +386,7 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
     return best_matrix
 
 
-def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:  
+def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check permutation equivalence mapping a tableau to GF(4) and using algorithms for classical code equivalence. A two-layer approach is used, where the first layer uses Sendrier's Support Splitting Algorithm to partition the columns of the generator matrices into equivalence classes based on the weight enumerator of the hull of the punctured code. 
     The second layer then checks for permutation equivalence by traversing the search tree of possible permutations, and pruning branches based on the canonical form of Feulner's Algorithm.
 
@@ -398,13 +398,13 @@ def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     3.) Canonicalize the matrices using Feulner's algorithm, and check for equivalence of the canonical forms, pruning the search tree of possible permutations.
 
     This algorithm should be more efficient than the brute-force algorithm, since it avoids checking all permutations, BUT it is still not efficient in the worst case. And using GF(4) instead of a binary code like in the CSS case make the computations more complex.
-    """  
+    """
     gf4_tableau_c1 = _symplectic_to_gf4(c1.symplectic)
     gf4_tableau_c2 = _symplectic_to_gf4(c2.symplectic)
 
     # Sendrier
-    signatures_c1 = _compute_signatures(gf4_tableau_c1, c1.n)
-    signatures_c2 = _compute_signatures(gf4_tableau_c2, c2.n)
+    signatures_c1 = _compute_signatures(gf4_tableau_c1)
+    signatures_c2 = _compute_signatures(gf4_tableau_c2)
 
     partition_c1 = _partition_columns_by_invariants(signatures_c1)
     partition_c2 = _partition_columns_by_invariants(signatures_c2)
@@ -419,4 +419,4 @@ def are_peq_stab_classical(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     canon_c1 = _compute_canonical_form(gf4_tableau_c1, list(partition_c1.values()))
     canon_c2 = _compute_canonical_form(gf4_tableau_c2, list(partition_c2.values()))
 
-    return np.array_equal(canon_c1, canon_c2) 
+    return np.array_equal(canon_c1, canon_c2)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import lc_equivalent_code, random_stabilizer_code, lc_equivalent_code_and_log_ops
+from benchmarks.utils import random_stabilizer_code, lc_equivalent_code_and_log_ops
 from src.algorithms.lc_eq_graph_state import (
     _lc_equiv_graph_states,
     _stab_code_to_stab_state,
@@ -163,7 +163,7 @@ def test_stab_state_to_graph_state_small_tableau(
                 [[0]],
                 dtype=np.uint8,
             ),
-            True, 
+            True,
             id="one-empty"
         ),
         pytest.param(
@@ -177,7 +177,7 @@ def test_stab_state_to_graph_state_small_tableau(
                  [0, 0]],
                 dtype=np.uint8,
             ),
-            True, 
+            True,
             id="two-empty"
         ),
         pytest.param(
