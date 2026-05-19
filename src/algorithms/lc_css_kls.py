@@ -10,7 +10,7 @@ from fractions import Fraction
 from ..core.stabilizer_code import StabilizerCode
 
 class ZXGraph:
-    def __init__(self):
+    def __init__(self) -> None:
         self.n = 0
         self.k = 0
 
@@ -49,7 +49,7 @@ class ZXGraph:
     def neighbors(self, v: int) -> list[int]:
         return [u for u in range(self.n + self.k) if (u, v) in self.edges or (v, u) in self.edges]
     
-    def local_complementation(self, v: int):
+    def local_complementation(self, v: int) -> None:
         neighbors = self.neighbors(v)
         for i in range(len(neighbors)):
             for j in range(i + 1, len(neighbors)):
@@ -57,7 +57,7 @@ class ZXGraph:
                 q = neighbors[j]
                 self.apply_cz_edge(p, q)
 
-    def apply_cz_edge(self, u: int, v: int): # toggle the edge (u,v)
+    def apply_cz_edge(self, u: int, v: int) -> None: # toggle the edge (u,v)
         min_u_v = min(u, v)
         max_u_v = max(u, v)
         if (min_u_v, max_u_v) in self.edges: 
@@ -352,84 +352,80 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
         - only decorations I , S , H allowed (apart from additional Z phases)
         - if vertex has a H decoration, then it cannot have a neighbor with a smaller index
     """ 
-    def _h_slide_down(g: ZXGraph, words: list[tuple[list[str], bool]], upper: int, lower: int) -> ZXGraph:
+    def _h_slide_down(g: ZXGraph, upper: int, lower: int) -> None:
         # (Eq. 13) H_upper |G> = H_lower Z_upper Z_lower prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(upper) union {upper}, B = N(lower) union {lower}
         A = set(g.neighbors(upper)) | {upper}
         B = set(g.neighbors(lower)) | {lower}
 
-        words[upper] = ( words[upper][0][:-1] , words[upper][1] ^ True ) # remove H, add Z
+        g.vertices[upper] = ( g.vertices[upper][0][:-1] , g.vertices[upper][1] ^ True ) # remove H, add Z
 
-        if words[lower][0] and words[lower][0][-1] == "H": # add H, add Z
-            words[lower] = ( words[lower][0][:-1] , words[lower][1] ^ True )
+        if g.vertices[lower][0] and g.vertices[lower][0][-1] == "H": # add H, add Z
+            g.vertices[lower] = ( g.vertices[lower][0][:-1] , g.vertices[lower][1] ^ True )
         else:
-            words[lower] = ( words[lower][0] + ["H"] , words[lower][1] ^ True )
+            g.vertices[lower] = ( g.vertices[lower][0] + ["H"] , g.vertices[lower][1] ^ True )
 
         for p in A:
             for q in B:
                 if p == q:
-                    words[p] = ( words[p][0] , words[p][1] ^ True ) # add Z
+                    g.vertices[p] = ( g.vertices[p][0] , g.vertices[p][1] ^ True ) # add Z
                 else:
                     g.apply_cz_edge(p, q)
-
-        return g
     
-    def _reduce_trailing_HS(g: ZXGraph, words: list[tuple[list[str], bool]], i: int):
+    def _reduce_trailing_HS(g: ZXGraph, i: int) -> None:
         # (Eq. 12) H_i S_i |G> = S_i^3 prod_{p in N(i)} Z_p prod_{p,q in N(i)} CS_{p,q} |G>
-        words[i] = ( words[i][0][:-2] + ["S", "S", "S"], words[i][1] )
+        g.vertices[i] = ( g.vertices[i][0][:-2] + ["S", "S", "S"], g.vertices[i][1] )
 
         for j in g.neighbors(i):
-            words[j][0].extend(["S", "S"])
+            g.vertices[j][0].extend(["S", "S"])
 
         # as we handle every subset {p,q} of N(i) twice - as apply_cs_edge(p, q) and apply_cs_edge(q, p) - it effectively applies a CZ between them -> local complementation, with applying S to every neighbor of i (I THINK)
         #
         # for p in g.neighbors(i):
         #     for q in g.neighbors(i):
         #         if p == q:
-        #            words[p][0] += ["S"]
+        #            g.vertices[p][0] += ["S"]
         #         else:
         #             g.apply_cs_edge(p, q) 
 
         for p in g.neighbors(i):
-            words[p][0].append("S")
+            g.vertices[p][0].append("S")
 
         g.local_complementation(i)
 
-    def _reduce_solo_trailing_SH(g: ZXGraph, words: list[tuple[list[str], bool]], i: int):
+    def _reduce_solo_trailing_SH(g: ZXGraph, i: int) -> None:
         # (Eq. 11) S_i H_i |G> = H_i prod_{p,q in N(i)} CS_{p,q} |G>
-        words[i] = (words[i][0][:-2] + ["H"], words[i][1])
+        g.vertices[i] = (g.vertices[i][0][:-2] + ["H"], g.vertices[i][1])
 
         # as we handle every subset {p,q} of N(i) twice - as apply_cs_edge(p, q) and apply_cs_edge(q, p) - it effectively applies a CZ between them -> local complementation, with applying S to every neighbor of i (I THINK)
         #
         # for p in g.neighbors(i):
         #    for q in g.neighbors(i):
         #        if p == q:
-        #            words[p][0] += ["S"]
+        #            g.vertices[p][0] += ["S"]
         #        else:
         #            g.apply_cs_edge(p, q)
 
         for p in g.neighbors(i):
-            words[p][0].append("S")
+            g.vertices[p][0].append("S")
 
         g.local_complementation(i)
 
-    def _reduce_shared_trailing_SH(g: ZXGraph, words: list[tuple[list[str], bool]], i: int, j: int):
+    def _reduce_shared_trailing_SH(g: ZXGraph, i: int, j: int) -> None:
         # (Eq. 11) H_i H_j|G> = Z_i Z_j prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(i) union {i}, B = N(j) union {j}
         A = set(g.neighbors(i)) | {i}
         B = set(g.neighbors(j)) | {j}
 
-        words[i] = ( words[i][0][:-1] + ["S", "S"], words[i][1] )
-        words[j] = ( words[j][0][:-1] + ["S", "S"], words[j][1] )
+        g.vertices[i] = ( g.vertices[i][0][:-1] + ["S", "S"], g.vertices[i][1] )
+        g.vertices[j] = ( g.vertices[j][0][:-1] + ["S", "S"], g.vertices[j][1] )
 
         for p in A:
             for q in B:
                 if p == q:
-                    words[p][0].extend(["S", "S"])
+                    g.vertices[p][0].extend(["S", "S"])
                 else:
                     g.apply_cz_edge(p, q)
-
-        return g
     
     def _reduce_word(word: tuple[list[str], bool]) -> tuple[list[str], bool]:
         new_z_bit = word[1]
@@ -491,15 +487,15 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
             if len(graph.vertices[i][0]) < 2:
                 continue
             if graph.vertices[i][-2:][0] == ["H", "S"]:
-                _reduce_trailing_HS(graph, graph.vertices, i)
+                _reduce_trailing_HS(graph, i)
                 changed = True
                 break
             if graph.vertices[i][-2:][0] == ["S", "H"]:
                 h_neighbors = [ j for j in graph.neighbors(i) if graph.vertices[j][0][-1:] == ["H"] ]
                 if len(h_neighbors) == 0:
-                    _reduce_solo_trailing_SH(graph, graph.vertices, i)
+                    _reduce_solo_trailing_SH(graph, i)
                 else:
-                    _reduce_shared_trailing_SH(graph, graph.vertices, i, h_neighbors[0])
+                    _reduce_shared_trailing_SH(graph, i, h_neighbors[0])
                 changed = True
                 break
 
@@ -517,7 +513,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
                 break
 
             y = min(low_neighbors)
-            _h_slide_down(graph, graph.vertices, x, y)
+            _h_slide_down(graph, x, y)
 
     for x in range(n):
         if graph.vertices[x][0] not in ([], ["H"], ["S"], ["S", "H"]):
