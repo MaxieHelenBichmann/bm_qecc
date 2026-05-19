@@ -162,6 +162,7 @@ def non_permutation_equivalent_stabilizer_code(code: StabilizerCode, seed: int |
     if code.k == code.n:
         raise RandomizeError("No non-equivalent stabilizer code exists with these small invariants.")
 
+    invariant : tuple = None
     if code.n - code.k < 10:
         invariant = _stabilizer_weight_enumerator(code)
     elif code.n < 20:
@@ -336,8 +337,8 @@ def _rank_binary(matrix: np.ndarray) -> int:
     matrix = np.asarray(matrix, dtype=np.int8) % 2
     return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
 
-def _very_cheap_invariant(code: StabilizerCode) -> int:
-    return int(np.any(np.sum(code.symplectic, axis=1) % 2))
+def _very_cheap_invariant(code: StabilizerCode) -> tuple[int]:
+    return tuple(int(np.any(np.sum(code.symplectic, axis=1) % 2)))
 
 def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1

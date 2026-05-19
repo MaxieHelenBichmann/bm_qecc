@@ -138,7 +138,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
 
     return gamma
 
-def _traverse_lc_orbit(graph1: np.ndarray, graph2: np.ndarray, n_code: int, k_code: int) -> bool:
+def _traverse_lc_orbit(graph1: np.ndarray, graph2: np.ndarray, n_code: int, k_code: int) -> set[tuple[int]]:
     def _lc(graph: np.ndarray, q: int) -> np.ndarray:
         new_graph = graph.copy()
         neighbors = np.flatnonzero(graph[q])
@@ -176,7 +176,7 @@ def _traverse_lc_orbit(graph1: np.ndarray, graph2: np.ndarray, n_code: int, k_co
 
     return permutations
 
-def _extract_qubit_permutations(adj1: np.ndarray, adj2: np.ndarray, n: int, k: int) -> list[int]:
+def _extract_qubit_permutations(adj1: np.ndarray, adj2: np.ndarray, n: int, k: int) -> list[tuple[int]]:
     def _inverse_perm(p):
         inv = [None] * len(p)
         for i, x in enumerate(p):

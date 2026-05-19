@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 import numpy as np
 import pyzx as zx
 from fractions import Fraction
@@ -41,10 +42,8 @@ class ZXGraph:
         adj = np.zeros((self.n + self.k, self.n + self.k), dtype=bool)
         for edge in self.edges:
             u, v = edge
-            i = self.vertices.index(u)
-            j = self.vertices.index(v)
-            adj[i, j] = True
-            adj[j, i] = True
+            adj[u, v] = True
+            adj[v, u] = True
         return adj
     
     def neighbors(self, v: int) -> list[int]:
@@ -91,6 +90,8 @@ class ZXGraph:
                     return ["H", "S", "S", "S"], False # S†H
                 else:
                     raise ValueError(f"Unexpected vertex phase {phase} in ZX diagram.")
+            else:
+                raise ValueError(f"Unexpected edge type {edge_type} in ZX diagram.")
             
         graph = ZXGraph()
         pyzx_input_boundaries = sorted(diagram.inputs(), key=lambda v: getattr(v, "id", v))
@@ -171,8 +172,8 @@ class ZXGraph:
             
         diagram = zx.Graph()
         vertex_map = {}
-        input_boundaries = []
-        output_boundaries = []
+        input_boundaries : list[Any] = []
+        output_boundaries : list[Any] = []
         for i, deco in enumerate(self.vertices):
             if i == self.k:
                 _add_cnots(diagram, input_boundaries)
@@ -200,7 +201,7 @@ class ZXGraph:
         n = self.n + self.k
         colors = np.full(n, -1, dtype=np.int8)
 
-        neighbors_list = [ set() for _ in range(n) ]
+        neighbors_list : list[set] = [ set() for _ in range(n) ]
         for u, v in self.edges:
             (neighbors_list[u]).add(v)
             (neighbors_list[v]).add(u)
