@@ -96,6 +96,7 @@ class ZXGraph:
         pyzx_output_boundaries = sorted(diagram.outputs(), key=lambda v: getattr(v, "id", v))
         graph.n = len(pyzx_output_boundaries)
         graph.k = len(pyzx_input_boundaries)
+
         pyzx_vertices = []
 
         for input_boundary in pyzx_input_boundaries:
@@ -330,11 +331,17 @@ def _code_to_graph(code) -> ZXGraph:
     # 2.) Encoder circuit -> zx diagram
     zx_diagram = circuit.to_graph()
 
-    # 3.) zx diagram -> graph like state
+    # 3.) zx diagram -> graph like state  in encoder-respecting form (TODO: currently only graph-like, not encoder-respecting, so inner nodes possible!!!)
     zx.to_graph_like(zx_diagram)
 
     if not zx.is_graph_like(zx_diagram, strict=True):
         raise ValueError("Expected the ZX diagram to be graph-like, but it was not.")
+    
+    if (code.n + code.k) != len(zx_diagram.inputs()) + len(zx_diagram.outputs()):
+        raise ValueError("Expected the number of input and output boundaries to match the number of logical and physical qubits in the code.")
+    
+    if zx_diagram.num_vertices() != 2 * (code.n + code.k):
+        raise ValueError(f"Expected the ZX diagram in encoder-respecting form to have exactly 2N = {2 * (code.n + code.k)} vertices (Z-nodes + in/outputs), but it had {zx_diagram.num_vertices()}.")
 
     # 4.) graph state -> ZXGraph
     graph = ZXGraph.from_pyzx_diagram(zx_diagram)

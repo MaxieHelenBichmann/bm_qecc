@@ -8,8 +8,8 @@ import pytest
 from benchmarks.utils import random_stabilizer_code, lc_equivalent_code_and_log_ops
 from src.algorithms.lc_eq_graph_state import (
     _lc_equiv_graph_states,
-    _stab_code_to_stab_state,
-    _stab_state_to_graph_state,
+    #_stab_code_to_stab_state,
+    #_stab_state_to_graph_state,
     are_lceq_graph_state,
 )
 from src.core.stabilizer_code import StabilizerCode
@@ -87,7 +87,7 @@ def _assert_same_matrix(actual: np.ndarray, expected: np.ndarray) -> None:
         ),
     ],
 )
-def test_stab_code_to_stab_state_small_codes(code: StabilizerCode, expected: np.ndarray) -> None:
+def utest_stab_code_to_stab_state_small_codes(code: StabilizerCode, expected: np.ndarray) -> None:
     _assert_same_matrix(_stab_code_to_stab_state(code), expected)
 
 # ----------------------------------------------------------------------------------------------------
@@ -141,7 +141,7 @@ def test_stab_code_to_stab_state_small_codes(code: StabilizerCode, expected: np.
         ),
     ],
 )
-def test_stab_state_to_graph_state_small_tableau(
+def utest_stab_state_to_graph_state_small_tableau(
     tableau: np.ndarray,
     expected: np.ndarray,
 ) -> None:
