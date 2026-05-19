@@ -154,11 +154,8 @@ def test_compute_signatures() -> None:
     )
     permutation = (2, 4, 0, 3, 1)
 
-    signatures = _compute_signatures(generator_matrix, generator_matrix.shape[1])
-    permuted_signatures = _compute_signatures(
-        generator_matrix[:, permutation],
-        generator_matrix.shape[1],
-    )
+    signatures = _compute_signatures(generator_matrix)
+    permuted_signatures = _compute_signatures(generator_matrix[:, permutation])
 
     assert permuted_signatures == [signatures[i] for i in permutation]
 
