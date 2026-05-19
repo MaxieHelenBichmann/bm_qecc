@@ -4,136 +4,169 @@ from __future__ import annotations
 from itertools import product
 
 import numpy as np
+import pyzx as zx
 import ldpc.mod2.mod2_numpy as mod2
 
 from ..core.stabilizer_code import StabilizerCode
 
-def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
-    """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
-    Return only stabilizer tableau of the resulting stabilizer state.
-    
-    S = [S_x | S_z] ; Lx = [Lx_x | Lx_z] ; Lz = [Lz_x | Lz_z]
+def _code_to_encoder_circuit(code) -> zx.Circuit:
+    def _delete_first_row_and_qubit(tab: np.ndarray) -> np.ndarray:
+        n = tab.shape[1] // 2
+        return np.delete(np.delete(np.delete(tab, 0, axis=0), 0, axis=1) , n-1, axis=1)
 
-    S_choi = [S_x  | 0 | S_z  | 0]
-             [Lx_x | I | Lx_z | 0]
-             [Lz_x | 0 | Lz_z | I]
-    """
-    # TODO: with this approach, the resulting state is dependent on the choice of logical operators, aka it die NOT solve the issue: is tableu 1 LC-equivalent to tableu 2? and also NOT: is code 1 (generated solely by a given stabilizer tableau) LC-equivalent to code 2 (generated solely by a different stabilizer tableau)? because the generation of logical operators is NOT unique
-    if code.k == 0:
-        return code.symplectic
-
+    tableau = np.asarray(code.symplectic.copy(), dtype=np.uint8) & 1
     n = code.n
-    r = n - code.k
     k = code.k
+    original_qubits = list(range(n))
 
-    stab_x = code.symplectic[:, :n]
-    stab_z = code.symplectic[:, n:]
+    # Elimination gates are recorded in forward elimination order.
+    elimination_gates: list[tuple[str, tuple[int, ...]]] = []
+    while tableau.shape[0] > 0:
+        cur_n = tableau.shape[1] // 2
+        x0 = tableau[0, :cur_n]
+        z0 = tableau[0, cur_n:]
+        support = np.flatnonzero(x0 | z0)
+        if len(support) == 0:
+            raise ValueError("Encountered an identity stabilizer row.")
 
-    log_x_x = code.x_logicals.tableau.matrix[:, :n]
-    log_x_z = code.x_logicals.tableau.matrix[:, n:]
+        # 1.) turn every non-identity Pauli in row 0 into Z
+        # I = (0|0) --I---> I = (0|0)
+        # X = (0|1) --H---> Z = (1|0)
+        # Y = (1|1) --HS--> Z = (1|0)
+        # Z = (0|1) --I---> Z = (1|0)
+        for q in range(cur_n):
+            x_q = bool(tableau[0, q])
+            z_q = bool(tableau[0, cur_n + q])
+            if x_q and z_q:
+                # Y -> X under S
+                tableau[:, q + cur_n] ^= tableau[:, q]
+                tableau[:, [q, q + cur_n]] = tableau[:, [q + cur_n, q]]
+                elimination_gates.append(("S", (original_qubits[q],)))
+                elimination_gates.append(("H", (original_qubits[q],)))
+            elif x_q and not z_q:
+                # X -> Z under H
+                tableau[:, [q, q + cur_n]] = tableau[:, [q + cur_n, q]]
+                elimination_gates.append(("H", (original_qubits[q],)))
 
-    log_z_x = code.z_logicals.tableau.matrix[:, :n]
-    log_z_z = code.z_logicals.tableau.matrix[:, n:]
+        # 2.) make the first qubit Z (pivot) CNOT(0 -> pivot)
+        z_support = np.flatnonzero(tableau[0, cur_n:])
 
-    stabilizer_part = np.hstack([stab_x,np.zeros((r, k), dtype=np.int8), stab_z, np.zeros((r, k), dtype=np.int8)])
-    logical_x_part = np.hstack([log_x_x,np.eye(k, dtype=np.int8),log_x_z,np.zeros((k, k), dtype=np.int8)])
-    logical_z_part = np.hstack([log_z_x,np.zeros((k, k), dtype=np.int8),log_z_z,np.eye(k, dtype=np.int8)])
+        if len(z_support) == 0:
+            raise RuntimeError("Failed to convert stabilizer row to Z support.")
+        pivot = int(z_support[0])
 
-    return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
+        if pivot != 0:
+            tableau[:, pivot] ^= tableau[:, 0]
+            tableau[:, cur_n + 0] ^= tableau[:, cur_n + pivot]
 
-def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
-    """Convert a stabilizer state into a graph state under local Clifford operations.
-    Returns the adjacency matrix of the graph state."""
-    def _rank(matrix: np.ndarray) -> int:
-        if matrix.shape[0] == 0:
-            return 0
-        return mod2.rank(matrix)
+        # 3.) clear all other Zs in row 0 using CNOT(q -> 0)
+        # control: (x_c|z_c) --CNOT--> (  x_c  |z_c^z_t)
+        # target : (x_t|z_t) --CNOT--> (x_t^x_c|  z_t  )
+        for q in range(1, cur_n):
+            if tableau[0, cur_n + q] == 1:
+                tableau[:, 0] ^= tableau[:, q]
+                tableau[:, cur_n + q] ^= tableau[:, cur_n + 0]
 
-    def _make_X_invertible(t: np.ndarray) -> np.ndarray:
-        old_x_rank = _rank(t[:, :n])
-        while old_x_rank < n:
-            improved = False
+                elimination_gates.append(
+                    ("CNOT", (original_qubits[q], original_qubits[0]))
+                )
 
-            for q in range(n):
-                if old_x_rank == n:
-                    break
+        if (
+            np.count_nonzero(tableau[0, :cur_n]) != 0
+            or np.count_nonzero(tableau[0, cur_n:]) != 1
+            or tableau[0, cur_n] != 1
+        ):
+            raise RuntimeError("Failed to isolate a stabilizer as a single Z.")
 
-                best_rank = old_x_rank
-                best_choice = (None, None)
+        # 4.) clear pivot column
+        for r in range(1, tableau.shape[0]):
+            if tableau[r, cur_n]:
+                tableau[r] ^= tableau[0]
+            if tableau[r, 0]:
+                raise RuntimeError(
+                    "A remaining row has X on the pivot qubit."
+                )
 
-                x_col = t[:, q].copy()
-                z_col = t[:, q + n].copy()
+        # 5.) remove stabilizer and qubit
+        tableau = _delete_first_row_and_qubit(tableau)
+        del original_qubits[0]
 
-                for new_x, new_z in [ (x_col, z_col), (z_col, x_col), ((x_col + z_col) % 2, x_col) ]:
-                    t[:, q] = new_x
-                    new_x_rank = _rank(t[:, :n])
-                    if new_x_rank > best_rank:
-                        best_rank = new_x_rank
-                        best_choice = (new_x, new_z)
+    # encoder = inverse elimination Cliffords
+    circuit = zx.Circuit(n)
+    circuit.initialize_qubits([True] * (n-k) + [False] * k)
+    for name, qubits in reversed(elimination_gates):
+        if name == "H":
+            circuit.add_gate("HAD", qubits[0])
+        elif name == "S":
+            # S† = Z phase 3π/2
+            circuit.add_gate("ZPhase", qubits[0], phase=3 / 2)
+        elif name == "CNOT":
+            circuit.add_gate("CNOT", qubits[0], qubits[1])
 
-                if best_choice[0] is not None:
-                    t[:, q] = best_choice[0]
-                    t[:, q + n] = best_choice[1]
-                    old_x_rank = best_rank
-                    improved = True
-                else:
-                    t[:, q] = x_col
-                    t[:, q + n] = z_col
+    return circuit
 
-            if not improved:
-                break
+def _extract_adj_matrix_from_zx(diagram: zx.Graph, n : int) -> np.ndarray:
+    pyzx_input_boundaries = sorted(diagram.inputs(), key=lambda v: getattr(v, "id", v))
+    pyzx_output_boundaries = sorted(diagram.outputs(), key=lambda v: getattr(v, "id", v))
+    
+    adjacency_matrix = np.zeros((n, n), dtype=np.uint8)
 
-        return t
+    pyzx_vertices = []
+    for input_boundary in pyzx_input_boundaries:
+        nodes_in = list(diagram.neighbors(input_boundary))
+        if len(nodes_in) != 1:
+            raise ValueError("Expected ZX diagram in encoder form, but found an input vertex with degree != 1.")
+        pyzx_vertices.append(nodes_in[0])
 
-    def _extract_adjacency_matrix(tableau: np.ndarray) -> np.ndarray:
-        """Extract the adjacency matrix from the stabilizer state."""
-        def _rref_no_column_swaps(matrix: np.ndarray) -> np.ndarray:
-            matrix = matrix.copy()
-            n_rows, n_cols = matrix.shape
-            pivot_row = 0
-            for col in range(n_cols):
-                if pivot_row >= n_rows:
-                    break
+    for output_boundary in pyzx_output_boundaries:
+        nodes_out = list(diagram.neighbors(output_boundary))
+        if len(nodes_out) != 1:
+            raise ValueError("Expected ZX diagram in encoder form, but found an output vertex with degree != 1.")
+        pyzx_vertices.append(nodes_out[0])
 
-                pivot_candidates = np.flatnonzero(matrix[pivot_row:, col])
+    for edge in diagram.edges():
+        u, v = diagram.edge_st(edge)
+        if u in pyzx_vertices and v in pyzx_vertices:
+            idx_u = pyzx_vertices.index(u)
+            idx_v = pyzx_vertices.index(v)
+            adjacency_matrix[idx_u, idx_v] = 1
+            adjacency_matrix[idx_v, idx_u] = 1
 
-                if pivot_candidates.size == 0:
-                    continue
+    return adjacency_matrix
 
-                pivot = pivot_row + int(pivot_candidates[0])
+def _stab_code_to_graph_state(code: StabilizerCode) -> np.ndarray:
+    """Convert a stabilizer code into a stabilizer state using the approach of the KLS normal form.
+    
+    1.) Convert the stabilizer tableau into a Clifford encoder circuit.
+    2.) Translate the Clifford encoder circuit into a ZX-diagram.
+    3.) Simplify the ZX-diagram into a graph-like ZX-diagram.
+    4.) Extract the adjacency matrix of the underlying graph, corresponding to a  LC-equivalent graph state to the original stabilizer code.
 
-                # swap row with potential pivot up
-                if pivot != pivot_row:
-                    matrix[[pivot_row, pivot], :] = matrix[[pivot, pivot_row], :]
+    By implementing this more complex approach instead of just using the Choi-Jamiolkowski isomorphism, I am trying to remove the dependency on logical operators of the code.
+    """
+    # 1.) code -> encoder circuit
+    circuit = _code_to_encoder_circuit(code)
 
-                # make pivot column a unit vector
-                for r in range(n_rows):
-                    if r != pivot_row and matrix[r, col]:
-                        matrix[r, :] ^= matrix[pivot_row, :]
-                pivot_row += 1
+    # 2.) Encoder circuit -> zx diagram
+    zx_diagram = circuit.to_graph()
 
-            return matrix
+    # 3.) zx diagram -> graph like state in encoder-respecting form (TODO: currently only graph-like, not encoder-respecting, so inner nodes possible!!!)
+    zx.to_graph_like(zx_diagram)
 
-        rre = _rref_no_column_swaps(tableau)
+    if not zx.is_graph_like(zx_diagram, strict=True):
+        raise ValueError("Expected the ZX diagram to be graph-like, but it was not.")
+    
+    if (code.n + code.k) != len(zx_diagram.inputs()) + len(zx_diagram.outputs()):
+        raise ValueError("Expected the number of input and output boundaries to match the number of logical and physical qubits in the code.")
+    
+    if zx_diagram.num_vertices() != 2 * (code.n + code.k):
+        raise ValueError(f"Expected the ZX diagram in encoder-respecting form to have exactly 2N = {2 * (code.n + code.k)} vertices (Z-nodes + in/outputs), but it had {zx_diagram.num_vertices()}.")
 
-        if _rank(rre[:, :n]) != n:
-            raise ValueError("X part of the tableau is not full rank, something went wrong.")
+    # 4.) graph like state -> adjacency matrix
+    graph = _extract_adj_matrix_from_zx(zx_diagram, code.n + code.k)
+    print(graph)
 
-        return rre[:, n:]
-
-    def _remove_diagonal(tableau: np.ndarray) -> np.ndarray:
-        """Basically apply S gate on all qubits to remove self-loops in the graph state."""
-        np.fill_diagonal(tableau, 0)
-        return tableau
-
-    state = _make_X_invertible(tableau)
-    gamma = _extract_adjacency_matrix(state)
-    gamma = _remove_diagonal(gamma)
-
-    if not np.array_equal(gamma, gamma.T):
-        raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
-
-    return gamma
+    return graph
 
 def _lc_equiv_graph_states(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
     """Check if two graph states are equivalent under local complementations using an efficient algorithm that considers a linear system of equations."""
@@ -231,18 +264,15 @@ def are_lceq_graph_state(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check Local-Clifford equivalence by comparing graph states with an efficient algorithm of Van den Nest, Dehaene, De Moor.
 
     For both codes, we can compute a graph state representative of their local-Clifford equivalence class:
-    1.) Convert the stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
-    2.) Convert the stabilizer state into a graph state under local Clifford operations.
-
-    3.) Check if the resulting graph states are equal under local complementations, using an efficient algorithm.
+    1.) Convert the stabilizer code into a graph state under local Clifford operations.
+    2.) Check if the resulting graph states are equal under local complementations, using an efficient algorithm.
 
 
-    The conversion from stabilizer code into a graph state can be done in O(n^3) time an the efficient algorithm for equivalence checking of graph states runs in O(n^4) time, so the overall runtime of this algorithm should be O(n^3) which is very efficient.
+    The efficient algorithm for equivalence checking of graph states runs in O(n^4) time (TODO: if graph connected!), so the overall runtime of this algorithm should be O(n^4) which is very efficient.
     """
-    stab_state_1 = _stab_code_to_stab_state(c1)
-    stab_state_2 = _stab_code_to_stab_state(c2)
+    print("Converting code 1 to graph state...")
+    graph_1 = _stab_code_to_graph_state(c1)
+    print("Converting code 2 to graph state...")
+    graph_2 = _stab_code_to_graph_state(c2)
 
-    graph_state_1 = _stab_state_to_graph_state(stab_state_1, c1.n + c1.k)
-    graph_state_2 = _stab_state_to_graph_state(stab_state_2, c2.n + c2.k)
-
-    return _lc_equiv_graph_states(graph_state_1, graph_state_2, c1.n + c1.k)
+    return _lc_equiv_graph_states(graph_1, graph_2, c1.n + c1.k)
