@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import pyzx as zx
 
 from benchmarks.utils import random_stabilizer_code, random_css_code, lc_equivalent_code
 from src.algorithms.lc_css_kls import (
     ZXGraph,
+    _code_to_encoder_circuit,
     _code_to_graph,
     _hk_normal_form,
     _kls_normal_form,
@@ -27,6 +29,12 @@ def _assert_semi_bipartite_encoder_graph(graph: ZXGraph) -> None:
     for u, v in graph.edges:
         assert 0 <= u < v < graph.k + graph.n
         assert not (u < graph.k and v < graph.k)
+
+
+def _assert_graph_represents_encoder(code: StabilizerCode, graph: ZXGraph) -> None:
+    encoder_diagram = _code_to_encoder_circuit(code).to_graph()
+    graph_diagram = graph.to_pyzx_diagram()
+    assert zx.compare_tensors(encoder_diagram, graph_diagram)
 
 
 @pytest.mark.parametrize(
@@ -56,22 +64,6 @@ def _assert_semi_bipartite_encoder_graph(graph: ZXGraph) -> None:
             set(),
             id="one-qubit-y-state",
         ),
-        pytest.param(
-            StabilizerCode.get_trivial_code(1),
-            1,
-            1,
-            [([], False), ([], False)],
-            set(),
-            id="one-qubit-trivial-code",
-        ),
-        pytest.param(
-            StabilizerCode(["ZZ"], z_logicals=["ZI"], x_logicals=["XX"]),
-            2,
-            1,
-            [([], False), (["H"], False), ([], False)],
-            {(1, 2)},
-            id="two-qubit-repetition-code",
-        ),
     ],
 )
 def test_code_to_graph_small_codes(
@@ -87,13 +79,59 @@ def test_code_to_graph_small_codes(
     assert graph.k == expected_k
     _assert_graph(graph, expected_vertices, expected_edges)
     _assert_semi_bipartite_encoder_graph(graph)
+    _assert_graph_represents_encoder(code, graph)
 
 
 def test_code_to_graph_rejects_identity_stabilizer_row() -> None:
     with pytest.raises(ValueError, match="identity stabilizer row"):
         _code_to_graph(StabilizerCode(["I"]))
 
-
+@pytest.mark.parametrize(
+    "code",
+    [
+        pytest.param(StabilizerCode.get_trivial_code(1), id="one-qubit-trivial-code"),
+        pytest.param(
+            StabilizerCode(["ZZ"], z_logicals=["ZI"], x_logicals=["XX"]),
+            id="two-qubit-repetition-code",
+        ),
+        pytest.param(
+            StabilizerCode(["ZZI", "IZZ"], z_logicals=["ZII"], x_logicals=["XXX"]),
+            id="three-qubit-repetition-code",
+        ),
+        pytest.param(
+            StabilizerCode(["XX", "ZZ"]),
+            id="bell-state",
+        ),
+        pytest.param(
+            StabilizerCode(["IZI"]),
+            id="IZI-code",
+        ),
+        pytest.param(
+            StabilizerCode(["IXI"]),
+            id="IXI-code",
+        ),
+        pytest.param(
+            StabilizerCode(["XZZ"]),
+            id="XZZ-code",
+        ),
+        pytest.param(
+            StabilizerCode(["IXI", "YII", "YXX"]),
+            id="failing-example-1",
+        ),
+        pytest.param(
+            StabilizerCode(["ZIZI"]),
+            id="failing-example-2",
+        ),
+        pytest.param(
+            StabilizerCode(["ZXZZI", "IXIIZ", "IIIZI"]),
+            id="failing-example-3",
+        ),
+    ],
+)
+def test_code_to_graph_encoder_respecting_form_smoke(code: StabilizerCode) -> None:
+    assert isinstance(_code_to_graph(code), ZXGraph)
+    graph = _code_to_graph(code)
+    _assert_graph_represents_encoder(code, graph)
 
 # ----------------------------------------------------------------------------------------------------
 # _hk_normal_form
@@ -275,7 +313,32 @@ def _assert_kls_requirements(graph: ZXGraph) -> None:
     for input_vertex in range(graph.k):
         assert graph.vertices[input_vertex] == ([], False)
 
-    _assert_rref(graph.get_input_output_adjacency())
+    input_output_adjacency = graph.get_input_output_adjacency()
+    _assert_rref(input_output_adjacency)
+
+
+def _pivot_output_vertices(graph: ZXGraph) -> list[int]:
+    input_output_adjacency = graph.get_input_output_adjacency()
+    pivot_vertices: list[int] = []
+
+    for row in input_output_adjacency.astype(np.uint8):
+        nonzero_cols = np.flatnonzero(row)
+        if len(nonzero_cols) == 0:
+            continue
+        pivot_vertices.append(graph.k + int(nonzero_cols[0]))
+
+    return pivot_vertices
+
+
+def _assert_kls_pivot_requirements(graph: ZXGraph) -> None:
+    pivot_vertices = _pivot_output_vertices(graph)
+
+    for pivot_vertex in pivot_vertices:
+        assert graph.vertices[pivot_vertex] == ([], False)
+
+    for i, pivot_a in enumerate(pivot_vertices):
+        for pivot_b in pivot_vertices[i + 1:]:
+            assert (pivot_a, pivot_b) not in graph.edges
 
 
 @pytest.mark.parametrize(
@@ -295,7 +358,7 @@ def _assert_kls_requirements(graph: ZXGraph) -> None:
             _graph(
                 3,
                 2,
-                [(["S"], True), (["H"], False), ([], False), (["S"], False), (["H"], True)],
+                [(["H"], False), (["S"], True), ([], False), (["S"], False), (["H"], True)],
                 {(0, 1), (2, 3)},
             ),
             np.array([[0, 0, 0], [0, 0, 0]], dtype=bool),
@@ -325,7 +388,7 @@ def _assert_kls_requirements(graph: ZXGraph) -> None:
             _graph(
                 3,
                 0,
-                [(["S"], False), (["H"], False), ([], True)],
+                [(["H"], False), (["S"], False), ([], True)],
                 {(0, 1)},
             ),
             np.zeros((0, 3), dtype=bool),
@@ -337,10 +400,25 @@ def test_kls_normal_form_structural_cases(
     graph_hk: ZXGraph,
     expected_io_adjacency: np.ndarray,
 ) -> None:
+    _assert_hk_requirements(graph_hk)
+
     graph_kls = _kls_normal_form(graph_hk)
 
     _assert_kls_requirements(graph_kls)
     np.testing.assert_array_equal(graph_kls.get_input_output_adjacency(), expected_io_adjacency)
+
+
+def test_kls_normal_form_clears_pivot_output_decorations() -> None:
+    graph_hk = _graph(
+        3,
+        2,
+        [(["H"], True), (["S"], True), (["S"], False), (["H"], False), ([], True)],
+        {(0, 1), (0, 2), (1, 4)},
+    )
+
+    graph_kls = _kls_normal_form(graph_hk)
+
+    _assert_kls_pivot_requirements(graph_kls)
 
 
 # ----------------------------------------------------------------------------------------------------
