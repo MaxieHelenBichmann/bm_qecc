@@ -153,8 +153,6 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
             tableau[:, pivot] ^= tableau[:, 0]
             tableau[:, cur_n + 0] ^= tableau[:, cur_n + pivot]
             elimination_gates.append(("CNOT", (original_qubits[0], original_qubits[pivot])))
-            elimination_gates.append(("CNOT", (original_qubits[pivot], original_qubits[0])))
-            elimination_gates.append(("CNOT", (original_qubits[0], original_qubits[pivot])))
 
         # 3.) clear all other Zs in row 0 using CNOT(q -> 0)
         # control: (x_c|z_c) --CNOT--> (  x_c  |z_c^z_t)
@@ -194,7 +192,7 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
     # already prep with choi in mind
     for j in range(k):
         ref = j
-        inp = k + j
+        inp = k + (n-k) + j
         circuit.add_gate("HAD", ref)
         circuit.add_gate("CNOT", ref, inp)
 
@@ -638,7 +636,7 @@ def _kls_normal_form(graph: GSLC) -> None:
             for neighbor in neighbors:
                 graph.vertices[neighbor] = _add_S(graph.vertices[neighbor])
 
-            graph.local_complementation(pivot)
+            graph.local_complementation(input)
 
 
     # 5.) remove pivot-pivot edges, basically apply Eq. 11 (but HZ on inputs can be removed)
