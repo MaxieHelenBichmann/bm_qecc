@@ -221,7 +221,6 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
     def _make_X_invertible(t: np.ndarray) -> np.ndarray:
         old_x_rank = _rank(t[:, :n])
         while old_x_rank < n:
-            print(f"Current X rank: {old_x_rank}")
             improved = False
 
             for q in range(n):
@@ -235,7 +234,9 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
                 x_col = t[:, q].copy()
                 z_col = t[:, q + n].copy()
 
-                for new_x, new_z , op in [ (x_col, z_col, []), (z_col, x_col, ["H"]), ((x_col + z_col) % 2, x_col, ["H","S"]) ]:
+                for new_x, new_z , op in [ (x_col, z_col, []), (z_col, x_col, ["H"]), ((x_col + z_col) % 2, x_col, ["H","S", "S", "S"]) ]: # append the C† clifford to the graph, because with psi the current state of the tableau, and G the graph I will get after this algorithm: 
+                # C |psi> = |G> -> |psi> = C† |G>
+                # but as i want |psi> in the end, i need to record the inverse operation
                     t[:, q] = new_x
                     new_x_rank = _rank(t[:, :n])
                     if new_x_rank > best_rank:
@@ -300,6 +301,12 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
                 tableau[r, r] = 0
                 local_clifords[r] = ["S"] + local_clifords[r]
         return tableau
+    
+    def _extract_decorations(deco: list[str]) -> tuple[list[str], bool]:
+        z_bit = False
+        if len(deco) > 1 and deco[-2:] == ["S", "S"]:
+            return deco[:-2], True
+        return deco, z_bit
 
     state = _make_X_invertible(tableau)
     gamma = _extract_adjacency_matrix(state)
@@ -311,7 +318,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
     graph = GSLC()
     graph.n = old_n
     graph.k = old_k
-    graph.vertices = [ (local_clifords[i], False) for i in range(n) ]
+    graph.vertices = [ _extract_decorations(local_clifords[i]) for i in range(n) ]
     graph.edges = set()
     for i in range(n):
         for j in range(i + 1, n):
@@ -330,13 +337,11 @@ def _code_to_graph(code) -> GSLC:
     """
     # 1.) Code -> Encoder Circuit
     circuit = _code_to_encoder_circuit(code)
-    print(circuit.to_qasm())
 
     # 2.) Encoder Circuit -> State Tableau
     n = code.n + code.k
     initial_state = np.hstack([np.zeros((n, n), dtype=np.uint8), np.eye(n, dtype=np.uint8)])
     for gate in circuit.gates:
-        print(f"{gate.name} on {gate.target} and {gate.control if hasattr(gate, 'control') and gate.control is not None else '-'} with phase {gate.phase if hasattr(gate, 'phase') else '-'}")
         if gate.name == "HAD":
             initial_state[:, [gate.target, n + gate.target]] = initial_state[:, [n + gate.target, gate.target]]
         elif gate.name == "ZPhase":
@@ -354,19 +359,10 @@ def _code_to_graph(code) -> GSLC:
             initial_state[:, n + gate.control] ^= initial_state[:, n + gate.target]
         else:
             raise ValueError(f"Unexpected gate {gate.name} in encoder circuit.")
-        print(initial_state)
-        print()
-        
-    print()
-    print(initial_state)
 
     # 3.) state tableau -> GSLC
     graph = _stab_state_to_graph_state(initial_state, code.n, code.k)
     
-    print()
-    print(graph.vertices)
-    print(graph.edges)
-    print()
     return graph
 
 def _hk_normal_form(graph: GSLC) -> None:
@@ -560,18 +556,24 @@ def _hk_normal_form(graph: GSLC) -> None:
         if graph.vertices[x][0] not in ([], ["H"], ["S"]):
             raise ValueError(f"After cleaning up SH: Expected only I, S, H decorations, but got: {graph.vertices[x][0]}.")
 
-def _kls_normal_form(graph: GSLC) -> None:
+def _kls_normal_form(graph: GSLC) -> None | True:
     """Additional requirements KLS normal form:
     1.) input nodes have no non-I LC decoration, and no edges between input nodes
     2.) the input-output adjacency matrix is in RREF
     3.) the pivot columns of the input-output adjacency matrix have no non-I LC decorations, and no edges between pivot vertices
     """
     # 1.) set input vertices to have no decoration and no edges
-    for q in range(graph.k):
-        graph.vertices[q] = ([], False)
-        for i in range(q + 1, graph.k):
-            if (q, i) in graph.edges:
-                graph.edges.remove((q, i))
+    def _strip_input() -> None:
+        for q in range(graph.k):
+            graph.vertices[q] = ([], False)
+
+        graph.edges = {
+            (u, v)
+            for u, v in graph.edges
+            if not (u < graph.k and v < graph.k)
+        }
+
+    _strip_input()
 
     # 2.) bring the IO-adjacency matrix into RREF
     adj = graph.get_input_output_adjacency()
@@ -618,10 +620,9 @@ def _kls_normal_form(graph: GSLC) -> None:
         graph.edges = new_edges
 
     _set_io_edges(adj)
-    print()
-    print()
-    print(graph.vertices)
-    print(graph.edges)
+
+    if graph.is_bipartite():
+        return True
 
     # 4.) remove pivot vertex decorations (apply local complementation)
     # |G> = prod_{p,q in N(i)} CS_{p,q} |G>
@@ -637,19 +638,12 @@ def _kls_normal_form(graph: GSLC) -> None:
                 break
 
         return deco, new_z_bit
-    
-    print("start pivot cleanup")
-    print("pivots:", pivots)
-    print("graph:")
 
-    print(graph.vertices)
-    print(graph.edges)
-    print()
+    if graph.is_bipartite():
+        return True
 
     for input, pivot in pivots.items():
         deco, z = graph.vertices[pivot]
-        print(f"word for {pivot}")
-        print(deco, z)
 
         if "H" in deco:
             raise ValueError(f"Pivot {pivot} has an H decoration. Should have been pushed to a (lower numbered) input during HK normal form reduction.")
@@ -666,37 +660,57 @@ def _kls_normal_form(graph: GSLC) -> None:
             graph.local_complementation(input)
 
 
+    if graph.is_bipartite():
+        return True
+    
     # 5.) remove pivot-pivot edges, basically apply Eq. 11 (but HZ on inputs can be removed)
     # |G> = H_i Z_i H_j Z_j prod_{p in A, q in B} CZ_{p,q} |G>
     # with A = N(i) union {i}, B = N(j) union {j}
-    changed = True
-    while changed:
-        changed = False
-        for u, v in graph.edges:
-            if u in pivots.values() and v in pivots.values():
-                i = [input for input, pivot in pivots.items() if pivot == u][0]
-                j = [input for input, pivot in pivots.items() if pivot == v][0]
+    pivot_to_input = {pivot: input for input, pivot in pivots.items()}
+    pivot_vertices = set(pivot_to_input)
+    while True:
+        pivot_edge = next(
+            (
+                (u, v)
+                for u, v in graph.edges
+                if u in pivot_vertices and v in pivot_vertices
+            ),
+            None,
+        )
+        if pivot_edge is None:
+            break
 
-                A = set(graph.neighbors(i)) | {i}
-                B = set(graph.neighbors(j)) | {j}
+        u, v = pivot_edge
+        i = pivot_to_input[u]
+        j = pivot_to_input[v]
 
-                for p in A:
-                    for q in B:
-                        if p == q:
-                            graph.vertices[p] = (graph.vertices[p][0], graph.vertices[p][1] ^ True) # add Z
-                        else:
-                            graph.apply_cz_edge(p, q)
+        A = {v for v in graph.neighbors(i) if v >= graph.k}
+        B = {v for v in graph.neighbors(j) if v >= graph.k}
 
-                changed = True
+        for p in A:
+            for q in B:
+                if p == q:
+                    graph.vertices[p] = (graph.vertices[p][0], graph.vertices[p][1] ^ True) # add Z
+                else:
+                    graph.apply_cz_edge(p, q)
 
-    print("pivot cleanup done")
+        for output in A | B:
+            graph.edges.discard((i, output))
+            graph.edges.discard((j, output))
+
+        for output in B:
+            graph.edges.add((i, output))
+
+        for output in A:
+            graph.edges.add((j, output))
+
+        pivot_to_input[u], pivot_to_input[v] = j, i
+        _strip_input()
+
     # 6.) swap the neighborhoods back via row operations, aka bring back into RREF
     adj = graph.get_input_output_adjacency()
     adj, _ = _rref_no_column_swaps(adj)
     _set_io_edges(adj)
-    print()
-    print(graph.vertices)
-    print(graph.edges)
 
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
     """Check if a stabilizer code is LC-equivalent to a CSS code by converting it into KLS normal form and checking if the resulting graph state is bipartite.
@@ -705,8 +719,24 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
     2.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
     3.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
     4.) Check if the resulting graph state is bipartite, which means that the code is LC-equivalent to a CSS code.
+
+    Check in the intermediate steps, if the graph is already bipartite, which means that the code is already LC-equivalent to a CSS code, and we can stop early.
+
+    ! BEWARE ! My assumption was wrong, the implication only goes into one direction:
+    graph bipartide -> code LC to CSS (so if the graph is not bipartite, i cant make a statement...)
+    
+    probably need LC-orbit traversal...
     """
     graph = _code_to_graph(code)
+
+    if graph.is_bipartite():
+        return True
+
     _hk_normal_form(graph)
+
+    if graph.is_bipartite():
+        return True
+
     _kls_normal_form(graph)
+
     return graph.is_bipartite()
