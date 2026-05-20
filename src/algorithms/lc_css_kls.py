@@ -279,6 +279,9 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
         if pivot != 0:
             tableau[:, pivot] ^= tableau[:, 0]
             tableau[:, cur_n + 0] ^= tableau[:, cur_n + pivot]
+            elimination_gates.append(("CNOT", (original_qubits[0], original_qubits[pivot])))
+            elimination_gates.append(("CNOT", (original_qubits[pivot], original_qubits[0])))
+            elimination_gates.append(("CNOT", (original_qubits[0], original_qubits[pivot])))
 
         # 3.) clear all other Zs in row 0 using CNOT(q -> 0)
         # control: (x_c|z_c) --CNOT--> (  x_c  |z_c^z_t)
@@ -386,7 +389,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
                     t[:, q] = best_choice[0]
                     t[:, q + n] = best_choice[1]
                     old_x_rank = best_rank
-                    local_clifords[q] = best_op
+                    local_clifords[q] = best_op + local_clifords[q]
                     improved = True
                 else:
                     t[:, q] = x_col
@@ -437,8 +440,8 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
     def _remove_diagonal(tableau: np.ndarray) -> np.ndarray:
         """Basically apply S gate on all qubits to remove self-loops in the graph state."""
         for r in range(tableau.shape[0]):
-            if tableau[r, r + n]:
-                tableau[r, r + n] = 0
+            if tableau[r, r]:
+                tableau[r, r] = 0
                 local_clifords[r] = ["S"] + local_clifords[r]
         return tableau
 
@@ -459,23 +462,21 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
             if gamma[i, j]:
                 graph.edges.add((i, j))
 
-    return gamma
+    return graph
 
 def _code_to_graph(code) -> ZXGraph:
     # 1.) code -> encoder circuit
     circuit = _code_to_encoder_circuit(code)
-    print(circuit.to_emoji())
-    print()
 
     # 2.) Encoder circuit -> state tableau
     n = code.n + code.k
     initial_state = np.hstack([np.zeros((n, n), dtype=np.uint8), np.eye(n, dtype=np.uint8)])
     for gate in circuit.gates:
         if gate.name == "HAD":
-            q = gate.qubits[0]
+            q = gate.target
             initial_state[:, [q, n + q]] = initial_state[:, [n + q, q]]
         elif gate.name == "ZPhase":
-            q = gate.qubits[0]
+            q = gate.target
             phase = gate.phase
             if phase == 1 / 2:
                 initial_state[:, n + q] ^= initial_state[:, q]
@@ -487,7 +488,7 @@ def _code_to_graph(code) -> ZXGraph:
             else:
                 raise ValueError(f"Unexpected Z phase {phase} in encoder circuit.")
         elif gate.name == "CNOT":
-            control, target = gate.qubits
+            control, target = gate.control, gate.target
             initial_state[:, target] ^= initial_state[:, control]
             initial_state[:, n + control] ^= initial_state[:, n + target]
         else:
