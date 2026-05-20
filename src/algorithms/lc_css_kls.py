@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from fractions import Fraction
 
 from typing import Any
@@ -68,6 +69,14 @@ class GSLC:
             self.edges.remove((min_u_v, max_u_v))
         else:
             self.edges.add((min_u_v, max_u_v))
+
+    def copy(self) -> GSLC:
+        new_graph = GSLC()
+        new_graph.n = self.n
+        new_graph.k = self.k
+        new_graph.vertices = [ (deco.copy(), z) for deco, z in self.vertices ]
+        new_graph.edges = self.edges.copy()
+        return new_graph
 
     def is_bipartite(self) -> bool:
         n = self.n + self.k
@@ -234,9 +243,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
                 x_col = t[:, q].copy()
                 z_col = t[:, q + n].copy()
 
-                for new_x, new_z , op in [ (x_col, z_col, []), (z_col, x_col, ["H"]), ((x_col + z_col) % 2, x_col, ["H","S", "S", "S"]) ]: # append the C† clifford to the graph, because with psi the current state of the tableau, and G the graph I will get after this algorithm: 
-                # C |psi> = |G> -> |psi> = C† |G>
-                # but as i want |psi> in the end, i need to record the inverse operation
+                for new_x, new_z , op in [ (x_col, z_col, []), (z_col, x_col, ["H"]), ((x_col + z_col) % 2, x_col, ["H","S"]) ]:
                     t[:, q] = new_x
                     new_x_rank = _rank(t[:, :n])
                     if new_x_rank > best_rank:
@@ -562,6 +569,8 @@ def _kls_normal_form(graph: GSLC) -> None | True:
     2.) the input-output adjacency matrix is in RREF
     3.) the pivot columns of the input-output adjacency matrix have no non-I LC decorations, and no edges between pivot vertices
     """
+    witness = False
+
     # 1.) set input vertices to have no decoration and no edges
     def _strip_input() -> None:
         for q in range(graph.k):
@@ -622,7 +631,7 @@ def _kls_normal_form(graph: GSLC) -> None | True:
     _set_io_edges(adj)
 
     if graph.is_bipartite():
-        return True
+        witness = True
 
     # 4.) remove pivot vertex decorations (apply local complementation)
     # |G> = prod_{p,q in N(i)} CS_{p,q} |G>
@@ -640,7 +649,7 @@ def _kls_normal_form(graph: GSLC) -> None | True:
         return deco, new_z_bit
 
     if graph.is_bipartite():
-        return True
+        witness = True
 
     for input, pivot in pivots.items():
         deco, z = graph.vertices[pivot]
@@ -661,7 +670,7 @@ def _kls_normal_form(graph: GSLC) -> None | True:
 
 
     if graph.is_bipartite():
-        return True
+       witness = True
     
     # 5.) remove pivot-pivot edges, basically apply Eq. 11 (but HZ on inputs can be removed)
     # |G> = H_i Z_i H_j Z_j prod_{p in A, q in B} CZ_{p,q} |G>
@@ -712,6 +721,34 @@ def _kls_normal_form(graph: GSLC) -> None | True:
     adj, _ = _rref_no_column_swaps(adj)
     _set_io_edges(adj)
 
+    if witness:
+        return True
+
+def _traverse_lc_orbit(graph: GSLC) -> bool:
+    def _canonical_key(g: GSLC) -> bytes:
+        return np.asarray(g.get_full_adjacency(), dtype=np.uint8).tobytes()
+
+    n = graph.n + graph.k
+    seen = set()
+    queue = deque([graph.copy()])
+
+    while queue:
+        current_graph : GSLC = queue.popleft()
+        if current_graph.is_bipartite():
+            return True
+
+        for q in range(n):
+            new_graph = current_graph.copy()
+            new_graph.local_complementation(q)
+
+            key = _canonical_key(new_graph)
+
+            if key not in seen:
+                queue.append(new_graph)
+                seen.add(key)
+
+    return False
+
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
     """Check if a stabilizer code is LC-equivalent to a CSS code by converting it into KLS normal form and checking if the resulting graph state is bipartite.
 
@@ -724,7 +761,7 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
 
     ! BEWARE ! My assumption was wrong, the implication only goes into one direction:
     graph bipartide -> code LC to CSS (so if the graph is not bipartite, i cant make a statement...)
-    
+
     probably need LC-orbit traversal...
     """
     graph = _code_to_graph(code)
@@ -739,4 +776,7 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
 
     _kls_normal_form(graph)
 
-    return graph.is_bipartite()
+    if graph.is_bipartite():
+        return True
+    
+    return _traverse_lc_orbit(graph)
