@@ -359,7 +359,7 @@ def _code_to_graph(code) -> GSLC:
 
     return graph
 
-def _hk_normal_form(graph: GSLC) -> GSLC:
+def _hk_normal_form(graph: GSLC) -> None:
     """Requirements HK normal form:
     1.) graph like state (only Z nodes, one Z node per boundary, no inner Z edges, only H-edges between Z nodes)
     2.) Requirements on LC decorations:
@@ -550,44 +550,42 @@ def _hk_normal_form(graph: GSLC) -> GSLC:
         if graph.vertices[x][0] not in ([], ["H"], ["S"]):
             raise ValueError(f"After cleaning up SH: Expected only I, S, H decorations, but got: {graph.vertices[x][0]}.")
 
-    return graph
-
-def _kls_normal_form(graph_hk: GSLC) -> None:
+def _kls_normal_form(graph: GSLC) -> None:
     """Additional requirements KLS normal form:
     1.) input nodes have no non-I LC decoration, and no edges between input nodes
     2.) the input-output adjacency matrix is in RREF
     3.) the pivot columns of the input-output adjacency matrix have no non-I LC decorations, and no edges between pivot vertices
     """
     # 1.) set input vertices to have no decoration and no edges
-    for q in range(graph_hk.k):
-        graph_hk.vertices[q] = ([], False)
-        for i in range(q + 1, graph_hk.k):
-            if (q, i) in graph_hk.edges:
-                graph_hk.edges.remove((q, i))
+    for q in range(graph.k):
+        graph.vertices[q] = ([], False)
+        for i in range(q + 1, graph.k):
+            if (q, i) in graph.edges:
+                graph.edges.remove((q, i))
 
     # 2.) bring the IO-adjacency matrix into RREF
-    adj = graph_hk.get_input_output_adjacency()
+    adj = graph.get_input_output_adjacency()
 
     def _rref_no_column_swaps(matrix: np.ndarray) -> tuple[np.ndarray, dict[int, int]]:
         pivot_row = 0
         pivots = {}
-        for c in range(graph_hk.n):
+        for c in range(graph.n):
             pivot_candidates = np.flatnonzero(matrix[pivot_row:, c])
             if len(pivot_candidates) == 0:
                 continue
 
-            pivots[pivot_row] = c + graph_hk.k
+            pivots[pivot_row] = c + graph.k
 
             pivot = pivot_row + int(pivot_candidates[0])
             if pivot != pivot_row:
                 matrix[[pivot_row, pivot]] = matrix[[pivot, pivot_row]]
 
-            for r in range(graph_hk.k):
+            for r in range(graph.k):
                 if r != pivot_row and matrix[r, c]:
                     matrix[r] ^= matrix[pivot_row]
             pivot_row += 1
 
-            if pivot_row == graph_hk.k:
+            if pivot_row == graph.k:
                 break
 
         return matrix, pivots
@@ -597,16 +595,16 @@ def _kls_normal_form(graph_hk: GSLC) -> None:
     # 3.) set the IO-edges according to the new adjacency matrix (equivalent to applying the corresponding CNOT gates on the graph state and simplifying with bialgebra rule -> output-output edges and decorations not changed)
     def _set_io_edges(adj: np.ndarray) -> None:
         new_edges = set()
-        for input in range(graph_hk.k):
-            for output in range(graph_hk.n):
+        for input in range(graph.k):
+            for output in range(graph.n):
                 if adj[input, output]:
-                    new_edges.add((input, output + graph_hk.k))
+                    new_edges.add((input, output + graph.k))
 
-        for u, v in graph_hk.edges:
-            if u >= graph_hk.k and v >= graph_hk.k:
+        for u, v in graph.edges:
+            if u >= graph.k and v >= graph.k:
                 new_edges.add((u, v))
 
-        graph_hk.edges = new_edges
+        graph.edges = new_edges
 
     _set_io_edges(adj)
 
@@ -626,21 +624,21 @@ def _kls_normal_form(graph_hk: GSLC) -> None:
         return deco, new_z_bit
 
     for input, pivot in pivots.items():
-        deco, z = graph_hk.vertices[pivot]
+        deco, z = graph.vertices[pivot]
 
         if "H" in deco:
             raise ValueError(f"Pivot {pivot} has an H decoration. Should have been pushed to a (lower numbered) input during HK normal form reduction.")
         
         if z:
-            graph_hk.vertices[pivot] = (deco + ["S", "S"], False)
+            graph.vertices[pivot] = (deco + ["S", "S"], False)
 
-        while "S" in graph_hk.vertices[pivot][0] or graph_hk.vertices[pivot][1]:
-            neighbors = graph_hk.neighbors(input)
+        while "S" in graph.vertices[pivot][0] or graph.vertices[pivot][1]:
+            neighbors = graph.neighbors(input)
 
             for neighbor in neighbors:
-                graph_hk.vertices[neighbor] = _add_S(graph_hk.vertices[neighbor])
+                graph.vertices[neighbor] = _add_S(graph.vertices[neighbor])
 
-            graph_hk.local_complementation(pivot)
+            graph.local_complementation(pivot)
 
 
     # 5.) remove pivot-pivot edges, basically apply Eq. 11 (but HZ on inputs can be removed)
@@ -648,19 +646,19 @@ def _kls_normal_form(graph_hk: GSLC) -> None:
     # with A = N(i) union {i}, B = N(j) union {j}
     for input1, pivot1 in pivots.items():
         for input2, pivot2 in pivots.items():
-            if (pivot1, pivot2) in graph_hk.edges or (pivot2, pivot1) in graph_hk.edges:
-                A = set(graph_hk.neighbors(input1)) | {input1}
-                B = set(graph_hk.neighbors(input2)) | {input2}
+            if (pivot1, pivot2) in graph.edges or (pivot2, pivot1) in graph.edges:
+                A = set(graph.neighbors(input1)) | {input1}
+                B = set(graph.neighbors(input2)) | {input2}
 
                 for p in A:
                     for q in B:
                         if p == q:
-                            graph_hk.vertices[p] = (graph_hk.vertices[p][0], graph_hk.vertices[p][1] ^ True)
+                            graph.vertices[p] = (graph.vertices[p][0], graph.vertices[p][1] ^ True)
                         else:
-                            graph_hk.apply_cz_edge(p, q)
+                            graph.apply_cz_edge(p, q)
 
     # 6.) swap the neighborhoods back via row operations, aka bring back into RREF
-    adj = graph_hk.get_input_output_adjacency()
+    adj = graph.get_input_output_adjacency()
     adj, _ = _rref_no_column_swaps(adj)
     _set_io_edges(adj)
 
@@ -673,6 +671,6 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
     4.) Check if the resulting graph state is bipartite, which means that the code is LC-equivalent to a CSS code.
     """
     graph = _code_to_graph(code)
-    graph_hk = _hk_normal_form(graph)
-    graph_kls = _kls_normal_form(graph_hk)
-    return graph_kls.is_bipartite()
+    _hk_normal_form(graph)
+    _kls_normal_form(graph)
+    return graph.is_bipartite()
