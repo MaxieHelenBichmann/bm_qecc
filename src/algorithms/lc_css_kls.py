@@ -194,7 +194,7 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
     # already prep with choi in mind
     for j in range(k):
         ref = j
-        inp = j + (n-k)
+        inp = k + j
         circuit.add_gate("HAD", ref)
         circuit.add_gate("CNOT", ref, inp)
 

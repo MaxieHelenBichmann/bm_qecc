@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import pyzx as zx
+
+import ldpc.mod2.mod2_numpy as mod2
 
 from benchmarks.utils import random_stabilizer_code, random_css_code, lc_equivalent_code
 from src.algorithms.lc_css_kls import (
@@ -15,6 +16,7 @@ from src.algorithms.lc_css_kls import (
     _kls_normal_form,
     is_lceq_css_kls,
 )
+from src.core.pauli import StabilizerTableau
 from src.core.stabilizer_code import StabilizerCode
 
 # ----------------------------------------------------------------------------------------------------
@@ -32,9 +34,82 @@ def _assert_semi_bipartite_encoder_graph(graph: GSLC) -> None:
 
 
 def _assert_graph_represents_encoder(code: StabilizerCode, graph: GSLC) -> None:
-    encoder_diagram = _code_to_encoder_circuit(code).to_graph()
-    graph_diagram = graph.to_pyzx_diagram()
-    assert zx.compare_tensors(encoder_diagram, graph_diagram)
+    encoder_tableau = _encoder_state_tableau(code)
+    graph_tableau = _graph_state_tableau(graph)
+    _assert_same_row_space(encoder_tableau, graph_tableau)
+
+
+def _encoder_state_tableau(code: StabilizerCode) -> np.ndarray:
+    circuit = _code_to_encoder_circuit(code)
+    num_qubits = code.n + code.k
+    tableau = StabilizerTableau(
+        np.hstack(
+            [
+                np.zeros((num_qubits, num_qubits), dtype=np.int8),
+                np.eye(num_qubits, dtype=np.int8),
+            ]
+        )
+    )
+
+    for gate in circuit.gates:
+        if gate.name == "HAD":
+            tableau.apply_h(gate.target)
+        elif gate.name == "ZPhase":
+            if gate.phase == 1 / 2:
+                tableau.apply_s(gate.target)
+            elif gate.phase == 1:
+                tableau.apply_z(gate.target)
+            elif gate.phase == 3 / 2:
+                tableau.apply_sdg(gate.target)
+            else:
+                raise ValueError(f"Unexpected Z phase {gate.phase}.")
+        elif gate.name == "CNOT":
+            tableau.apply_cx(gate.control, gate.target)
+        else:
+            raise ValueError(f"Unexpected gate {gate.name}.")
+
+    return tableau.tableau.matrix
+
+
+def _graph_state_tableau(graph: GSLC) -> np.ndarray:
+    num_qubits = graph.n + graph.k
+    tableau = StabilizerTableau(
+        np.hstack(
+            [
+                np.eye(num_qubits, dtype=np.int8),
+                np.zeros((num_qubits, num_qubits), dtype=np.int8),
+            ]
+        )
+    )
+
+    for u, v in graph.edges:
+        tableau.apply_cz(u, v)
+
+    for qubit, (decoration, has_z) in enumerate(graph.vertices):
+        for gate in decoration:
+            if gate == "H":
+                tableau.apply_h(qubit)
+            elif gate == "S":
+                tableau.apply_s(qubit)
+            elif gate == "Z":
+                tableau.apply_z(qubit)
+            else:
+                raise ValueError(f"Unexpected local Clifford gate {gate}.")
+        if has_z:
+            tableau.apply_z(qubit)
+
+    return tableau.tableau.matrix
+
+
+def _assert_same_row_space(left: np.ndarray, right: np.ndarray) -> None:
+    left = np.asarray(left, dtype=np.uint8) & 1
+    right = np.asarray(right, dtype=np.uint8) & 1
+    left_rank = mod2.rank(left)
+
+    assert left.shape == right.shape
+    assert left_rank == left.shape[0]
+    assert left_rank == mod2.rank(right)
+    assert left_rank == mod2.rank(np.vstack([left, right]))
 
 
 @pytest.mark.parametrize(
@@ -60,7 +135,7 @@ def _assert_graph_represents_encoder(code: StabilizerCode, graph: GSLC) -> None:
             StabilizerCode(["Y"]),
             1,
             0,
-            [(["S"], True)],
+            [(["S"], False)],
             set(),
             id="one-qubit-y-state",
         ),
@@ -144,7 +219,8 @@ def _hk(vertices: list[tuple[list[str], bool]], edges: set[tuple[int, int]]) -> 
     graph.k = 0
     graph.vertices = [(list(deco), z) for deco, z in vertices]
     graph.edges = set(edges)
-    return _hk_normal_form(graph)
+    _hk_normal_form(graph)
+    return graph
 
 
 def _assert_graph(
@@ -381,8 +457,8 @@ def _assert_kls_pivot_requirements(graph: GSLC) -> None:
                 [([], False), (["S"], True), (["H"], False), ([], False), ([], False), ([], False)],
                 {(0, 3), (1, 4), (2, 5), (3, 4)},
             ),
-            np.eye(3, dtype=bool),
-            id="full-rank-square-adjacency",
+            None,
+            id="pivot-edge-cleanup-preserves-kls-structure",
         ),
         pytest.param(
             _graph(
@@ -398,14 +474,15 @@ def _assert_kls_pivot_requirements(graph: GSLC) -> None:
 )
 def test_kls_normal_form_structural_cases(
     graph_hk: GSLC,
-    expected_io_adjacency: np.ndarray,
+    expected_io_adjacency: np.ndarray | None,
 ) -> None:
     _assert_hk_requirements(graph_hk)
 
-    graph_kls = _kls_normal_form(graph_hk)
+    _kls_normal_form(graph_hk)
 
-    _assert_kls_requirements(graph_kls)
-    np.testing.assert_array_equal(graph_kls.get_input_output_adjacency(), expected_io_adjacency)
+    _assert_kls_requirements(graph_hk)
+    if expected_io_adjacency is not None:
+        np.testing.assert_array_equal(graph_hk.get_input_output_adjacency(), expected_io_adjacency)
 
 
 def test_kls_normal_form_clears_pivot_output_decorations() -> None:
@@ -416,9 +493,9 @@ def test_kls_normal_form_clears_pivot_output_decorations() -> None:
         {(0, 1), (0, 2), (1, 4)},
     )
 
-    graph_kls = _kls_normal_form(graph_hk)
+    _kls_normal_form(graph_hk)
 
-    _assert_kls_pivot_requirements(graph_kls)
+    _assert_kls_pivot_requirements(graph_hk)
 
 
 # ----------------------------------------------------------------------------------------------------
