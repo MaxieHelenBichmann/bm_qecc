@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import random_stabilizer_code, random_css_code, lc_equivalent_code_and_log_ops
+from benchmarks.utils import lc_equivalent_code, random_stabilizer_code, random_css_code
 from src.algorithms.lc_css_orbit import _stab_code_to_stab_state, _stab_state_to_graph_state, _traverse_lc_orbit, is_lceq_css_orbit
 
 from src.core.stabilizer_code import StabilizerCode
@@ -175,5 +175,5 @@ def test_is_lceq_css_orbit_random_positive(seed: int) -> None:
     n = 2 + (5 * seed + 1) % 8
     k = 1 + (3 * seed + 1) % (n - 1)
     css_code = random_css_code(n, k, seed=1000 + seed)
-    code = lc_equivalent_code_and_log_ops(css_code, seed=2000 + seed)
+    code = lc_equivalent_code(css_code, seed=2000 + seed)
     assert is_lceq_css_orbit(code) is True
