@@ -12,7 +12,8 @@ import ldpc.mod2.mod2_numpy as mod2
 
 from ..core.stabilizer_code import StabilizerCode
 
-class ZXGraph:
+class GSLC:
+    """Graph state with local Clifford decorations (in encoder-respecting form), used for the KLS normal form."""
     def __init__(self) -> None:
         self.n = 0
         self.k = 0
@@ -67,134 +68,6 @@ class ZXGraph:
             self.edges.remove((min_u_v, max_u_v))
         else:
             self.edges.add((min_u_v, max_u_v))
-
-    @staticmethod
-    def from_pyzx_diagram(diagram: zx.Graph) -> ZXGraph:
-        def _pyzx_to_local_clifford(phase: Fraction, edge_type: zx.EdgeType) -> tuple[list[str], bool]:
-            if edge_type == zx.EdgeType.SIMPLE:
-                if (phase is None or phase == 0):
-                    return [], False # I
-                if phase == Fraction(1, 2):
-                    return ["S"], False # S
-                if phase == Fraction(1, 1):
-                    return [], True # Z
-                if phase == Fraction(3, 2):
-                    return ["S"], True # S†
-                raise ValueError(f"Unexpected vertex phase {phase} in ZX diagram.")
-            if edge_type == zx.EdgeType.HADAMARD: # first z phase is applied, then H edge
-                if (phase is None or phase == 0):
-                    return ["H"], False # H
-                if phase == Fraction(1, 2):
-                    return ["H", "S"], False # SH
-                if phase == Fraction(1, 1):
-                    return ["H", "S", "S"], False # ZH
-                if phase == Fraction(3, 2):
-                    return ["H", "S", "S", "S"], False # S†H
-                raise ValueError(f"Unexpected vertex phase {phase} in ZX diagram.")
-            raise ValueError(f"Unexpected edge type {edge_type} in ZX diagram.")
-
-        graph = ZXGraph()
-        pyzx_input_boundaries = sorted(diagram.inputs(), key=lambda v: getattr(v, "id", v))
-        pyzx_output_boundaries = sorted(diagram.outputs(), key=lambda v: getattr(v, "id", v))
-        graph.n = len(pyzx_output_boundaries)
-        graph.k = len(pyzx_input_boundaries)
-
-        pyzx_vertices = []
-
-        for input_boundary in pyzx_input_boundaries:
-            n = list(diagram.neighbors(input_boundary))
-            if len(n) != 1:
-                raise ValueError("Expected ZX diagram in encoder form, but found an input vertex with degree != 1.")
-            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(diagram.edge(input_boundary, n[0]))))
-            pyzx_vertices.append(n[0])
-
-        for output_boundary in pyzx_output_boundaries:
-            n = list(diagram.neighbors(output_boundary))
-            if len(n) != 1:
-                raise ValueError("Expected ZX diagram in encoder form, but found an output vertex with degree != 1.")
-            graph.vertices.append(_pyzx_to_local_clifford(diagram.phase(n[0]), diagram.edge_type(diagram.edge(output_boundary, n[0]))))
-            pyzx_vertices.append(n[0])
-
-        for edge in diagram.edges():
-            u, v = diagram.edge_st(edge)
-            if u in pyzx_vertices and v in pyzx_vertices:
-                idx_u = pyzx_vertices.index(u)
-                idx_v = pyzx_vertices.index(v)
-                graph.apply_cz_edge(min(idx_u, idx_v), max(idx_u, idx_v))
-
-        return graph
-
-    def to_pyzx_diagram(self, cnots: list[tuple[int, int]] = []) -> zx.BaseGraph:
-        def _local_clifford_to_pyzx(lc_word: tuple[list[str], bool]) -> tuple[Fraction, zx.EdgeType]:
-            # i can assume that input graph is in HK normal form, thus there are only I, S and H decorations (plus additional Z bit)
-            deco , z = lc_word
-            if deco == [] and not z:
-                return (Fraction(0), zx.EdgeType.SIMPLE) # I
-            if deco == ["S"] and not z:
-                return (Fraction(1, 2), zx.EdgeType.SIMPLE) # S
-            if deco == [] and z:
-                return (Fraction(1, 1), zx.EdgeType.SIMPLE) # Z
-            if deco == ["S"] and z:
-                return (Fraction(3, 2), zx.EdgeType.SIMPLE) # S†
-            if deco == ["H"] and not z:
-                return (Fraction(0), zx.EdgeType.HADAMARD) # H
-            if deco == ["H"] and z:
-                return (Fraction(1, 1), zx.EdgeType.HADAMARD) # HZ
-            raise ValueError(f"Unexpected local Clifford word {lc_word} in ZX graph.")
-
-        def _add_cnots(diagram, inputs):
-            for control, target in cnots:
-                new_x = diagram.add_vertex(zx.VertexType.X) # place on target
-
-                input_target = inputs[target]
-                neighbor = list(diagram.neighbors(input_target))[0]
-
-                e = diagram.edge(input_target, neighbor)
-                e_type = diagram.edge_type(e)
-                diagram.remove_edge(e)
-                diagram.add_edge((new_x, neighbor), edgetype=e_type)
-                diagram.add_edge((new_x, input_target), edgetype=zx.EdgeType.SIMPLE)
-
-
-                new_z = diagram.add_vertex(zx.VertexType.Z) # place on control
-
-                input_control = inputs[control]
-                neighbor = list(diagram.neighbors(input_control))[0]
-
-                e = diagram.edge(input_control, neighbor)
-                e_type = diagram.edge_type(e)
-                diagram.remove_edge(e)
-                diagram.add_edge((new_z, neighbor), edgetype=e_type)
-                diagram.add_edge((new_z, input_control), edgetype=zx.EdgeType.SIMPLE)
-
-                diagram.add_edge((new_z, new_x), edgetype=zx.EdgeType.SIMPLE)
-
-        diagram = zx.Graph()
-        vertex_map = {}
-        input_boundaries : list[Any] = []
-        output_boundaries : list[Any] = []
-        for i, deco in enumerate(self.vertices):
-            if i == self.k:
-                _add_cnots(diagram, input_boundaries)
-            boundary = diagram.add_vertex(zx.VertexType.BOUNDARY)
-            if i < self.k:
-                input_boundaries.append(boundary)
-            else:
-                output_boundaries.append(boundary)
-
-            phase , edge_type = _local_clifford_to_pyzx(deco)
-            v = diagram.add_vertex(zx.VertexType.Z, phase=phase)
-            vertex_map[i] = v
-            diagram.add_edge((boundary, v), edgetype=edge_type)
-
-        diagram.set_inputs(input_boundaries)
-        diagram.set_outputs(output_boundaries)
-
-        for edge in self.edges:
-            u, v = edge
-            diagram.add_edge((vertex_map[u], vertex_map[v]), edgetype=zx.EdgeType.HADAMARD)
-
-        return diagram
 
     def is_bipartite(self) -> bool:
         n = self.n + self.k
@@ -336,21 +209,7 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
 
     return circuit
 
-def _to_encoder_respecting_form(zx_diagram: zx.BaseGraph, n : int) -> ZXGraph:
-    # zx diagram -> graph like state  in encoder-respecting form (TODO: currently only graph-like, not encoder-respecting, so inner nodes possible!!!)
-
-    if not zx.is_graph_like(zx_diagram, strict=True):
-        raise ValueError("Expected the ZX diagram to be graph-like, but it was not.")
-    
-    if n != len(zx_diagram.inputs()) + len(zx_diagram.outputs()):
-        raise ValueError("Expected the number of input and output boundaries to match the number of logical and physical qubits in the code.")
-    
-    if zx_diagram.num_vertices() != 2 * n:
-        raise ValueError(f"Expected the ZX diagram in encoder-respecting form to have exactly 2N = {2 * n} vertices (Z-nodes + in/outputs), but it had {zx_diagram.num_vertices()}.")
-    
-    return ZXGraph.from_pyzx_diagram(zx_diagram)
-
-def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) -> ZXGraph:
+def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) -> GSLC:
     """Convert a stabilizer state into a graph state under local Clifford operations.
     Returns the adjacency matrix of the graph state."""
     n = tableau.shape[1] // 2
@@ -418,11 +277,9 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
 
                 pivot = pivot_row + int(pivot_candidates[0])
 
-                # swap row with potential pivot up
                 if pivot != pivot_row:
                     matrix[[pivot_row, pivot], :] = matrix[[pivot, pivot_row], :]
 
-                # make pivot column a unit vector
                 for r in range(n_rows):
                     if r != pivot_row and matrix[r, col]:
                         matrix[r, :] ^= matrix[pivot_row, :]
@@ -452,7 +309,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
     if not np.array_equal(gamma, gamma.T):
         raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
 
-    graph = ZXGraph()
+    graph = GSLC()
     graph.n = old_n
     graph.k = old_k
     graph.vertices = [ (local_clifords[i], False) for i in range(n) ]
@@ -464,49 +321,52 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
 
     return graph
 
-def _code_to_graph(code) -> ZXGraph:
-    # 1.) code -> encoder circuit
+def _code_to_graph(code) -> GSLC:
+    """Convert the stabilizer code into a LC-equivalent graph state with local Clifford decorations on the vertices.
+
+    1.) Convert the code into an encoder circuit using Gaussian elimination on the tableau.
+    2.) Apply the Choi-Jamiołkowski isomorphism on the circuit, by applying the Bell-state |Φ⁺⟩ on the inputs and reference output qubits, which is the same as "bending the wires" in th ZX-calculus.
+    3.) Apply the resulting circuit to the initial state |0⟩^(n+k) (stabilized by the tableau [0 | I]) to get the state tableau.
+    4.) Convert the state tableau into a graph state under local Clifford operations (making X invertible, bringing the tableau into the form [I | A] and extracting the adjacency matrix A), constructing a GSLC object.
+    """
+    # 1.) Code -> Encoder Circuit
     circuit = _code_to_encoder_circuit(code)
 
-    # 2.) Encoder circuit -> state tableau
+    # 2.) Encoder Circuit -> State Tableau
     n = code.n + code.k
     initial_state = np.hstack([np.zeros((n, n), dtype=np.uint8), np.eye(n, dtype=np.uint8)])
     for gate in circuit.gates:
         if gate.name == "HAD":
-            q = gate.target
-            initial_state[:, [q, n + q]] = initial_state[:, [n + q, q]]
+            initial_state[:, [gate.target, n + gate.target]] = initial_state[:, [n + gate.target, gate.target]]
         elif gate.name == "ZPhase":
-            q = gate.target
-            phase = gate.phase
-            if phase == 1 / 2:
-                initial_state[:, n + q] ^= initial_state[:, q]
-            elif phase == 1:
+            if gate.phase == 1 / 2:
+                initial_state[:, n + gate.target] ^= initial_state[:, gate.target]
+            elif gate.phase == 1:
                 pass # Z has no effect on tableau
-            elif phase == 3 / 2:
-                initial_state[:, n + q] ^= initial_state[:, q]
+            elif gate.phase == 3 / 2:
+                initial_state[:, n + gate.target] ^= initial_state[:, gate.target]
                 # S† = SZ, but Z has no effect on tableau, so only apply S part to tableau
             else:
-                raise ValueError(f"Unexpected Z phase {phase} in encoder circuit.")
+                raise ValueError(f"Unexpected Z phase {gate.phase} in encoder circuit.")
         elif gate.name == "CNOT":
-            control, target = gate.control, gate.target
-            initial_state[:, target] ^= initial_state[:, control]
-            initial_state[:, n + control] ^= initial_state[:, n + target]
+            initial_state[:, gate.target] ^= initial_state[:, gate.control]
+            initial_state[:, n + gate.control] ^= initial_state[:, n + gate.target]
         else:
             raise ValueError(f"Unexpected gate {gate.name} in encoder circuit.")
 
-    # 3.) state tableau -> ZXGraph
+    # 3.) state tableau -> GSLC
     graph = _stab_state_to_graph_state(initial_state, code.n, code.k)
 
     return graph
 
-def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
+def _hk_normal_form(graph: GSLC) -> GSLC:
     """Requirements HK normal form:
     1.) graph like state (only Z nodes, one Z node per boundary, no inner Z edges, only H-edges between Z nodes)
     2.) Requirements on LC decorations:
         - only decorations I , S , H allowed (apart from additional Z phases)
         - if vertex has a H decoration, then it cannot have a neighbor with a smaller index
     """
-    def _h_slide_down(g: ZXGraph, upper: int, lower: int) -> None:
+    def _h_slide_down(g: GSLC, upper: int, lower: int) -> None:
         # (Eq. 13) H_upper |G> = H_lower Z_upper Z_lower prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(upper) union {upper}, B = N(lower) union {lower}
         A = set(g.neighbors(upper)) | {upper}
@@ -526,7 +386,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
                 else:
                     g.apply_cz_edge(p, q)
 
-    def _reduce_trailing_HS(g: ZXGraph, i: int) -> None:
+    def _reduce_trailing_HS(g: GSLC, i: int) -> None:
         # (Eq. 12) H_i S_i |G> = S_i^3 prod_{p in N(i)} Z_p prod_{p,q in N(i)} CS_{p,q} |G>
         g.vertices[i] = ( g.vertices[i][0][:-2] + ["S", "S", "S"], g.vertices[i][1] )
 
@@ -547,7 +407,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
 
         g.local_complementation(i)
 
-    def _reduce_solo_trailing_SH(g: ZXGraph, i: int) -> None:
+    def _reduce_solo_trailing_SH(g: GSLC, i: int) -> None:
         # (Eq. 11) S_i H_i |G> = H_i prod_{p,q in N(i)} CS_{p,q} |G>
         g.vertices[i] = (g.vertices[i][0][:-2] + ["H"], g.vertices[i][1])
 
@@ -565,7 +425,7 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
 
         g.local_complementation(i)
 
-    def _reduce_shared_trailing_SH(g: ZXGraph, i: int, j: int) -> None:
+    def _reduce_shared_trailing_SH(g: GSLC, i: int, j: int) -> None:
         # (Eq. 11) H_i H_j|G> = Z_i Z_j prod_{p in A, q in B} CZ_{p,q} |G>
         # with A = N(i) union {i}, B = N(j) union {j}
         A = set(g.neighbors(i)) | {i}
@@ -686,9 +546,13 @@ def _hk_normal_form(graph: ZXGraph) -> ZXGraph:
                     raise ValueError(f"Expected only I, S decorations in the neighborhood of a H-decorated vertex, but got: {graph.vertices[p][0]}")
             graph.local_complementation(i)
 
+    for x in range(n):
+        if graph.vertices[x][0] not in ([], ["H"], ["S"]):
+            raise ValueError(f"After cleaning up SH: Expected only I, S, H decorations, but got: {graph.vertices[x][0]}.")
+
     return graph
 
-def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
+def _kls_normal_form(graph_hk: GSLC) -> None:
     """Additional requirements KLS normal form:
     1.) input nodes have no non-I LC decoration, and no edges between input nodes
     2.) the input-output adjacency matrix is in RREF
@@ -704,82 +568,109 @@ def _kls_normal_form(graph_hk: ZXGraph) -> ZXGraph:
     # 2.) bring the IO-adjacency matrix into RREF
     adj = graph_hk.get_input_output_adjacency()
 
-    pivot_row = 0
-    cnots_gates = []
-    for c in range(graph_hk.n):
-        pivot_candidates = np.flatnonzero(adj[pivot_row:, c])
-        if len(pivot_candidates) == 0:
-            continue
-        pivot = pivot_row + int(pivot_candidates[0])
+    def _rref_no_column_swaps(matrix: np.ndarray) -> tuple[np.ndarray, dict[int, int]]:
+        pivot_row = 0
+        pivots = {}
+        for c in range(graph_hk.n):
+            pivot_candidates = np.flatnonzero(matrix[pivot_row:, c])
+            if len(pivot_candidates) == 0:
+                continue
 
-        if pivot != pivot_row:
-            adj[[pivot_row, pivot]] = adj[[pivot, pivot_row]]
-            cnots_gates.append((pivot_row, pivot)) # swap = 3 CNOTs
-            cnots_gates.append((pivot, pivot_row))
-            cnots_gates.append((pivot_row, pivot))
+            pivots[pivot_row] = c + graph_hk.k
 
-        for r in range(graph_hk.k):
-            if r != pivot_row and adj[r, c]:
-                adj[r] ^= adj[pivot_row]
-                cnots_gates.append((pivot_row, r))
-        pivot_row += 1
+            pivot = pivot_row + int(pivot_candidates[0])
+            if pivot != pivot_row:
+                matrix[[pivot_row, pivot]] = matrix[[pivot, pivot_row]]
 
-        if pivot_row == graph_hk.k:
-            break
+            for r in range(graph_hk.k):
+                if r != pivot_row and matrix[r, c]:
+                    matrix[r] ^= matrix[pivot_row]
+            pivot_row += 1
 
-    # 3.) simplify the graph with the added CNOTS
-    zx_diagram = graph_hk.to_pyzx_diagram(cnots=cnots_gates)
-    graph = _to_encoder_respecting_form(zx_diagram, graph_hk.n + graph_hk.k)
+            if pivot_row == graph_hk.k:
+                break
 
-    # 4.) remove pivot-pivot edges
-    adj = graph.get_input_output_adjacency()
-    pivots = {}
-    cnots_gates = []
-    for input in range(graph.k):
-        if np.count_nonzero(adj[input]) != 0:
-            pivot = np.flatnonzero(adj[input])[0]
-            pivots[input] = pivot + graph.k
+        return matrix, pivots
+    
+    adj, pivots = _rref_no_column_swaps(adj)
 
+    # 3.) set the IO-edges according to the new adjacency matrix (equivalent to applying the corresponding CNOT gates on the graph state and simplifying with bialgebra rule -> output-output edges and decorations not changed)
+    def _set_io_edges(adj: np.ndarray) -> None:
+        new_edges = set()
+        for input in range(graph_hk.k):
+            for output in range(graph_hk.n):
+                if adj[input, output]:
+                    new_edges.add((input, output + graph_hk.k))
+
+        for u, v in graph_hk.edges:
+            if u >= graph_hk.k and v >= graph_hk.k:
+                new_edges.add((u, v))
+
+        graph_hk.edges = new_edges
+
+    _set_io_edges(adj)
+
+    # 4.) remove pivot vertex decorations (apply local complementation)
+    # |G> = prod_{p,q in N(i)} CS_{p,q} |G>
+    def _add_S(word: tuple[list[str], bool]) -> tuple[list[str], bool]:
+        new_z_bit = word[1]
+        deco = word[0] + ["S"]
+
+        while len(deco) >= 2:
+            if deco[-2:] == ["S", "S"]:
+                deco = deco[:-2] 
+                new_z_bit ^= True
+            else:
+                break
+
+        return deco, new_z_bit
+
+    for input, pivot in pivots.items():
+        deco, z = graph_hk.vertices[pivot]
+
+        if "H" in deco:
+            raise ValueError(f"Pivot {pivot} has an H decoration. Should have been pushed to a (lower numbered) input during HK normal form reduction.")
+        
+        if z:
+            graph_hk.vertices[pivot] = (deco + ["S", "S"], False)
+
+        while "S" in graph_hk.vertices[pivot][0] or graph_hk.vertices[pivot][1]:
+            neighbors = graph_hk.neighbors(input)
+
+            for neighbor in neighbors:
+                graph_hk.vertices[neighbor] = _add_S(graph_hk.vertices[neighbor])
+
+            graph_hk.local_complementation(pivot)
+
+
+    # 5.) remove pivot-pivot edges, basically apply Eq. 11 (but HZ on inputs can be removed)
+    # |G> = H_i Z_i H_j Z_j prod_{p in A, q in B} CZ_{p,q} |G>
+    # with A = N(i) union {i}, B = N(j) union {j}
     for input1, pivot1 in pivots.items():
         for input2, pivot2 in pivots.items():
-            if (pivot1, pivot2) in graph.edges or (pivot2, pivot1) in graph.edges:
-                # delete pivot-pivot edge
-                graph.apply_cz_edge(pivot1, pivot2)
+            if (pivot1, pivot2) in graph_hk.edges or (pivot2, pivot1) in graph_hk.edges:
+                A = set(graph_hk.neighbors(input1)) | {input1}
+                B = set(graph_hk.neighbors(input2)) | {input2}
 
-                # swap adjacency
-                graph.apply_cz_edge(input1, pivot1)
-                graph.apply_cz_edge(input1, pivot2)
-                graph.apply_cz_edge(input2, pivot1)
-                graph.apply_cz_edge(input2, pivot2)
+                for p in A:
+                    for q in B:
+                        if p == q:
+                            graph_hk.vertices[p] = (graph_hk.vertices[p][0], graph_hk.vertices[p][1] ^ True)
+                        else:
+                            graph_hk.apply_cz_edge(p, q)
 
-                # add swap gate on inputs to keep RREF form
-                cnots_gates.append((input1, input2))
-                cnots_gates.append((input2, input1))
-                cnots_gates.append((input1, input2))
-
-    # 5.) remove pivot vertex decorations
-    for pivot in pivots.values():
-        new_deco = graph.vertices[pivot][0]
-        while "S" in new_deco:
-            new_deco.remove("S")
-        graph.vertices[pivot] = (new_deco, False)
-
-    # 3.) simplify the graph with the added CNOTS
-    zx_diagram = graph.to_pyzx_diagram(cnots=cnots_gates)
-    graph = _to_encoder_respecting_form(zx_diagram, graph_hk.n + graph_hk.k)
-
-    return graph
+    # 6.) swap the neighborhoods back via row operations, aka bring back into RREF
+    adj = graph_hk.get_input_output_adjacency()
+    adj, _ = _rref_no_column_swaps(adj)
+    _set_io_edges(adj)
 
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
     """Check if a stabilizer code is LC-equivalent to a CSS code by converting it into KLS normal form and checking if the resulting graph state is bipartite.
 
-    1.) Convert the stabilizer code into a clifford encoder circuit.
-    2.) Convert the encoder circuit into a ZX diagram.
-    3.) Simplify the ZX diagram into a graph-like state, aka a graph with local Clifford decorations on the vertices.
-    4.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
-    5.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
-
-    The conversion from stabilizer code into a graph state can be done in O(n^3) time an the efficient algorithm for equivalence checking of graph states runs in O(n^4) time, so the overall runtime of this algorithm should be O(n^3) which is very efficient.
+    1.) Convert the stabilizer code into a graph-like state, aka a graph with local Clifford decorations on the vertices.
+    2.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
+    3.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
+    4.) Check if the resulting graph state is bipartite, which means that the code is LC-equivalent to a CSS code.
     """
     graph = _code_to_graph(code)
     graph_hk = _hk_normal_form(graph)

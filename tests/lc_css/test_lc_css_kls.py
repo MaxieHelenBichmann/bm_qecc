@@ -8,7 +8,7 @@ import pyzx as zx
 
 from benchmarks.utils import random_stabilizer_code, random_css_code, lc_equivalent_code
 from src.algorithms.lc_css_kls import (
-    ZXGraph,
+    GSLC,
     _code_to_encoder_circuit,
     _code_to_graph,
     _hk_normal_form,
@@ -22,7 +22,7 @@ from src.core.stabilizer_code import StabilizerCode
 # ----------------------------------------------------------------------------------------------------
 
 
-def _assert_semi_bipartite_encoder_graph(graph: ZXGraph) -> None:
+def _assert_semi_bipartite_encoder_graph(graph: GSLC) -> None:
     assert len(graph.vertices) == graph.k + graph.n
     assert graph.get_input_output_adjacency().shape == (graph.k, graph.n)
 
@@ -31,7 +31,7 @@ def _assert_semi_bipartite_encoder_graph(graph: ZXGraph) -> None:
         assert not (u < graph.k and v < graph.k)
 
 
-def _assert_graph_represents_encoder(code: StabilizerCode, graph: ZXGraph) -> None:
+def _assert_graph_represents_encoder(code: StabilizerCode, graph: GSLC) -> None:
     encoder_diagram = _code_to_encoder_circuit(code).to_graph()
     graph_diagram = graph.to_pyzx_diagram()
     assert zx.compare_tensors(encoder_diagram, graph_diagram)
@@ -129,7 +129,7 @@ def test_code_to_graph_rejects_identity_stabilizer_row() -> None:
     ],
 )
 def test_code_to_graph_encoder_respecting_form_smoke(code: StabilizerCode) -> None:
-    assert isinstance(_code_to_graph(code), ZXGraph)
+    assert isinstance(_code_to_graph(code), GSLC)
     graph = _code_to_graph(code)
     _assert_graph_represents_encoder(code, graph)
 
@@ -138,8 +138,8 @@ def test_code_to_graph_encoder_respecting_form_smoke(code: StabilizerCode) -> No
 # ----------------------------------------------------------------------------------------------------
 
 
-def _hk(vertices: list[tuple[list[str], bool]], edges: set[tuple[int, int]]) -> ZXGraph:
-    graph = ZXGraph()
+def _hk(vertices: list[tuple[list[str], bool]], edges: set[tuple[int, int]]) -> GSLC:
+    graph = GSLC()
     graph.n = len(vertices)
     graph.k = 0
     graph.vertices = [(list(deco), z) for deco, z in vertices]
@@ -148,7 +148,7 @@ def _hk(vertices: list[tuple[list[str], bool]], edges: set[tuple[int, int]]) -> 
 
 
 def _assert_graph(
-    graph: ZXGraph,
+    graph: GSLC,
     vertices: list[tuple[list[str], bool]],
     edges: set[tuple[int, int]],
 ) -> None:
@@ -156,7 +156,7 @@ def _assert_graph(
     assert graph.edges == edges
 
 
-def _assert_hk_requirements(graph: ZXGraph) -> None:
+def _assert_hk_requirements(graph: GSLC) -> None:
     for i, (deco, _) in enumerate(graph.vertices):
         assert deco in ([], ["S"], ["H"])
         if deco == ["H"]:
@@ -276,8 +276,8 @@ def _graph(
     k: int,
     vertices: list[tuple[list[str], bool]],
     edges: set[tuple[int, int]],
-) -> ZXGraph:
-    graph = ZXGraph()
+) -> GSLC:
+    graph = GSLC()
     graph.n = n
     graph.k = k
     graph.vertices = [(list(deco), z) for deco, z in vertices]
@@ -307,7 +307,7 @@ def _assert_rref(matrix: np.ndarray) -> None:
         pivots.append(pivot)
 
 
-def _assert_kls_requirements(graph: ZXGraph) -> None:
+def _assert_kls_requirements(graph: GSLC) -> None:
     _assert_semi_bipartite_encoder_graph(graph)
 
     for input_vertex in range(graph.k):
@@ -317,7 +317,7 @@ def _assert_kls_requirements(graph: ZXGraph) -> None:
     _assert_rref(input_output_adjacency)
 
 
-def _pivot_output_vertices(graph: ZXGraph) -> list[int]:
+def _pivot_output_vertices(graph: GSLC) -> list[int]:
     input_output_adjacency = graph.get_input_output_adjacency()
     pivot_vertices: list[int] = []
 
@@ -330,7 +330,7 @@ def _pivot_output_vertices(graph: ZXGraph) -> list[int]:
     return pivot_vertices
 
 
-def _assert_kls_pivot_requirements(graph: ZXGraph) -> None:
+def _assert_kls_pivot_requirements(graph: GSLC) -> None:
     pivot_vertices = _pivot_output_vertices(graph)
 
     for pivot_vertex in pivot_vertices:
@@ -397,7 +397,7 @@ def _assert_kls_pivot_requirements(graph: ZXGraph) -> None:
     ],
 )
 def test_kls_normal_form_structural_cases(
-    graph_hk: ZXGraph,
+    graph_hk: GSLC,
     expected_io_adjacency: np.ndarray,
 ) -> None:
     _assert_hk_requirements(graph_hk)
@@ -426,7 +426,7 @@ def test_kls_normal_form_clears_pivot_output_decorations() -> None:
 # ----------------------------------------------------------------------------------------------------
 
 
-def _plain_graph(num_vertices: int, edges: set[tuple[int, int]]) -> ZXGraph:
+def _plain_graph(num_vertices: int, edges: set[tuple[int, int]]) -> GSLC:
     return _graph(
         n=num_vertices,
         k=0,
@@ -466,7 +466,7 @@ def _plain_graph(num_vertices: int, edges: set[tuple[int, int]]) -> ZXGraph:
         ),
     ],
 )
-def test_is_bipartite_graph_cases(graph: ZXGraph, expected: bool) -> None:
+def test_is_bipartite_graph_cases(graph: GSLC, expected: bool) -> None:
     assert graph.is_bipartite() is expected
 
 
