@@ -194,6 +194,12 @@ def test_extract_qubit_permutations_path_graphs() -> None:
 # are_peq_stab_graph_state
 # ----------------------------------------------------------------------------------------------------
 
+def test_are_peq_stab_graph_state_choi_failing() -> None:
+    c1 = StabilizerCode(["ZYZ"])
+    c2 = StabilizerCode(["YZZ"])
+
+    assert are_peq_stab_graph_state(c1, c2) is True
+
 def test_are_peq_stab_graph_state_random_smoke() -> None:
     for n in range(3, 6):
         for k in range(n + 1):
