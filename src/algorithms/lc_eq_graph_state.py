@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from itertools import product
+from collections import deque, defaultdict
 
 import numpy as np
 import pyzx as zx
@@ -244,8 +245,34 @@ def _code_to_graph(code) -> np.ndarray:
 
     return graph
 
+def _extract_connected_components(g: np.ndarray) -> list[list[list]]:
+    n = g.shape[0]
+    connected_components : list[list[int]] = []
+    seen : set[int] = set()
 
-def _lc_equiv_graph_states(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
+    while len(seen) < n:
+        start = next(i for i in range(n) if i not in seen)
+        comp = []
+
+        queue = deque([start])
+        seen.add(start)
+
+        while queue:
+            cur : int = queue.popleft()
+            comp.append(cur)
+
+            for neighbor in g[cur, :].nonzero()[0]:
+                neighbor = int(neighbor)
+
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    queue.append(neighbor)
+
+        connected_components.append(sorted(comp))
+
+    return connected_components
+
+def _lc_equiv_connected(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
     """Check if two graph states are equivalent under local complementations using an efficient algorithm that considers a linear system of equations."""
 
     def _build_lse():
@@ -317,23 +344,63 @@ def _lc_equiv_graph_states(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
     if dim == 0: # trivial nullspace
         return False
 
-    # TODO: false assumption of the paper of Van den Nest, as Bouchet (lemma 1, in Van de Nest) requires the graph to be connected for the proof to work (which we do not guarantee, thus code broken) -> not polynomial anymore, but maybe preprocess graphs according to connected components (and their size) and run algorithm on each one separately
-    # if dim > 4:
-    #    for i in range(dim):
-    #        for j in range(i, dim):
-    #            x = V[i] ^ V[j]
-    #            if _satisfy_constraints(x):
-    #                return True
-
-    for coeffs in product([0, 1], repeat=dim):
-        x = np.zeros(4 * n, dtype=np.uint8)
-        for bit, basis_vec in zip(coeffs, V):
-            if bit:
-                x ^= basis_vec
-            if _satisfy_constraints(x):
-                return True
+    # false assumption of the paper of Van den Nest, as Bouchet (lemma 1, in Van de Nest) requires the graph to be connected for the proof to work (which we do not guarantee, thus code broken) -> not polynomial anymore, but maybe preprocess graphs according to connected components (and their size) and run algorithm on each one separately
+    if dim > 4:
+        for i in range(dim):
+            for j in range(i, dim):
+                x = V[i] ^ V[j]
+                if _satisfy_constraints(x):
+                    return True
+    else:
+        for coeffs in product([0, 1], repeat=dim):
+            x = np.zeros(4 * n, dtype=np.uint8)
+            for bit, basis_vec in zip(coeffs, V):
+                if bit:
+                    x ^= basis_vec
+                if _satisfy_constraints(x):
+                    return True
 
     return False
+
+def _lc_equiv_graph_states(graph_1: np.ndarray, graph_2: np.ndarray) -> bool:
+    connected_components_g1 = sorted(_extract_connected_components(graph_1), key=len)
+    connected_components_g2 = sorted(_extract_connected_components(graph_2), key=len)
+
+    if len(connected_components_g1) != len(connected_components_g2):
+        return False
+    
+    subgraphs_g1 = defaultdict(list)
+    subgraphs_g2 = defaultdict(list)
+
+    for comp in connected_components_g1:
+        subgraphs_g1[len(comp)].append(graph_1[np.ix_(comp, comp)])
+    
+    for comp in connected_components_g2:
+        subgraphs_g2[len(comp)].append(graph_2[np.ix_(comp, comp)])
+
+    if set(subgraphs_g1.keys()) != set(subgraphs_g2.keys()):
+        return False
+
+    for size in subgraphs_g1.keys():
+        if len(subgraphs_g1[size]) != len(subgraphs_g2[size]):
+            return False
+        
+        unmatched_subgraphs_g2 = list(subgraphs_g2[size])
+
+        for sg1 in subgraphs_g1[size]:
+            match_idx = None
+
+            for i, sg2 in enumerate(unmatched_subgraphs_g2):
+                if _lc_equiv_connected(sg1, sg2, size):
+                    match_idx = i
+                    break
+
+            if match_idx is None:
+                return False
+            
+            unmatched_subgraphs_g2.pop(match_idx)
+            
+    return True
 
 
 
@@ -350,4 +417,6 @@ def are_lceq_graph_state(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     graph_1 = _code_to_graph(c1)
     graph_2 = _code_to_graph(c2)
 
-    return _lc_equiv_graph_states(graph_1, graph_2, c1.n + c1.k)
+    return _lc_equiv_graph_states(graph_1, graph_2)
+
+    

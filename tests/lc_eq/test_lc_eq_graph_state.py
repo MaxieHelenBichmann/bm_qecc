@@ -82,7 +82,7 @@ def test_stab_state_to_graph_state_small_tableau(
     tableau: np.ndarray,
     expected: np.ndarray,
 ) -> None:
-    _assert_same_matrix(_stab_state_to_graph_state(tableau.copy(), expected.shape[0]), expected)
+    _assert_same_matrix(_stab_state_to_graph_state(tableau.copy()), expected)
 
 # ----------------------------------------------------------------------------------------------------
 # _lc_equiv_graph_states
@@ -280,7 +280,7 @@ def test_lc_equiv_graph_states_small_graphs(
     g2: np.ndarray,
     expected: bool,
 ) -> None:
-    assert _lc_equiv_graph_states(g1, g2, g1.shape[0]) is expected
+    assert _lc_equiv_graph_states(g1, g2) is expected
 
 # ----------------------------------------------------------------------------------------------------
 # are_lceq_graph_state
