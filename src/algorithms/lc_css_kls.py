@@ -759,10 +759,12 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
 
     Check in the intermediate steps, if the graph is already bipartite, which means that the code is already LC-equivalent to a CSS code, and we can stop early.
 
-    ! BEWARE ! My assumption was wrong, the implication only goes into one direction:
+    TODO: ! BEWARE ! My assumption was wrong, the implication only goes into one direction:
     graph bipartide -> code LC to CSS (so if the graph is not bipartite, i cant make a statement...)
 
     probably need LC-orbit traversal...
+
+    TODO: generation of a state via choi still not right
     """
     graph = _code_to_graph(code)
 

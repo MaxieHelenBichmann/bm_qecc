@@ -414,6 +414,7 @@ def are_lceq_graph_state(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     The efficient algorithm for equivalence checking of graph states runs in O(n^4) time (TODO: if graph connected!), so the overall runtime of this algorithm should be O(n^4) which is very efficient.
     """
+    # TODO: still state construction is invalid (fixes deterministic logical basis, that doesnt have to be the same as the other ones)
     graph_1 = _code_to_graph(c1)
     graph_2 = _code_to_graph(c2)
 

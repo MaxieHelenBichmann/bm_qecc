@@ -137,6 +137,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
 
 
 def _traverse_lc_orbit(graph: np.ndarray) -> bool:
+    # TODO: for k >= 2 we will have problems, bc we fixed a logical basis and we only look at how local cliffords at the inputs could change the logical basis, but there could be other gates (cnot, swap) that could be needed to be applied to the inputs (change the logical basis, not the code) to reach a bipartide code... but cnots dont have a clean graph equivalent like local complementation :(
     def _lc(graph: np.ndarray, q: int) -> np.ndarray:
         new_graph = graph.copy()
         neighbors = np.flatnonzero(graph[q])
