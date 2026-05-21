@@ -336,14 +336,14 @@ def test_are_lceq_graph_state_failing_choi(seed: int) -> None:
     assert are_lceq_graph_state(code1, code2) is True
 
 def test_are_lceq_graph_state_random_smoke() -> None:
-    for n in range(3, 6):
+    for n in range(3, 9):
         for k in range(n + 1):
             code1 = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
             code2 = lc_equivalent_code(code1, seed=2000 + 17 * n + k)
 
             assert isinstance(are_lceq_graph_state(code1, code2), bool)
 
-@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(2, 10)])
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_lceq_graph_state_random_positive(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)
