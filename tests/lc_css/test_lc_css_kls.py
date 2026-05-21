@@ -201,6 +201,10 @@ def test_code_to_graph_rejects_identity_stabilizer_row() -> None:
             StabilizerCode(["ZXZZI", "IXIIZ", "IIIZI"]),
             id="failing-example-3",
         ),
+                pytest.param(
+            StabilizerCode(["XZXYYXIZX", "IIXIIIIII", "XXXZXIZIZ", "XZXZYYXXY", "IYXIZXIZI"]),
+            id="failing-example-4",
+        ),
     ],
 )
 def test_code_to_graph_encoder_respecting_form_smoke(code: StabilizerCode) -> None:
