@@ -31,6 +31,7 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 - [x] Matroid Isomorphism
 - [x] Classical Algorithms
 - [x] Graph Isomorphism
+- [x] SAT
 
 #### Stabilizer Codes
 - [x] Brute Force
