@@ -75,6 +75,12 @@ src/
     css_code.py
   algorithms/      # equivalence-checking implementations
 
+tests/             # partially randomized and edge case tests
+  lc_css/
+  lc_eq/
+  p_css/
+  p_stab/
+
 benchmarks/
   run.py           # cases, timing, and CSV output
   utils.py         # randomization utilities
