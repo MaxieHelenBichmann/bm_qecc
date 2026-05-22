@@ -17,7 +17,7 @@ def test_is_lceq_css_sat_random_smoke() -> None:
             code = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
             assert isinstance(is_lceq_css_sat(code), bool)
 
-@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(20)])
 def test_is_lceq_css_sat_random_positive(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)

@@ -20,7 +20,7 @@ def test_are_peq_css_sat_random_smoke() -> None:
             except RandomizeError:
                 pass
 
-@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(20)])
 def test_are_peq_css_sat_random_positive(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)
