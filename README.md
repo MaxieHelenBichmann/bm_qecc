@@ -44,12 +44,14 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 ### Local-Clifford Equivalence
 #### $C \thicksim_{LC} \ C'$
 - [x] Brute Force
-- [x] Graph State Machinery
+- [ ] Graph State Machinery **INVALID**
+- [ ] SAT
 
 #### $C \thicksim_{LC} \ C_{CSS}$
 - [x] Brute Force
-- [x] KLS Normal Form
-- [x] Graph State Machinery with LC Orbit
+- [ ] KLS Normal Form **INVALID**
+- [ ] Graph State Machinery with LC Orbit **INVALID**
+- [ ] SAT
 
 
 ## Scope

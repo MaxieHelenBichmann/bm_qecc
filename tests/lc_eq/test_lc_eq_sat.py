@@ -1,4 +1,4 @@
-"""Focused checks for the brute force approach to check whether two stabilizer codes are LC-equivalent."""
+"""Focused checks for the SAT approach to check whether two stabilizer codes are LC-equivalent."""
 
 from __future__ import annotations
 
@@ -6,10 +6,10 @@ import pytest
 
 from benchmarks.utils import lc_equivalent_code, random_stabilizer_code
 from src.core.stabilizer_code import StabilizerCode
-from src.algorithms.lc_eq_bruteforce import are_lceq_bruteforce
+from src.algorithms.lc_eq_sat import are_lceq_sat
 
 # ----------------------------------------------------------------------------------------------------
-# are_lceq_bruteforce
+# are_lceq_sat
 # ----------------------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize(
@@ -43,25 +43,25 @@ from src.algorithms.lc_eq_bruteforce import are_lceq_bruteforce
         ),
     ],
 )
-def test_are_lceq_bruteforce_small_codes(
+def test_are_lceq_sat_small_codes(
     code1: StabilizerCode,
     code2: StabilizerCode,
     expected: bool,
 ) -> None:
-    assert are_lceq_bruteforce(code1, code2) is expected
+    assert are_lceq_sat(code1, code2) is expected
 
-def test_are_lceq_bruteforce_random_smoke() -> None:
+def test_are_lceq_sat_random_smoke() -> None:
     for n in range(1, 6):
         for k in range(n + 1):
             code1 = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
             code2 = lc_equivalent_code(code1, seed=2000 + 17 * n + k)
 
-            assert isinstance(are_lceq_bruteforce(code1, code2), bool)
+            assert isinstance(are_lceq_sat(code1, code2), bool)
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(2, 10)])
-def test_are_lceq_bruteforce_random_positive(seed: int) -> None:
+def test_are_lceq_sat_random_positive(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)
     code1 = random_stabilizer_code(n, k, seed=1000 + seed)
     code2 = lc_equivalent_code(code1, seed=2000 + seed)
-    assert are_lceq_bruteforce(code1, code2) is True
+    assert are_lceq_sat(code1, code2) is True
