@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from benchmarks.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
-from src.algorithms.p_css_matroid import _circuits_binary_matroid, _graph_from_circuits, are_peq_css_matroid
+from src.algorithms.p_css.p_css_matroid import _circuits_binary_matroid, _graph_from_circuits, are_peq_css_matroid
 
 # ----------------------------------------------------------------------------------------------------
 # _circuits_binary_matroid

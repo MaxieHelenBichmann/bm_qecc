@@ -7,7 +7,7 @@ from itertools import permutations
 import numpy as np
 from ldpc.mod2.mod2_numpy import rank
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 def are_peq_stab_bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check permutation equivalence by brute-force search over all elements of S_n.

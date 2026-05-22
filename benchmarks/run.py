@@ -11,24 +11,24 @@ from time import perf_counter
 
 import numpy as np
 
-from src.algorithms.lc_css_bruteforce import is_lceq_css_bruteforce
-from src.algorithms.lc_css_kls import is_lceq_css_kls
-from src.algorithms.lc_css_orbit import is_lceq_css_orbit
-from src.algorithms.lc_css_sat import is_lceq_css_sat
-from src.algorithms.lc_eq_graph_state import are_lceq_graph_state
-from src.algorithms.lc_eq_bruteforce import are_lceq_bruteforce
-from src.algorithms.lc_eq_sat import are_lceq_sat
-from src.algorithms.p_css_bruteforce import are_peq_css_bruteforce
-from src.algorithms.p_css_classical import are_peq_css_classical
-from src.algorithms.p_css_graph_iso import are_peq_css_graph_iso
-from src.algorithms.p_css_matroid import are_peq_css_matroid
-from src.algorithms.p_css_sat import are_peq_css_sat
-from src.algorithms.p_stab_bruteforce import are_peq_stab_bruteforce
-from src.algorithms.p_stab_aut import are_peq_stab_aut
-from src.algorithms.p_stab_classical import are_peq_stab_classical
-from src.algorithms.p_stab_graph_iso import are_peq_stab_graph_iso
-from src.algorithms.p_stab_graph_state import are_peq_stab_graph_state
-from src.algorithms.p_stab_sat import are_peq_stab_sat
+from src.algorithms.lc_css.lc_css_bruteforce import is_lceq_css_bruteforce
+from src.algorithms.lc_css.lc_css_kls import is_lceq_css_kls
+from src.algorithms.lc_css.lc_css_orbit import is_lceq_css_orbit
+from src.algorithms.lc_css.lc_css_sat import is_lceq_css_sat
+from src.algorithms.lc_eq.lc_eq_graph_state import are_lceq_graph_state
+from src.algorithms.lc_eq.lc_eq_bruteforce import are_lceq_bruteforce
+from src.algorithms.lc_eq.lc_eq_sat import are_lceq_sat
+from src.algorithms.p_css.p_css_bruteforce import are_peq_css_bruteforce
+from src.algorithms.p_css.p_css_classical import are_peq_css_classical
+from src.algorithms.p_css.p_css_graph_iso import are_peq_css_graph_iso
+from src.algorithms.p_css.p_css_matroid import are_peq_css_matroid
+from src.algorithms.p_css.p_css_sat import are_peq_css_sat
+from src.algorithms.p_stab.p_stab_bruteforce import are_peq_stab_bruteforce
+from src.algorithms.p_stab.p_stab_aut import are_peq_stab_aut
+from src.algorithms.p_stab.p_stab_classical import are_peq_stab_classical
+from src.algorithms.p_stab.p_stab_graph_iso import are_peq_stab_graph_iso
+from src.algorithms.p_stab.p_stab_graph_state import are_peq_stab_graph_state
+from src.algorithms.p_stab.p_stab_sat import are_peq_stab_sat
 
 from src.core.stabilizer_code import StabilizerCode
 from src.core.css_code import CSSCode

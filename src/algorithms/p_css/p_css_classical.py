@@ -8,7 +8,7 @@ import hashlib
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 
-from ..core.css_code import CSSCode
+from ...core.css_code import CSSCode
 
 def _rank(matrix: np.ndarray) -> int:
     if matrix.shape[0] == 0:

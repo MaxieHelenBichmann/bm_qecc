@@ -11,7 +11,7 @@ from pynauty import certificate, Graph
 
 from benchmarks.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
 from src.core.css_code import CSSCode
-from src.algorithms.p_css_graph_iso import (
+from src.algorithms.p_css.p_css_graph_iso import (
     _check_permutation_equivalence,
     _compute_invariant_a,
     _compute_invariant_b,

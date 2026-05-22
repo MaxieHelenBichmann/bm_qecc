@@ -11,7 +11,7 @@ import pyzx as zx
 
 import ldpc.mod2.mod2_numpy as mod2
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 class GSLC:
     """Graph state with local Clifford decorations (in encoder-respecting form), used for the KLS normal form."""

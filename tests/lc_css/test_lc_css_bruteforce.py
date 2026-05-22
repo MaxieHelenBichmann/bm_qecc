@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from benchmarks.utils import random_stabilizer_code, random_css_code, lc_equivalent_code
-from src.algorithms.lc_css_bruteforce import is_lceq_css_bruteforce
+from src.algorithms.lc_css.lc_css_bruteforce import is_lceq_css_bruteforce
 
 # ----------------------------------------------------------------------------------------------------
 # is_lceq_css_bruteforce

@@ -8,7 +8,7 @@ import numpy as np
 import pyzx as zx
 import ldpc.mod2.mod2_numpy as mod2
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 def _code_to_encoder_circuit(code) -> zx.Circuit:
     def _delete_first_row_and_qubit(tab: np.ndarray) -> np.ndarray:

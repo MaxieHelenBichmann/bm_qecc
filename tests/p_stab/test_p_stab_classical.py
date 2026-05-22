@@ -10,7 +10,7 @@ from benchmarks.utils import (
     random_non_permuted_stabilizer_pair,
     random_permuted_stabilizer_pair,
 )
-from src.algorithms.p_stab_classical import (
+from src.algorithms.p_stab.p_stab_classical import (
     GF4,
     ONE,
     W,

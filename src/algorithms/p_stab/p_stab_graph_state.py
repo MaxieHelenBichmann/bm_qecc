@@ -9,7 +9,7 @@ import ldpc.mod2.mod2_numpy as mod2
 
 from pynauty import Graph, certificate, canon_label, autgrp
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
     """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.

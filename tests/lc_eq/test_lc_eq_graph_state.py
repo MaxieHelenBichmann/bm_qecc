@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from benchmarks.utils import random_stabilizer_code, lc_equivalent_code
-from src.algorithms.lc_eq_graph_state import (
+from src.algorithms.lc_eq.lc_eq_graph_state import (
     _code_to_encoder_circuit,
     _stab_state_to_graph_state,
     _code_to_graph,

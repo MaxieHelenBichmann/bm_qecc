@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import z3
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 def _elementwise_map(normal_bool, variables):
     elem = []

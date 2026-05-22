@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from benchmarks.utils import RandomizeError, random_permuted_stabilizer_pair_and_log_ops, random_non_permuted_stabilizer_pair
-from src.algorithms.p_stab_graph_state import _stab_code_to_stab_state, _stab_state_to_graph_state, _traverse_lc_orbit, _extract_qubit_permutations, are_peq_stab_graph_state
+from src.algorithms.p_stab.p_stab_graph_state import _stab_code_to_stab_state, _stab_state_to_graph_state, _traverse_lc_orbit, _extract_qubit_permutations, are_peq_stab_graph_state
 
 from src.core.stabilizer_code import StabilizerCode
 

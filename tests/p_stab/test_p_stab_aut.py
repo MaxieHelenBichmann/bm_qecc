@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from benchmarks.utils import RandomizeError, random_permuted_stabilizer_pair, random_non_permuted_stabilizer_pair
-from src.algorithms.p_stab_aut import are_peq_stab_aut
+from src.algorithms.p_stab.p_stab_aut import are_peq_stab_aut
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_stab_aut

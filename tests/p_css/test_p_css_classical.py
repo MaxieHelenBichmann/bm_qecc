@@ -10,7 +10,7 @@ from benchmarks.utils import (
     random_non_permuted_css_pair,
     random_permuted_css_pair,
 )
-from src.algorithms.p_css_classical import (
+from src.algorithms.p_css.p_css_classical import (
     _check_permutation_equivalence,
     _compute_canonical_form,
     _compute_signatures,

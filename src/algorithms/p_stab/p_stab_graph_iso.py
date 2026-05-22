@@ -7,7 +7,7 @@ import numpy as np
 
 from pynauty import Graph, certificate
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 def _graph_from_code(code: StabilizerCode) -> Graph:
     r = code.n - code.k

@@ -9,7 +9,7 @@ import numpy.typing as npt
 import ldpc.mod2.mod2_numpy as mod2
 from pynauty import Graph, certificate
 
-from ..core.css_code import CSSCode
+from ...core.css_code import CSSCode
 
 def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
     """

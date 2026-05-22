@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import z3
 
-from ..core.css_code import CSSCode
+from ...core.css_code import CSSCode
 
 def _elementwise_map(normal_bool, variables):
     elem = []

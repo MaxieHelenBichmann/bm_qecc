@@ -11,7 +11,7 @@ import ldpc.mod2.mod2_numpy as mod2
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 

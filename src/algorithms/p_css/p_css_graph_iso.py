@@ -10,7 +10,7 @@ import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 from pynauty import Graph, certificate, canon_label, autgrp
 
-from ..core.css_code import CSSCode
+from ...core.css_code import CSSCode
 
 def _compute_invariant_a(code: CSSCode) -> list[int]:
     """Compute combined invariant of (non)zero columns of Hx and Hz for each column of the CSS code.

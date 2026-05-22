@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from benchmarks.utils import random_permuted_css_pair, random_non_permuted_css_pair, RandomizeError
-from src.algorithms.p_css_bruteforce import are_peq_css_bruteforce
+from src.algorithms.p_css.p_css_bruteforce import are_peq_css_bruteforce
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_css_bruteforce

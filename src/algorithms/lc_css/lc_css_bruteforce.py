@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from ldpc.mod2.mod2_numpy import rank
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 if TYPE_CHECKING:
     import numpy.typing as npt

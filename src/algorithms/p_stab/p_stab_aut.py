@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 
-from ..core.stabilizer_code import StabilizerCode
+from ...core.stabilizer_code import StabilizerCode
 
 def _rank(matrix: np.ndarray) -> int:
     if matrix.shape[0] == 0:
