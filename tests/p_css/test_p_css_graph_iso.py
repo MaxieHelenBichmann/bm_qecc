@@ -272,7 +272,7 @@ def test_random_positive(seed: int) -> None:
     k = 1 + (3 * seed + 1) % (n - 1)
 
     try:
-        code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+        code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k + seed)
     except RandomizeError as re:
         pytest.skip(f"Skip test random_positive: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
@@ -285,7 +285,7 @@ def test_random_negative(seed: int) -> None:
     k = 1 + (3 * seed + 1) % (n - 1)
 
     try:
-        code1, code2 = random_non_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+        code1, code2 = random_non_permuted_css_pair(n, k, seed=1000 + 17 * n + k + seed)
     except RandomizeError as re:
         pytest.skip(f"Skip test random_negative: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
