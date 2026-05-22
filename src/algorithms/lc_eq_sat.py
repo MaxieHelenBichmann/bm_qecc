@@ -54,10 +54,10 @@ def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
     # local cliffords
     aux_tableau = [z3.Bool(f'aux_{row}_{col}') for row in range(r) for col in range(2*n)]
-    local_clifford_variables = [z3.Bool(f'c_{c}_{i}') for c in range(6) for i in range(n)]
+    local_clifford_variables = [z3.Bool(f'c_{c}_{i}') for i in range(n) for c in range(6)]
 
     for i in range(n):
-        solver.add(_exactly_one([local_clifford_variables[i * n + j] for j in range(6)]))
+        solver.add(_exactly_one([local_clifford_variables[i * 6 + j] for j in range(6)]))
 
     for i in range(n):
         x_column_original = c1.symplectic[:, i]
@@ -68,22 +68,22 @@ def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         z_column_aux = [aux_tableau[row * (2*n) + i + n] for row in range(r)]
 
         # I : (x, z) -> (x, z)
-        solver.add(z3.Implies(local_clifford_variables[i * n + 0], z3.And(_elementwise_map(x_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux))))
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 0], z3.And(_elementwise_map(x_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux))))
 
         # H : (x, z) -> (z, x)
-        solver.add(z3.Implies(local_clifford_variables[i * n + 1], z3.And(_elementwise_map(z_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux))))
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 1], z3.And(_elementwise_map(z_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux))))
 
         # S : (x, z) -> (x, x + z)
-        solver.add(z3.Implies(local_clifford_variables[i * n + 2], z3.And(_elementwise_map(x_column_original, x_column_aux), _elementwise_map(x_z_column_original, z_column_aux))))
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 2], z3.And(_elementwise_map(x_column_original, x_column_aux), _elementwise_map(x_z_column_original, z_column_aux))))
 
         # HS : (x, z) -> (x + z, x)
-        solver.add(z3.Implies(local_clifford_variables[i * n + 3], z3.And(_elementwise_map(x_z_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux))))
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 3], z3.And(_elementwise_map(x_z_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux))))
 
         # SH : (x, z) -> (z, x + z)
-        solver.add(z3.Implies(local_clifford_variables[i * n + 4], z3.And(_elementwise_map(z_column_original, x_column_aux), _elementwise_map(x_z_column_original, z_column_aux))))
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 4], z3.And(_elementwise_map(z_column_original, x_column_aux), _elementwise_map(x_z_column_original, z_column_aux))))
 
         # HSH : (x, z) -> (x + z, z)
-        solver.add(z3.Implies(local_clifford_variables[i * n + 5], z3.And(_elementwise_map(x_z_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux))))
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 5], z3.And(_elementwise_map(x_z_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux))))
 
     # row operations
     row_operation_coefficients = [z3.Bool(f'r_{i}_{j}') for i in range(r) for j in range(r)]
