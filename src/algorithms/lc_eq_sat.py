@@ -52,7 +52,7 @@ def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     k = c1.k
     r = n - k # assume that tableau is minimal and has no dependent rows, and both tableaus have the same rank
 
-    # permutations
+    # local cliffords
     aux_tableau = [z3.Bool(f'aux_{row}_{col}') for row in range(r) for col in range(2*n)]
     local_clifford_variables = [z3.Bool(f'c_{c}_{i}') for c in range(6) for i in range(n)]
 
