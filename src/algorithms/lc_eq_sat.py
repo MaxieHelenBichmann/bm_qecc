@@ -39,10 +39,10 @@ def _xor_list(variables):
 
 def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check local-clifford equivalence by reducing it to a SAT problem and using a SAT solver.
-    
-    The idea is to create boolean variables for the permutation and the row operations, and then add constraints that enforce that the permuted tableau of c1 is equal to the row-operated tableau of c2.
+
+    The idea is to create boolean variables for the local clifford operations and the row operations, and then add constraints that enforce that the local-clifford tableau of c1 is equal to the row-operated tableau of c2.
     1.) Create a auxiliary tableau that encodes the local clifford operations of c1, and the row operations of c2.
-    2.) Create boolean variables c_{i,j} for the permutation, where c_{i,j} is true if the i-th local clifford operation (I, H, S, HS, SH, HSH)is applied to the j-th qubit of c1 in the auxiliary tableau.
+    2.) Create boolean variables c_{i,j} for the local cliffords, where c_{i,j} is true if the i-th local clifford operation (I, H, S, HS, SH, HSH)is applied to the j-th qubit of c1 in the auxiliary tableau.
     3.) Create boolean variables r_{i,j} for the row operations, where r_{i,j} is true if the j-th row is added to the i-th row in the auxiliary tableau.
     4.) Check satisfiability of the resulting formula. If it is satisfiable, then c1 and c2 are local clifford equivalent, otherwise they are not.
     """
