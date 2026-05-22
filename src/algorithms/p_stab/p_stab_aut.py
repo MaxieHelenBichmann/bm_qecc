@@ -22,8 +22,24 @@ def _rank(matrix: np.ndarray) -> int:
 _GAP_BEGIN = "__BM_QECC_GAP_AUT_PERMS_BEGIN__"
 _GAP_END = "__BM_QECC_GAP_AUT_PERMS_END__"
 
+
+def _gap_package_root() -> Path:
+    module_path = Path(__file__).resolve()
+
+    for parent in module_path.parents:
+        gap_root = parent / ".gap"
+        if gap_root.is_dir():
+            return gap_root
+
+    for parent in module_path.parents:
+        if any((parent / marker).exists() for marker in (".git", "pytest.ini")):
+            return parent / ".gap"
+
+    return Path.cwd() / ".gap"
+
+
 def _run_gap(script: str) -> str:
-    project_gap_root = Path(__file__).resolve().parents[2] / ".gap"
+    gap_package_root = _gap_package_root()
     gap_executable = os.environ.get("GAP_EXECUTABLE", "gap")
     if shutil.which(gap_executable) is None:
         raise RuntimeError(
@@ -38,7 +54,7 @@ def _run_gap(script: str) -> str:
             "-r",
             "--quitonbreak",
             "--roots",
-            f";{project_gap_root}",
+            f";{gap_package_root}",
         ],
         input=script,
         text=True,
