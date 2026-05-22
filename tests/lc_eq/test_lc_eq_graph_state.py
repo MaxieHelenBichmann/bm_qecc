@@ -13,6 +13,7 @@ from src.algorithms.lc_eq.lc_eq_graph_state import (
     _lc_equiv_graph_states,
     are_lceq_graph_state,
 )
+from src.algorithms.lc_eq.lc_eq_bruteforce import are_lceq_bruteforce
 from src.core.stabilizer_code import StabilizerCode
 
 def _assert_same_matrix(actual: np.ndarray, expected: np.ndarray) -> None:
@@ -285,6 +286,17 @@ def test_lc_equiv_graph_states_small_graphs(
 # ----------------------------------------------------------------------------------------------------
 # are_lceq_graph_state
 # ----------------------------------------------------------------------------------------------------
+
+def test_are_lceq_graph_choi_failing() -> None:
+    # No logical operators are supplied here; StabilizerCode computes them.
+    # H on qubits 0 and 3 maps code2's stabilizer row space onto code1's.
+    code1 = StabilizerCode(["ZIYX", "ZIII"])
+    code2 = StabilizerCode(["IIYZ", "XIYZ"])
+
+    assert are_lceq_bruteforce(code1, code2) is True
+    assert _lc_equiv_graph_states(_code_to_graph(code1), _code_to_graph(code2)) is False
+    assert are_lceq_graph_state(code1, code2) is True
+
 
 @pytest.mark.parametrize(
     ("code1", "code2", "expected"),
