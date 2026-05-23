@@ -32,9 +32,9 @@ def _code_to_encoder_circuit(code) -> zx.Circuit:
 
         # 1.) turn every non-identity Pauli in row 0 into Z
         # I = (0|0) --I---> I = (0|0)
-        # X = (0|1) --H---> Z = (1|0)
-        # Y = (1|1) --HS--> Z = (1|0)
-        # Z = (0|1) --I---> Z = (1|0)
+        # X = (1|0) --H---> Z = (0|1)
+        # Y = (1|1) --HS--> Z = (0|1)
+        # Z = (0|1) --I---> Z = (0|1)
         for q in range(cur_n):
             x_q = bool(tableau[0, q])
             z_q = bool(tableau[0, cur_n + q])
