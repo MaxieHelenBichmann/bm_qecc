@@ -22,18 +22,17 @@ def are_peq_css_bruteforce(c1: CSSCode, c2: CSSCode) -> bool:
             return 0
         return rank(matrix)
 
-    c1_hx_rank = _rank(c1.Hx)
-    c1_hz_rank = _rank(c1.Hz)
+    hx_rank = _rank(c1.Hx)
+    hz_rank = _rank(c1.Hz)
+
+    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
+        return False
 
     for perm in permutations(range(c1.n)):
-        if c1_hx_rank != 0:
-            permuted_hx = c2.Hx[:, perm]
-            if c1_hx_rank != rank(np.vstack([c1.Hx, permuted_hx])):
-                continue
-        if c1_hz_rank != 0:
-            permuted_hz = c2.Hz[:, perm]
-            if c1_hz_rank != rank(np.vstack([c1.Hz, permuted_hz])):
-                continue
+        if hx_rank and hx_rank != rank(np.vstack([c1.Hx, c2.Hx[:, perm]])):
+            continue
+        if hz_rank and hz_rank != rank(np.vstack([c1.Hz, c2.Hz[:, perm]])):
+            continue
         return True
 
     return False
