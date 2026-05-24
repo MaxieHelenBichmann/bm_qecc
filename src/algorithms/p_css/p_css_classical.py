@@ -49,7 +49,7 @@ def _compute_signatures(G1: np.ndarray, G2: np.ndarray) -> list[int]:
     """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the CSS code.
     """
     def _weight_enumerator_of_hull_punctured(G: np.ndarray, col_idx: int) -> list[int]:
-        Gp = np.delete(G, col_idx, axis=1).astype(np.uint8) & 1
+        Gp = np.delete(G, col_idx, axis=1)
         g_p = Gp.shape[1]
 
         gram = (Gp @ Gp.T) & 1
@@ -106,14 +106,14 @@ def _partition_columns_by_invariants(invariants: list[int]) -> dict[int, list[in
     partition = defaultdict(list)
     for idx, inv in enumerate(invariants):
         partition[inv].append(idx)
-    return {k: sorted(v) for k, v in sorted(partition.items(), key=lambda item: item[0])}
+    return {k: v for k, v in sorted(partition.items())}
 
 def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.ndarray, list[list[int]]]:
     """Compute the canonical form of Hx of the CSS code, using Feulner's algorithm, and return the canonical form and the corresponding permutation of the columns. Partition is used for pruning the search tree.
     """
     def _prefix_semicanonical(G: np.ndarray, i: int) -> np.ndarray:
         """Bring the first i columns of G into semi-canonical form only using row operations."""
-        M = np.array(G, dtype=np.int8, copy=True) & 1
+        M = np.array(G, dtype=np.int8) & 1
         k_m = M.shape[0]
         if i == 0:
             return M
@@ -149,8 +149,7 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
 
     def matrix_key(M: np.ndarray) -> tuple[tuple[int, ...], ...]:
         M = np.asarray(M, dtype=np.int8) & 1
-        k_m, n_m = M.shape
-        return tuple(tuple(int(M[r, c]) for r in range(k_m)) for c in range(n_m))
+        return tuple(map(tuple, M.T.tolist())) # lexicographic key of the rows of M, because python can compare tuples
 
     def prefix_key(M: np.ndarray, i: int) -> tuple[tuple[int, ...], ...]:
         return matrix_key(M[:, :i]) # lexicographic key of the first i columns of M, because python can compare tuples
@@ -161,6 +160,8 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
     best_matrix: np.ndarray | None = None
     best_full_key: tuple[tuple[int, ...], ...] | None = None
     best_perms: list[list[int]] = []
+
+    cells = [sorted(cell) for cell in cells if cell]
 
     def _search(prefix: list[int], remaining_cells: list[list[int]]) -> None: # recursive search over the space of permutations
         nonlocal best_matrix, best_full_key, best_perms
@@ -192,14 +193,14 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
                 best_perms = [prefix.copy()]
 
             elif full_key == best_full_key:
-                best_perms.append(prefix.copy())
+                best_perms.append(prefix)
             return
 
         # Select first nonempty cell
         cell_idx = next(idx for idx, cell in enumerate(remaining_cells) if cell)
         cell = remaining_cells[cell_idx]
 
-        for col in sorted(cell):
+        for col in cell:
             new_prefix = prefix + [col]
             new_cells = [list(c) for c in remaining_cells]
             new_cells[cell_idx].remove(col)
@@ -224,10 +225,12 @@ def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: lis
         return []
 
     # find all permutations that map g1 to g2
+    g2_to_can =  [_inverse_perm(p2) for p2 in can_to_g2]
+    
     perms = []
     for p1 in can_to_g1:
-        for p2 in can_to_g2:
-            perms.append(_compose(p1, _inverse_perm(p2)))
+        for p2 in g2_to_can:
+            perms.append(_compose(p1, p2))
     return perms
 
 def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: list[int]) -> bool:
@@ -262,6 +265,11 @@ def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
 
     partition_c1 = _partition_columns_by_invariants(signatures_c1)
     partition_c2 = _partition_columns_by_invariants(signatures_c2)
+
+    if partition_c1.keys() != partition_c2.keys():
+        return False
+    if any(len(partition_c1[k]) != len(partition_c2[k]) for k in partition_c1):
+        return False
 
     for key1, key2 in zip(partition_c1.keys(), partition_c2.keys()):
         if key1 != key2:
