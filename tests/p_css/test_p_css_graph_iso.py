@@ -7,15 +7,15 @@ import hashlib
 
 import numpy as np
 import pytest
+import ldpc.mod2.mod2_numpy as mod2
 from pynauty import certificate, Graph
 
 from benchmarks.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
 from src.core.css_code import CSSCode
 from src.algorithms.p_css.p_css_graph_iso import (
-    _check_permutation_equivalence,
     _compute_invariant_a,
     _compute_invariant_b,
-    _extract_qubit_permutations,
+    _extract_aut_and_permutation,
     _graph_from_invariants,
     are_peq_css_graph_iso,
 )
@@ -34,6 +34,39 @@ def _positive_pair_from_test_seed(seed: int) -> tuple[CSSCode, CSSCode]:
     n = 2 + (5 * seed + 1) % 8
     k = 1 + (3 * seed + 1) % (n - 1)
     return random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
+
+
+def _qubit_permutations_from_aut(
+    aut_g2: set[tuple[int, ...]],
+    phi: tuple[int, ...],
+    n: int,
+) -> set[tuple[int, ...]]:
+    return {
+        tuple(aut[phi[i]] for i in range(n))
+        for aut in aut_g2
+    }
+
+
+def _is_permutation_equivalent(
+    c1: CSSCode,
+    c2: CSSCode,
+    permutation: tuple[int, ...],
+) -> bool:
+    def _rank(matrix: np.ndarray) -> int:
+        if matrix.shape[0] == 0 or matrix.shape[1] == 0:
+            return 0
+        return mod2.rank(matrix)
+
+    hx_rank = _rank(c1.Hx)
+    hz_rank = _rank(c1.Hz)
+
+    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
+        return False
+    if hx_rank and hx_rank != mod2.rank(np.vstack([c1.Hx, c2.Hx[:, permutation]])):
+        return False
+    if hz_rank and hz_rank != mod2.rank(np.vstack([c1.Hz, c2.Hz[:, permutation]])):
+        return False
+    return True
 
 # ----------------------------------------------------------------------------------------------------
 # _compute_invariant_a
@@ -136,10 +169,10 @@ def test_graph_from_invariants() -> None:
     }
 
 # ----------------------------------------------------------------------------------------------------
-# _extract_qubit_permutations
+# _extract_aut_and_permutation
 # ----------------------------------------------------------------------------------------------------
 
-def test_extract_qubit_permutations_full_graph() -> None:
+def test_extract_aut_and_permutation_full_graph() -> None:
     g1 = Graph(
         number_of_vertices=7,
         directed=False,
@@ -168,11 +201,13 @@ def test_extract_qubit_permutations_full_graph() -> None:
         },
     )
 
-    expected_permutations = [(2, 1, 5, 6, 3, 4, 0)]
+    expected_permutations = {(2, 1, 5, 6, 3, 4, 0)}
 
-    assert _extract_qubit_permutations(g1, g2, n=7) == expected_permutations
+    aut_g2, phi = _extract_aut_and_permutation(g1, g2, n=7)
 
-def test_extract_qubit_permutations_only_qubit() -> None:
+    assert _qubit_permutations_from_aut(aut_g2, phi, n=7) == expected_permutations
+
+def test_extract_aut_and_permutation_only_qubit() -> None:
     g1 = Graph(
         number_of_vertices=7,
         directed=False,
@@ -201,15 +236,13 @@ def test_extract_qubit_permutations_only_qubit() -> None:
         },
     )
 
-    expected_permutations = [(2, 0, 1)]
+    expected_permutations = {(2, 0, 1)}
 
-    assert _extract_qubit_permutations(g1, g2, n=3) == expected_permutations
+    aut_g2, phi = _extract_aut_and_permutation(g1, g2, n=3)
 
-# ----------------------------------------------------------------------------------------------------
-# _check_permutation_equivalence
-# ----------------------------------------------------------------------------------------------------
+    assert _qubit_permutations_from_aut(aut_g2, phi, n=3) == expected_permutations
 
-def test_check_permutation_equivalence_matching_convention() -> None:
+def test_graph_iso_uses_matching_permutation_convention() -> None:
     code1 = CSSCode(
         Hx=np.array([[1, 0, 1, 1, 1],
                      [0, 0, 1, 0, 1],
@@ -224,9 +257,7 @@ def test_check_permutation_equivalence_matching_convention() -> None:
         Hz=None,
     )
 
-    perm = (2, 0, 4, 3, 1)
-
-    assert _check_permutation_equivalence(code1, code2, permutation=perm) is True
+    assert are_peq_css_graph_iso(code1, code2) is True
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_css_graph_iso
@@ -247,11 +278,12 @@ def test_random_positive_seed_4_and_6_extract_checkable_candidates(seed: int) ->
 
     assert certificate(graph_c1) == certificate(graph_c2)
 
-    candidate_permutations = _extract_qubit_permutations(graph_c1, graph_c2, code1.n)
+    aut_g2, phi = _extract_aut_and_permutation(graph_c1, graph_c2, code1.n)
+    candidate_permutations = _qubit_permutations_from_aut(aut_g2, phi, code1.n)
 
     assert candidate_permutations
     assert any(
-        _check_permutation_equivalence(code1, code2, permutation)
+        _is_permutation_equivalent(code1, code2, permutation)
         for permutation in candidate_permutations
     )
     assert are_peq_css_graph_iso(code1, code2) is True
