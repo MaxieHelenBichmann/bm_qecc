@@ -20,13 +20,13 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
     Returns tuples of column indices.
     """
 
-    A = (np.asarray(A) & 1).astype(np.uint8)
+    A = (np.asarray(A) & 1).astype(np.uint8, copy=False)
     K = mod2.nullspace(A)
 
     if hasattr(K, "toarray"):
         K = K.toarray()
 
-    K = (np.asarray(K) & 1).astype(np.uint8)
+    K = (np.asarray(K) & 1).astype(np.uint8, copy=False)
 
     if K.size == 0:
         return []
@@ -65,24 +65,28 @@ def _graph_from_circuits(n: int, circuits_hx: list[tuple[int, ...]], circuits_hz
 
     def _add_edges_from_circuits(circuits: list[tuple[int, ...]], offset: int) -> None:
         for i, circuit in enumerate(circuits):
+            circuit_vertex = offset + i
             for q in circuit:
-                adj[q].append(offset + i)
-                adj[offset + i].append(q)
+                adj[q].append(circuit_vertex)
+                adj[circuit_vertex].append(q)
+
+    n_hx = len(circuits_hx)
+    n_hz = len(circuits_hz)
 
     hx_offset = n
-    hz_offset = n + len(circuits_hx)
+    hz_offset = n + n_hx
 
     _add_edges_from_circuits(circuits_hx, hx_offset)
     _add_edges_from_circuits(circuits_hz, hz_offset)
 
     return Graph(
-        number_of_vertices=n + len(circuits_hx) + len(circuits_hz),
+        number_of_vertices=n + n_hx + n_hz,
         directed=False,
         adjacency_dict=adj,
         vertex_coloring=[
             set(range(n)),
-            set(range(hx_offset, hx_offset + len(circuits_hx))),
-            set(range(hz_offset, hz_offset + len(circuits_hz)))
+            set(range(hx_offset, hx_offset + n_hx)),
+            set(range(hz_offset, hz_offset + n_hz))
         ]
     )
 
