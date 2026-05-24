@@ -12,6 +12,9 @@ from pynauty import Graph, certificate, canon_label, autgrp
 
 from ...core.css_code import CSSCode
 
+def _compose(p, q):
+    return tuple(p[i] for i in q)
+
 def _compute_invariant_a(code: CSSCode) -> list[int]:
     """Compute combined invariant of (non)zero columns of Hx and Hz for each column of the CSS code.
 
@@ -62,7 +65,7 @@ def _compute_invariant_b(code: CSSCode) -> list[int]:
         return _kernel_basis(H)
 
     def _weight_enumerator_of_hull_punctured(G: np.ndarray, col_idx: int) -> list[int]:
-        Gp = np.delete(G, col_idx, axis=1).astype(np.uint8) & 1
+        Gp = np.delete(G, col_idx, axis=1) & 1
         g_p = Gp.shape[1]
 
         gram = (Gp @ Gp.T) & 1
@@ -131,7 +134,7 @@ def _graph_from_invariants(n: int, invariants: list[list[int]]) -> Graph:
             adj[offset + idx].append(i)
             adj[i].append(offset + idx)
 
-        coloring.append({ offset + i for i in range(len(inv_value_to_index)) })
+        coloring.append(set(range(offset, offset + len(inv_value_to_index))))
         offset += len(inv_value_to_index)
 
     return Graph(
@@ -141,26 +144,15 @@ def _graph_from_invariants(n: int, invariants: list[list[int]]) -> Graph:
         vertex_coloring=[set(range(n))] + coloring
     )
 
-def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: tuple[int, ...]) -> bool:
-    def _rank(A: np.ndarray) -> int:
-        if A.shape[0] == 0 or A.shape[1] == 0:
-            return 0
-        return mod2.rank(A)
-
-    return _rank(c2.Hx[:, permutation]) == _rank(c1.Hx) == _rank(np.vstack([c2.Hx[:, permutation], c1.Hx])) and _rank(c2.Hz[:, permutation]) == _rank(c1.Hz) == _rank(np.vstack([c2.Hz[:, permutation], c1.Hz]))
-
-def _extract_qubit_permutations(g1: Graph, g2: Graph, n: int) -> list[tuple[int, ...]]:
+def _extract_aut_and_permutation(g1: Graph, g2: Graph, n: int) -> tuple[list[tuple[int, ...]], tuple[int, ...]]:
     def _inverse_perm(p):
         inv = [None] * len(p)
         for i, x in enumerate(p):
             inv[x] = i
         return inv
 
-    def _compose(p, q):
-        return tuple(p[q[i]] for i in range(len(q)))
-
     if certificate(g1) != certificate(g2):
-        return []
+        return [], ()
 
     # get one isomorphism from g1 to g2 using the canonical labeling
     can_to_g1 = canon_label(g1)
@@ -173,8 +165,9 @@ def _extract_qubit_permutations(g1: Graph, g2: Graph, n: int) -> list[tuple[int,
     generators, _, _, _, _ = autgrp(g2)
     gens = [tuple(gen) for gen in generators] + [tuple(_inverse_perm(gen)) for gen in generators]
 
-    aut_g2 = {tuple(range(len(phi)))}
-    queue = deque([tuple(range(len(phi)))])
+    identity = tuple(range(len(phi)))
+    aut_g2 = {identity}
+    queue = deque([identity])
     while queue:
         current = queue.popleft()
         for gen in gens:
@@ -183,18 +176,7 @@ def _extract_qubit_permutations(g1: Graph, g2: Graph, n: int) -> list[tuple[int,
                 aut_g2.add(nxt)
                 queue.append(nxt)
 
-    # apply the automorphisms of g2 to phi to get all isomorphisms from g1 to g2
-    # isomorphisms(g1, g2) = { α ∘ φ | α ∈ Aut(g2) } with φ: g1 -> g2
-    isomorphisms = [_compose(alpha, phi) for alpha in aut_g2]
-
-    # extract the permutations of only the qubit vertices from the isomorphisms (permutations map columns of c2 to columns of c1)
-    qubit_permutations = {
-        tuple(isomorphism[i] for i in range(n))
-        for isomorphism in isomorphisms
-    }
-
-    return list(qubit_permutations)
-
+    return aut_g2, phi
 
 def are_peq_css_graph_iso(c1: CSSCode, c2: CSSCode) -> bool:
     """Check permutation equivalence by checking for isomorphism of the associated graphs constructed from the codes using some invariants.
@@ -215,11 +197,38 @@ def are_peq_css_graph_iso(c1: CSSCode, c2: CSSCode) -> bool:
     graph_c1 = _graph_from_invariants(c1.n, invariants_c1)
     graph_c2 = _graph_from_invariants(c2.n, invariants_c2)
 
-    # TODO: potentially not materialize all permutations, but directly traverse the isomorphisms and check for permutation equivalence on the fly?
-    candidate_permutation = _extract_qubit_permutations(graph_c1, graph_c2, c1.n)
+    aut_g2, phi = _extract_aut_and_permutation(graph_c1, graph_c2, c1.n)
 
-    for perm in candidate_permutation:
-        if _check_permutation_equivalence(c1, c2, perm):
-            return True
+    def _rank(A: np.ndarray) -> int:
+        if A.shape[0] == 0 or A.shape[1] == 0:
+            return 0
+        return mod2.rank(A)
+    
+    hx_rank = _rank(c1.Hx)
+    hz_rank = _rank(c1.Hz)
+
+    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
+        return False
+    
+    seen = set()
+
+    for aut in aut_g2:
+        # apply the automorphisms of g2 to phi to get all isomorphisms from g1 to g2
+        # isomorphisms(g1, g2) = { α ∘ φ | α ∈ Aut(g2) } with φ: g1 -> g2
+        full_perm = _compose(aut, phi)
+
+        # extract the permutations of only the qubit vertices from the isomorphisms (permutations map columns of c2 to columns of c1)
+        qubit_perm = tuple(full_perm[i] for i in range(c1.n))
+
+        if qubit_perm in seen:
+            continue
+
+        seen.add(qubit_perm)
+
+        if hx_rank and hx_rank != mod2.rank(np.vstack([c1.Hx, c2.Hx[:, qubit_perm]])):
+            continue
+        if hz_rank and hz_rank != mod2.rank(np.vstack([c1.Hz, c2.Hz[:, qubit_perm]])):
+            continue
+        return True
 
     return False
