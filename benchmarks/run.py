@@ -90,6 +90,22 @@ ALGORITHMS: dict[str, Algorithm] = {
     "lc_css_sat": is_lceq_css_sat,
 }
 
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+
+
+def generated_stabilizer_pair(n: int, k: int, suffix: str) -> tuple[StabilizerCode, StabilizerCode] | None:
+    """Load a generated stabilizer pair from data/ if both files exist."""
+    base = f"random_{n}_{k}"
+    paths = (
+        DATA_DIR / f"{base}1_{suffix}.txt",
+        DATA_DIR / f"{base}2_{suffix}.txt",
+    )
+    if not all(path.exists() for path in paths):
+        return None
+    code1_path, code2_path = paths
+    return StabilizerCode.from_file(code1_path), StabilizerCode.from_file(code2_path)
+
+
 def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
     """Return whether a case has an expectation and compatible inputs for an algorithm."""
     if algorithm_name.startswith("pm_css") and all(isinstance(code, CSSCode) for code in case.inputs)and len(case.inputs) == 2 and case.expected_p is not None:
@@ -141,7 +157,8 @@ def default_cases(seed: int) -> list[Case]:
         )
 
     def random_non_permuted_stabilizer_case(n: int, k: int, case_seed: int) -> Case:
-        code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
+        pair = generated_stabilizer_pair(n, k, "non_peq")
+        code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
         return Case(
             name=f"random_non_permuted_stb_{n}",
             inputs=(code1, code2),
@@ -150,7 +167,8 @@ def default_cases(seed: int) -> list[Case]:
         )
     
     def random_permuted_stabilizer_case(n: int, k: int, case_seed: int) -> Case:
-        code1, code2 = random_permuted_stabilizer_pair(n, k, seed=case_seed)
+        pair = generated_stabilizer_pair(n, k, "peq")
+        code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=case_seed)
         return Case(
             name=f"random_permuted_stb_{n}",
             inputs=(code1, code2),
