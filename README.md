@@ -35,7 +35,6 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 
 #### Stabilizer Codes
 - [x] Brute Force
-- [ ] Graph State Machinery **INVALID**
 - [x] Classical Algorithms
 - [x] Automorphisms
 - [x] Graph Isomorphism

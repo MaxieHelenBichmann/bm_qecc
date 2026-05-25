@@ -27,7 +27,6 @@ from src.algorithms.p_stab.p_stab_bruteforce import are_peq_stab_bruteforce
 from src.algorithms.p_stab.p_stab_aut import are_peq_stab_aut
 from src.algorithms.p_stab.p_stab_classical import are_peq_stab_classical
 from src.algorithms.p_stab.p_stab_graph_iso import are_peq_stab_graph_iso
-from src.algorithms.p_stab.p_stab_graph_state import are_peq_stab_graph_state
 from src.algorithms.p_stab.p_stab_sat import are_peq_stab_sat
 
 from src.core.stabilizer_code import StabilizerCode
