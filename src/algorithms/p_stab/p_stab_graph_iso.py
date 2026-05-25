@@ -22,6 +22,7 @@ def _graph_from_code(code: StabilizerCode) -> Graph:
     edge_id = code.n + stabilizer_group_size
 
     for mask in range(0, 1 << r):
+        group_element_vertex = code.n + mask
         x = np.zeros(2*code.n, dtype=np.int8)
 
         for i in range(r):
@@ -40,8 +41,8 @@ def _graph_from_code(code: StabilizerCode) -> Graph:
             adj_dict[edge_id].append(idx)
 
             # edge: x-edge --- stabilizer group element
-            adj_dict[edge_id].append(code.n + stabilizer_group_size)
-            adj_dict[code.n + stabilizer_group_size].append(edge_id)
+            adj_dict[edge_id].append(group_element_vertex)
+            adj_dict[group_element_vertex].append(edge_id)
             edge_id += 1
 
         for idx in np.flatnonzero(z_part):
@@ -53,8 +54,8 @@ def _graph_from_code(code: StabilizerCode) -> Graph:
             adj_dict[edge_id].append(idx)
 
             # edge: z-edge --- stabilizer group element
-            adj_dict[edge_id].append(code.n + stabilizer_group_size)
-            adj_dict[code.n + stabilizer_group_size].append(edge_id)
+            adj_dict[edge_id].append(group_element_vertex)
+            adj_dict[group_element_vertex].append(edge_id)
             edge_id += 1
 
 
