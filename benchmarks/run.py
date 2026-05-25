@@ -94,7 +94,7 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 def generated_stabilizer_pair(n: int, k: int, suffix: str) -> tuple[StabilizerCode, StabilizerCode] | None:
     """Load a generated stabilizer pair from data/ if both files exist."""
-    base = f"random_{n}_{k}"
+    base = f"random_stab_{n}_{k}"
     paths = (
         DATA_DIR / f"{base}1_{suffix}.txt",
         DATA_DIR / f"{base}2_{suffix}.txt",
@@ -103,6 +103,18 @@ def generated_stabilizer_pair(n: int, k: int, suffix: str) -> tuple[StabilizerCo
         return None
     code1_path, code2_path = paths
     return StabilizerCode.from_file(code1_path), StabilizerCode.from_file(code2_path)
+
+def generated_css_pair(n: int, k: int, suffix: str) -> tuple[CSSCode, CSSCode] | None:
+    """Load a generated CSS pair from data/ if both files exist."""
+    base = f"random_css_{n}_{k}"
+    paths = (
+        DATA_DIR / f"{base}1_{suffix}.txt",
+        DATA_DIR / f"{base}2_{suffix}.txt",
+    )
+    if not all(path.exists() for path in paths):
+        return None
+    code1_path, code2_path = paths
+    return CSSCode.from_file(code1_path), CSSCode.from_file(code2_path)
 
 
 def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
@@ -138,7 +150,8 @@ def default_cases(seed: int) -> list[Case]:
     tetrahedral = CSSCode.from_file("data/tetrahedral")
 
     def random_non_permuted_css_case(n: int, k: int, case_seed: int) -> Case:
-        code1, code2 = random_non_permuted_css_pair(n, k, seed=case_seed)
+        pair = generated_css_pair(n, k, "non_peq")
+        code1, code2 = pair or random_non_permuted_css_pair(n, k, seed=case_seed)
         return Case(
             name=f"random_non_permuted_css_{n}",
             inputs=(code1, code2),
@@ -147,7 +160,8 @@ def default_cases(seed: int) -> list[Case]:
         )
 
     def random_permuted_css_case(n: int, k: int, case_seed: int) -> Case:
-        code1, code2 = random_permuted_css_pair(n, k, seed=case_seed)
+        pair = generated_css_pair(n, k, "peq")
+        code1, code2 = pair or random_permuted_css_pair(n, k, seed=case_seed)
         return Case(
             name=f"random_permuted_css_{n}",
             inputs=(code1, code2),

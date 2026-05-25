@@ -29,16 +29,26 @@ def main():
     parser.add_argument("k", type=int, help="k of the code.")
     parser.add_argument("seed", type=int, help="Seed for random number generation.")
     parser.add_argument("output", type=Path, nargs="?", help="Output .txt path.")
+    parser.add_argument("--css", type=bool, default=False, help="Whether to generate CSS codes instead of general stabilizer codes.")
     args = parser.parse_args()
-    output = args.output or Path(__file__).resolve().parent / f"random_{args.n}_{args.k}.txt"
+    if args.css:
+        output = args.output or Path(__file__).resolve().parent / f"random_css_{args.n}_{args.k}.txt"
+    else:
+        output = args.output or Path(__file__).resolve().parent / f"random_stab_{args.n}_{args.k}.txt"
 
     from benchmarks.utils import (
         random_non_permuted_stabilizer_pair,
         random_permuted_stabilizer_pair,
+        random_non_permuted_css_pair,
+        random_permuted_css_pair,
     )
 
-    code1, code2 = random_permuted_stabilizer_pair(args.n, args.k, seed=args.seed)
-    code1_non, code2_non = random_non_permuted_stabilizer_pair(args.n, args.k, seed=args.seed + 20)
+    if args.css:
+        code1, code2 = random_permuted_css_pair(args.n, args.k, seed=args.seed)
+        code1_non, code2_non = random_non_permuted_css_pair(args.n, args.k, seed=args.seed + 20)
+    else:
+        code1, code2 = random_permuted_stabilizer_pair(args.n, args.k, seed=args.seed)
+        code1_non, code2_non = random_non_permuted_stabilizer_pair(args.n, args.k, seed=args.seed + 20)
 
     write_code(code1, output.with_name(output.stem + "1_peq.txt"))
     write_code(code1_non, output.with_name(output.stem + "1_non_peq.txt"))
