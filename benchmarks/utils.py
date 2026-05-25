@@ -147,45 +147,63 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
     rz = _rank_binary(code.Hz)
     if (rx, rz) in {(0, 0), (code.n, 0), (0, code.n)}:
         raise RandomizeError("No non-equivalent CSS code exists with these small invariants.")
-    invariant = _stabilizer_weight_enumerator(code)
+    if rx + rz > 50:
+        invariant = _cheap_invariant(code)
+    else:
+        invariant = _stabilizer_weight_enumerator(code)
+        
     for _ in range(10_000):
         candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
         candidate = random_css_code(code.n, code.k, rx=rx, seed=candidate_seed)
-        if _stabilizer_weight_enumerator(candidate) != invariant:
+
+        if rx + rz > 50:
+            other_invariant = _cheap_invariant(candidate)
+        else:
+            other_invariant = _stabilizer_weight_enumerator(candidate)
+
+        if other_invariant != invariant:
             return candidate
 
     raise RandomizeError("Could not find a candidate with a different stabilizer weight enumerator.")
 
 
-def non_permutation_equivalent_stabilizer_code(code: StabilizerCode, seed: int | None = None) -> StabilizerCode:
-    """Return a same-[[n,k]] stabilizer code certified non-equivalent by stabilizer weights."""
+def non_permutation_equivalent_stabilizer_code(
+    code: StabilizerCode,
+    seed: int | None = None,
+    *,
+    clifford_steps: int | None = None,
+) -> StabilizerCode:
+    """Return a same-[[n,k]] stabilizer code certified non-equivalent by projection ranks.
+
+    The certificate is the rank triple of the X projection, Z projection, and
+    X+Z projection of the stabilizer row space. Physical-qubit permutations only
+    permute the columns inside each projection, so these ranks are invariant.
+    """
     rng = np.random.default_rng(seed)
     if code.k == code.n:
         raise RandomizeError("No non-equivalent stabilizer code exists with these small invariants.")
 
-    invariant : tuple[Any, ...] = ()
-    if code.n - code.k < 10:
-        invariant = _stabilizer_weight_enumerator(code)
-    elif code.n < 20:
-        invariant = _cheap_invariant(code)
-    else:
-        invariant = _very_cheap_invariant(code)
+    invariant = _projection_rank_invariant(code)
+    # Use a stronger separation than PEQ strictly needs so color-symmetric
+    # benchmark reductions do not collapse X-only and Z-only negatives.
+    xz_swapped_invariant = (invariant[1], invariant[0], invariant[2])
+    base_code = _random_anchor_base_code(code.n, code.k, rng=rng, clifford_steps=clifford_steps)
+    base_invariant = (0, 0, 0) if base_code is None else _projection_rank_invariant(base_code)
 
-    for _ in range(10_000):
-        candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-        candidate = random_stabilizer_code(code.n, code.k, seed=candidate_seed)
-        if code.n - code.k < 10:
-            if _stabilizer_weight_enumerator(candidate) != invariant:
-                return candidate
-        elif code.n < 20:
-            if _cheap_invariant(candidate) != invariant:
-                return candidate
-        else:
-            if _very_cheap_invariant(candidate) != invariant:
-                return candidate
+    anchors = ["X", "Z", "Y"]
+    rng.shuffle(anchors)
+    for anchor in anchors:
+        candidate_invariant = _anchor_projection_rank_invariant(base_invariant, anchor)
+        if candidate_invariant not in {invariant, xz_swapped_invariant}:
+            return _random_anchored_stabilizer_code(
+                code.n,
+                code.k,
+                anchor,
+                base_code=base_code,
+                rng=rng,
+            )
 
-
-    raise RandomizeError("Could not find a candidate with a different invariant.")
+    raise RandomizeError("Could not construct a candidate with a different projection-rank invariant.")
 
 def random_permuted_stabilizer_pair(
     n: int,
@@ -224,18 +242,19 @@ def random_non_permuted_stabilizer_pair(
     k: int,
     *,
     seed: int | None = None,
+    clifford_steps: int | None = None,
 ) -> tuple[StabilizerCode, StabilizerCode]:
     """Return a seeded random stabilizer code together with another random stabilizer code that is guaranteed to be non-permuted."""
     rng = np.random.default_rng(seed)
     code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
     other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
 
-    code = random_stabilizer_code(n, k, seed=code_seed)
-    try:
-        return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed)
-    except RandomizeError:
-        code = random_stabilizer_code(n, k, seed=code_seed+42)
-        return code, non_permutation_equivalent_stabilizer_code(code, seed=other_seed+69)
+    code = random_stabilizer_code(n, k, seed=code_seed, clifford_steps=clifford_steps)
+    return code, non_permutation_equivalent_stabilizer_code(
+        code,
+        seed=other_seed,
+        clifford_steps=clifford_steps,
+    )
 
 def random_non_permuted_css_pair(    
     n: int,
@@ -337,8 +356,111 @@ def _rank_binary(matrix: np.ndarray) -> int:
     matrix = np.asarray(matrix, dtype=np.int8) % 2
     return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
 
-def _very_cheap_invariant(code: StabilizerCode) -> tuple[int]:
-    return (int(np.any(np.sum(code.symplectic, axis=1) % 2)),)
+def _projection_rank_invariant(code: StabilizerCode) -> tuple[int, int, int]:
+    """Return permutation-invariant ranks of X, Z, and X+Z projections."""
+    M = np.asarray(code.symplectic, dtype=np.uint8) & 1
+    n = code.n
+    return (
+        _rank_binary(M[:, :n]),
+        _rank_binary(M[:, n:]),
+        _rank_binary(M[:, :n] ^ M[:, n:]),
+    )
+
+def _anchor_projection_rank_invariant(
+    base_invariant: tuple[int, int, int],
+    anchor: str,
+) -> tuple[int, int, int]:
+    """Return the projection-rank invariant after appending one anchor row."""
+    if anchor not in {"X", "Z", "Y"}:
+        msg = f"Unknown anchor {anchor!r}."
+        raise ValueError(msg)
+
+    rank_x, rank_z, rank_x_plus_z = base_invariant
+    return (
+        rank_x + int(anchor in {"X", "Y"}),
+        rank_z + int(anchor in {"Z", "Y"}),
+        rank_x_plus_z + int(anchor in {"X", "Z"}),
+    )
+
+def _random_anchor_base_code(
+    n: int,
+    k: int,
+    *,
+    rng: np.random.Generator,
+    clifford_steps: int | None = None,
+) -> StabilizerCode | None:
+    """Return the random shared part for an anchored ``[[n, k]]`` code."""
+    r = n - k
+    if r < 1:
+        msg = "Anchored construction requires at least one stabilizer."
+        raise ValueError(msg)
+    if r == 1:
+        return None
+
+    base_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    return random_stabilizer_code(n - 1, k, seed=base_seed, clifford_steps=clifford_steps)
+
+def _random_anchored_stabilizer_code(
+    n: int,
+    k: int,
+    anchor: str,
+    *,
+    base_code: StabilizerCode | None,
+    rng: np.random.Generator,
+) -> StabilizerCode:
+    """Return a randomized direct sum of ``base_code`` with a one-qubit anchor."""
+    tableau = _anchored_stabilizer_tableau(n, k, anchor, base_code=base_code)
+    permutation = tuple(int(q) for q in rng.permutation(n))
+    permuted = _permute_tableau(tableau, permutation)
+    randomized = _random_tableau_row_space_base_change(permuted, rng=rng)
+    return StabilizerCode(randomized)
+
+def _anchored_stabilizer_tableau(
+    n: int,
+    k: int,
+    anchor: str,
+    *,
+    base_code: StabilizerCode | None,
+) -> StabilizerTableau:
+    """Append an X/Z/Y one-qubit stabilizer to a base ``[[n-1, k]]`` code."""
+    if anchor not in {"X", "Z", "Y"}:
+        msg = f"Unknown anchor {anchor!r}."
+        raise ValueError(msg)
+
+    r = n - k
+    if r < 1:
+        msg = "Anchored construction requires at least one stabilizer."
+        raise ValueError(msg)
+
+    matrix = np.zeros((r, 2 * n), dtype=np.int8)
+    if base_code is not None:
+        base_n = n - 1
+        if base_code.n != base_n or base_code.k != k:
+            msg = f"Expected a base [[{base_n}, {k}]] code, got [[{base_code.n}, {base_code.k}]]."
+            raise ValueError(msg)
+
+        base_matrix = np.asarray(base_code.symplectic, dtype=np.int8) % 2
+        expected_base_rows = r - 1
+        base_rank = _rank_binary(base_matrix)
+        if base_rank != expected_base_rows:
+            msg = f"Expected base rank {expected_base_rows}, got {base_rank}."
+            raise ValueError(msg)
+
+        base_basis = np.asarray(mod2.row_basis(base_matrix), dtype=np.int8) % 2
+        matrix[:expected_base_rows, :base_n] = base_basis[:, :base_n]
+        matrix[:expected_base_rows, n : n + base_n] = base_basis[:, base_n:]
+    elif r != 1:
+        msg = "A base code is required when the anchored construction has more than one stabilizer."
+        raise ValueError(msg)
+
+    anchor_row = r - 1
+    anchor_qubit = n - 1
+    if anchor in {"X", "Y"}:
+        matrix[anchor_row, anchor_qubit] = 1
+    if anchor in {"Z", "Y"}:
+        matrix[anchor_row, anchor_qubit + n] = 1
+
+    return StabilizerTableau(matrix)
 
 def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1
