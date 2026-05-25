@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fnmatch
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,7 +80,6 @@ ALGORITHMS: dict[str, Algorithm] = {
     "pm_stb_bruteforce": are_peq_stab_bruteforce,
     "pm_stb_classical": are_peq_stab_classical,
     "pm_stb_graph_iso": are_peq_stab_graph_iso,
-    "pm_stb_graph_state": are_peq_stab_graph_state,
     "pm_stb_sat": are_peq_stab_sat,
     "lc_equ_graph_state": are_lceq_graph_state,
     "lc_equ_bruteforce": are_lceq_bruteforce,
@@ -133,6 +134,42 @@ def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
 def all_algorithm_names() -> list[str]:
     """Return all registered algorithm names."""
     return sorted({name for name in ALGORITHMS.keys()})
+
+
+def resolve_algorithm_names(selectors: Sequence[str] | None) -> list[str]:
+    """Expand exact algorithm names, shell wildcards, or regexes to registered names."""
+    if not selectors:
+        return all_algorithm_names()
+
+    selected_names: set[str] = set()
+    invalid_selectors: list[str] = []
+    algorithm_names = all_algorithm_names()
+
+    for selector in selectors:
+        if selector in ALGORITHMS:
+            selected_names.add(selector)
+            continue
+
+        matches = [name for name in algorithm_names if fnmatch.fnmatchcase(name, selector)]
+        if not matches:
+            try:
+                pattern = re.compile(selector)
+            except re.error as exc:
+                invalid_selectors.append(f"{selector!r} (invalid regex: {exc})")
+                continue
+            matches = [name for name in algorithm_names if pattern.search(name)]
+
+        if matches:
+            selected_names.update(matches)
+        else:
+            invalid_selectors.append(f"{selector!r} (no matches)")
+
+    if invalid_selectors:
+        available = ", ".join(algorithm_names)
+        invalid = ", ".join(invalid_selectors)
+        raise ValueError(f"Unknown algorithm selector(s): {invalid}. Available algorithms: {available}")
+
+    return sorted(selected_names)
 
 
 def default_cases(seed: int) -> list[Case]:
@@ -304,39 +341,48 @@ def default_cases(seed: int) -> list[Case]:
         case_steane_permuted, # n = 7 , k = 1
         case_shor_permuted, # n = 9 , k = 1
         case_carbon_permuted, # n = 12 , k = 2
-        case_tetrahedral_permuted, # n = 15 , k = 1
-        case_hamming_15_permuted, # n = 15 , k = 7
-        case_golay_permuted, # n = 23 , k = 1
-        case_rotated_surface_d5_permuted, # n = 25 , k = 1
+        # case_tetrahedral_permuted, # n = 15 , k = 1
+        # case_hamming_15_permuted, # n = 15 , k = 7
+        # case_golay_permuted, # n = 23 , k = 1
+        # case_rotated_surface_d5_permuted, # n = 25 , k = 1
     ]
 
     random_permuted = [
-        random_permuted_css_case(4, 2, seed + 0),
-        random_permuted_stabilizer_case(4, 2, seed + 1),
-        random_permuted_stabilizer_case(5, 1, seed + 2),
-        random_permuted_stabilizer_case(10, 4, seed + 3), 
-        random_permuted_stabilizer_case(12, 4, seed + 4), 
-        random_permuted_stabilizer_case(14, 3, seed + 5), 
-        random_permuted_stabilizer_case(20, 4, seed + 6), 
-        random_permuted_stabilizer_case(30, 5, seed + 7),
-        random_permuted_stabilizer_case(40, 10, seed + 8), 
-        random_permuted_stabilizer_case(50, 15, seed + 9), 
-        random_permuted_stabilizer_case(60, 20, seed + 10), 
-        random_permuted_stabilizer_case(70, 12, seed + 11), 
+        random_permuted_css_case(4, 2, seed + 1),
+        random_permuted_css_case(5, 1, seed + 2),
+        random_permuted_css_case(10, 4, seed + 3), 
+        random_permuted_css_case(12, 4, seed + 4), 
+        # random_permuted_css_case(14, 3, seed + 5), 
+        # random_permuted_css_case(20, 4, seed + 6), 
+        # random_permuted_stabilizer_case(4, 2, seed + 7),
+        # random_permuted_stabilizer_case(5, 1, seed + 8),
+        # random_permuted_stabilizer_case(10, 4, seed + 9), 
+        # random_permuted_stabilizer_case(12, 4, seed + 10), 
+        # random_permuted_stabilizer_case(14, 3, seed + 11), 
+        # random_permuted_stabilizer_case(20, 4, seed + 12), 
+        # random_permuted_stabilizer_case(30, 5, seed + 13),
+        # random_permuted_stabilizer_case(40, 10, seed + 14), 
+        # random_permuted_stabilizer_case(50, 15, seed + 9), 
+        # random_permuted_stabilizer_case(60, 20, seed + 10), 
+        # random_permuted_stabilizer_case(70, 12, seed + 11), 
     ]
 
     random_non_permuted = [
+        random_non_permuted_css_case(5, 1, seed + 20), 
         random_non_permuted_css_case(8, 3, seed + 19), 
-        random_non_permuted_stabilizer_case(5, 1, seed + 20), 
-        random_non_permuted_stabilizer_case(10, 4, seed + 21), 
-        random_non_permuted_stabilizer_case(12, 4, seed + 22), 
-        random_non_permuted_stabilizer_case(14, 3, seed + 23), 
-        random_non_permuted_stabilizer_case(20, 4, seed + 20), 
-        random_non_permuted_stabilizer_case(30, 5, seed + 21), 
-        random_non_permuted_stabilizer_case(40, 10, seed + 22), 
-        random_non_permuted_stabilizer_case(50, 15, seed + 23), 
-        random_non_permuted_stabilizer_case(60, 20, seed + 24),
-        random_non_permuted_stabilizer_case(70, 12, seed + 25),
+        random_non_permuted_css_case(10, 4, seed + 21), 
+        random_non_permuted_css_case(12, 4, seed + 22), 
+        # random_non_permuted_css_case(14, 3, seed + 23), 
+        # random_non_permuted_css_case(20, 4, seed + 20), 
+        # random_non_permuted_stabilizer_case(5, 1, seed + 20), 
+        # random_non_permuted_stabilizer_case(10, 4, seed + 21), 
+        # random_non_permuted_stabilizer_case(12, 4, seed + 22), 
+        # random_non_permuted_stabilizer_case(14, 3, seed + 23), 
+        # random_non_permuted_stabilizer_case(20, 4, seed + 20), 
+        # random_non_permuted_stabilizer_case(40, 10, seed + 22), 
+        # random_non_permuted_stabilizer_case(50, 15, seed + 23), 
+        # random_non_permuted_stabilizer_case(60, 20, seed + 24),
+        # random_non_permuted_stabilizer_case(70, 12, seed + 25),
     ]
 
     known_lc = [
@@ -354,7 +400,7 @@ def default_cases(seed: int) -> list[Case]:
         random_lcc_css_case(10, 4, seed + 69),
     ]
 
-    return random_lc_css
+    return known_permuted + random_permuted + random_non_permuted
 
 
 def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
@@ -398,11 +444,17 @@ def run_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], repeat
     results: list[Result] = []
     selected_names = set(algorithm_names)
 
-    for case in cases:
-        for algorithm_name in sorted(selected_names & ALGORITHMS.keys()):
+    for algorithm_name in sorted(selected_names & ALGORITHMS.keys()):
+        print(f"Running benchmark for algorithm: {algorithm_name}")
+        for case in cases:
             if not case_supports_algorithm(case, algorithm_name):
                 continue
+            print(f"    Running case: {case.name}...")
             results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
+
+        print()
+        print_results([result for result in results if result.algorithm == algorithm_name])
+        print()
     return results
 
 
@@ -433,38 +485,13 @@ def write_csv(results: Sequence[Result], seed: int, output: Path) -> None:
         writer.writeheader()
         writer.writerows(rows)
 
-
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repeats", type=int, default=3, help="Number of repetitions; the average runtime is recorded.")
-    parser.add_argument(
-        "--algorithm",
-        choices=all_algorithm_names(),
-        action="append",
-        help="Algorithm to run. Can be passed multiple times. Defaults to all implemented algorithms.",
-    )
-    parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
-    parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
-    return parser.parse_args(argv)
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    """Run the benchmark CLI."""
-    args = parse_args(argv)
-    if args.repeats < 1:
-        raise ValueError("--repeats must be at least 1.")
-
-   
-    algorithm_names = args.algorithm or all_algorithm_names()
-    results = run_benchmarks(default_cases(seed=args.seed), algorithm_names, args.repeats)
-    write_csv(results, args.seed, args.output)
-
+def print_results(results: Sequence[Result]) -> None:
+    """Print benchmark results to console."""
     if len(results) == 0:
         print("No cases ran, no results to show.")
-        return 0
+        return
     
-    print(f"Benchmark results for global seed {args.seed}:\n")
+    print(f"Benchmark results:\n")
 
     for result in results:
         status = "ok" if result.success else "failed"
@@ -474,8 +501,45 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         if result.error:
             print(f"       {result.error}")
-    return 0
 
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="Available algorithms: " + ", ".join(all_algorithm_names()),
+    )
+    parser.add_argument("--repeats", type=int, default=3, help="Number of repetitions; the average runtime is recorded.")
+    parser.add_argument(
+        "--algorithm",
+        action="append",
+        metavar="SELECTOR",
+        help=(
+            "Algorithm name, shell wildcard, or regex to run. Can be passed multiple times. "
+            "Examples: pm_css_bruteforce, 'pm_css*', 'lc_(equ|css).*'. "
+            "Defaults to all implemented algorithms."
+        ),
+    )
+    parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
+    parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
+    args = parser.parse_args(argv)
+    try:
+        args.algorithm = resolve_algorithm_names(args.algorithm)
+    except ValueError as exc:
+        parser.error(str(exc))
+    return args
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the benchmark CLI."""
+    args = parse_args(argv)
+    if args.repeats < 1:
+        raise ValueError("--repeats must be at least 1.")
+
+   
+    results = run_benchmarks(default_cases(seed=args.seed), args.algorithm, args.repeats)
+    write_csv(results, args.seed, args.output)
+    return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())

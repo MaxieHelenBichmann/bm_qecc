@@ -114,6 +114,7 @@ python3 -m benchmarks.run --repeats 1
 python3 -m benchmarks.run --output results/bm_output.csv
 python3 -m benchmarks.run --seed 69
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
+python3 -m benchmarks.run --algorithm 'pm_css*'
 ```
 
 ### Tests
@@ -133,4 +134,3 @@ Before running a benchmark with this algorithm, Guava's dependencies should be i
 export GAP_EXECUTABLE=/path/to/gap
 ```
 But as I would estimate that this Automorphism-based algorithm will NOT be efficient at all, it will probably not be used in the MQT and thus I will not deal with this dependency apart from getting some measurements in this Repo.
-
