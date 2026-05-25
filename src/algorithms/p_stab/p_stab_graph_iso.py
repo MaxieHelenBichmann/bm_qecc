@@ -61,7 +61,7 @@ def _graph_from_code(code: StabilizerCode) -> Graph:
 
     return Graph(number_of_vertices=code.n + stabilizer_group_size + len(z_edges) + len(x_edges),
                  directed=False,
-                 vertex_coloring=[set(range(code.n))] + [set(range(code.n, code.n + stabilizer_group_size))] + [z_edges] + [x_edges],
+                 vertex_coloring=[set(range(code.n)), set(range(code.n, code.n + stabilizer_group_size)), z_edges, x_edges],
                  adjacency_dict=adj_dict)
 
 def are_peq_stab_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool:
