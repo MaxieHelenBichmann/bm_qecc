@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 from collections import deque
-from fractions import Fraction
 
-from typing import Any
 import numpy as np
 import pyzx as zx
 
@@ -220,7 +218,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
     """Convert a stabilizer state into a graph state under local Clifford operations.
     Returns the adjacency matrix of the graph state."""
     n = tableau.shape[1] // 2
-    local_clifords = [ [] for _ in range(n) ]
+    local_clifords : list[list[str]] = [ [] for _ in range(n) ]
 
     def _rank(matrix: np.ndarray) -> int:
         if matrix.shape[0] == 0:

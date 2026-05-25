@@ -245,7 +245,7 @@ def _code_to_graph(code) -> np.ndarray:
 
     return graph
 
-def _extract_connected_components(g: np.ndarray) -> list[list[list]]:
+def _extract_connected_components(g: np.ndarray) -> list[list[int]]:
     n = g.shape[0]
     connected_components : list[list[int]] = []
     seen : set[int] = set()

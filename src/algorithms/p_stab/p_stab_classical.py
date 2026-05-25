@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-import hashlib
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
@@ -95,7 +94,6 @@ W_BAR = GF4(3)
 def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
     # I = (0|0) -> 0, X = (1|0) -> 1, Z = (0|1) -> w, Y = (1|1) -> w_bar
     n = tableau.shape[1] // 2
-    r = tableau.shape[0]
     gf4_entries = np.array([ZERO, ONE, W, W_BAR], dtype=object)
     values = tableau[:, :n] + 2 * tableau[:, n:]
     return gf4_entries[values]
