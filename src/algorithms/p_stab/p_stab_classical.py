@@ -11,7 +11,16 @@ import ldpc.mod2.mod2_numpy as mod2
 
 from ...core.stabilizer_code import StabilizerCode
 
-@dataclass(frozen=True)
+_GF4_MUL_TABLE = (
+    (0, 0, 0, 0),
+    (0, 1, 2, 3),
+    (0, 2, 3, 1),
+    (0, 3, 1, 2),
+)
+
+_GF4_CONJ_TABLE = (0, 1, 3, 2)
+
+@dataclass(frozen=True, slots=True)
 class GF4:
     """
     GF(4) = { 0, 1, w, w_bar } with w^2 = w + 1
@@ -39,28 +48,7 @@ class GF4:
         return self
 
     def __mul__(self, other: GF4) -> GF4:
-        table = {
-            (0, 0): 0,
-            (0, 1): 0,
-            (0, 2): 0,
-            (0, 3): 0,
-
-            (1, 0): 0,
-            (1, 1): 1,
-            (1, 2): 2,
-            (1, 3): 3,
-
-            (2, 0): 0,
-            (2, 1): 2,
-            (2, 2): 3,  # w * w = w^2 = w + 1 = w_bar
-            (2, 3): 1,  # w * w_bar = w * (w + 1) = w^2 + w = (w + 1) + w = 1
-
-            (3, 0): 0,
-            (3, 1): 3,
-            (3, 2): 1,  # w_bar * w = (w + 1) * w = w^2 + w = (w + 1) + w = 1
-            (3, 3): 2,  # w_bar * w_bar = (w + 1) * (w + 1) = w^2 + 1 = (w + 1) + 1 = w
-        }
-        return GF4(table[(self.value, other.value)])
+        return GF4(_GF4_MUL_TABLE[self.value][other.value])
 
     def __pow__(self, n: int) -> GF4:
         if n < 0:
@@ -81,7 +69,7 @@ class GF4:
 
     def conjugate(self) -> GF4:
         # conjugation GF(4): x -> x^2
-        return self ** 2
+        return GF4(_GF4_CONJ_TABLE[self.value])
 
     def trace(self) -> int:
         # trace GF(4): Tr(x) = x + x^2
@@ -108,41 +96,20 @@ def _symplectic_to_gf4(tableau: np.ndarray) -> np.ndarray:
     # I = (0|0) -> 0, X = (1|0) -> 1, Z = (0|1) -> w, Y = (1|1) -> w_bar
     n = tableau.shape[1] // 2
     r = tableau.shape[0]
-    gf4_matrix = np.empty((r, n), dtype=object)
-    for q in range(n):
-        for i in range(r):
-            x = tableau[i, q]
-            z = tableau[i, q + n]
-            if x == 0 and z == 0:
-                gf4_matrix[i, q] = ZERO
-            elif x == 1 and z == 0:
-                gf4_matrix[i, q] = ONE
-            elif x == 0 and z == 1:
-                gf4_matrix[i, q] = W
-            elif x == 1 and z == 1:
-                gf4_matrix[i, q] = W_BAR
-
-    return gf4_matrix
+    gf4_entries = np.array([ZERO, ONE, W, W_BAR], dtype=object)
+    values = tableau[:, :n] + 2 * tableau[:, n:]
+    return gf4_entries[values]
 
 def _gf4_to_symplectic(tableau: np.ndarray) -> np.ndarray:
     # 0 -> I = (0|0), 1 -> X = (1|0), w -> Z = (0|1), w_bar -> Y = (1|1)
     n = tableau.shape[1]
     r = tableau.shape[0]
-    symplectic_matrix = np.empty((r, 2*n), dtype=object)
+    symplectic_matrix = np.empty((r, 2*n), dtype=np.uint8)
     for q in range(n):
         for i in range(r):
-            if tableau[i, q] == ZERO:
-                symplectic_matrix[i, q] = 0
-                symplectic_matrix[i, q + n] = 0
-            elif tableau[i, q] == ONE:
-                symplectic_matrix[i, q] = 1
-                symplectic_matrix[i, q + n] = 0
-            elif tableau[i, q] == W:
-                symplectic_matrix[i, q] = 0
-                symplectic_matrix[i, q + n] = 1
-            elif tableau[i, q] == W_BAR:
-                symplectic_matrix[i, q] = 1
-                symplectic_matrix[i, q + n] = 1
+            value = tableau[i, q].value
+            symplectic_matrix[i, q] = value & 1
+            symplectic_matrix[i, q + n] = value >> 1
 
     return symplectic_matrix
 
@@ -191,12 +158,14 @@ def _gf4_rref(matrix: np.ndarray, to_col: int | None = None) -> tuple[int, np.nd
     return rank, matrix, pivot_columns
 
 def _gf4_trace_inner_product(a: np.ndarray, b: np.ndarray) -> GF4:
-    s = ZERO
-    for i in range(len(a)):
-        s += a[i].conjugate() * b[i] + a[i] * b[i].conjugate()
-    return s
+    acc = 0
+    for ai, bi in zip(a, b):
+        av = ai.value
+        bv = bi.value
+        acc ^= ((av & 1) & (bv >> 1)) ^ ((av >> 1) & (bv & 1))
+    return ONE if acc else ZERO
 
-def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
+def _compute_signatures(generator_matrix: np.ndarray) -> list[tuple[int, ...]]:
     """Compute the combined Sendrier's invariant of the weight enumerator of the hull of the punctured code of each column of the code.
     """
     def _gf2_kernel_basis(A: np.ndarray) -> np.ndarray:
@@ -237,8 +206,11 @@ def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
         gram = np.zeros((k, k), dtype=np.uint8)
 
         for i in range(k):
-            for j in range(k):
-                gram[i, j] = _gf4_trace_inner_product(G[i], G[j]).value
+            for j in range(i+1, k):
+                ip = _gf4_trace_inner_product(G[i], G[j]).value
+                gram[i, j] = ip
+                gram[j, i] = ip
+
 
         return gram
 
@@ -301,19 +273,15 @@ def _compute_signatures(generator_matrix: np.ndarray) -> list[int]:
 
         return enumerator
 
-    def _hash_enumerator(enum: list[int]) -> int:
-        payload = (",".join(map(str, enum))).encode("ascii")
-        return int.from_bytes(hashlib.sha256(payload).digest(), byteorder="big")
-
     invariants = []
 
     for col_idx in range(generator_matrix.shape[1]):
-        inv = _hash_enumerator(_weight_enumerator_of_hull_punctured(generator_matrix, col_idx))
+        inv = tuple(_weight_enumerator_of_hull_punctured(generator_matrix, col_idx))
         invariants.append(inv)
 
     return invariants
 
-def _partition_columns_by_invariants(invariants: list[int]) -> dict[int, list[int]]:
+def _partition_columns_by_invariants(invariants: list[tuple[int, ...]]) -> dict[tuple[int, ...], list[int]]:
     partition = defaultdict(list)
     for idx, inv in enumerate(invariants):
         partition[inv].append(idx)
@@ -324,7 +292,7 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
     """
     def _prefix_semicanonical(G: np.ndarray, i: int) -> np.ndarray:
         """Bring the first i columns of G into semi-canonical form only using GF(2) row operations."""
-        _, rref_to_i , _ = _gf4_rref(G.copy(), to_col=i)
+        _, rref_to_i , _ = _gf4_rref(G, to_col=i)
         return rref_to_i
 
     def _flatten(cells_: list[list[int]]) -> list[int]:
@@ -341,6 +309,8 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
     n_g = matrix.shape[1]
     best_matrix: np.ndarray | None = None
     best_full_key: tuple[tuple[int, ...], ...] | None = None
+
+    cells = [sorted(cell) for cell in cells if cell]
 
     def _search(prefix: list[int], remaining_cells: list[list[int]]) -> None: # recursive search over the space of permutations
         nonlocal best_matrix, best_full_key
@@ -374,7 +344,7 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
         cell_idx = next(idx for idx, cell in enumerate(remaining_cells) if cell)
         cell = remaining_cells[cell_idx]
 
-        for col in sorted(cell):
+        for col in cell:
             new_prefix = prefix + [col]
             new_cells = [list(c) for c in remaining_cells]
             new_cells[cell_idx].remove(col)
