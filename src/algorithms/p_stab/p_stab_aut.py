@@ -74,9 +74,9 @@ def _automorphisms(tableau: np.ndarray, n: int) -> list[tuple[int, ...]]:
     def _extract_valid_permutations(aut_group) -> list[tuple[int, ...]]:
         perms = []
         for aut in aut_group:
-            perm = [ aut[i] - 1 for i in range(2 * n) ]
-            if all(x_i + n == z_i for x_i, z_i in zip(perm[:n], perm[n:])):
-                perms.append(tuple(perm[:n]))
+            if all(aut[i + n] == aut[i] + n for i in range(n)):
+                x_perm = tuple( aut[i] - 1 for i in range(n) )
+                perms.append(x_perm)
         return perms
 
     if tableau.shape[0] == 0:
@@ -109,24 +109,27 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     Can be better than brute-force if the automorphism group of the code is large, but still has factorial worst-case runtime if the automorphism group is trivial.
     """
     def _compose(p, q):
-        return tuple(p[q[i]] for i in range(len(q)))
+        return tuple(p[i] for i in q)
 
     c2_rank = _rank(c2.symplectic)
+
+    if c2_rank != _rank(c1.symplectic):
+        return False
+    
     aut_c2 = _automorphisms(c2.symplectic, c2.n)
 
     remaining_permutations = set(permutations(range(c1.n)))
 
-    while len(remaining_permutations) > 0:
+    while remaining_permutations:
         perm = remaining_permutations.pop()
 
         perm = np.array(perm)
         perm_symplectic = np.concatenate([perm, perm + c1.n])
 
-        if _rank(c1.symplectic[:, perm_symplectic]) == c2_rank == _rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic])):
+        if c2_rank == _rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic])):
             return True
 
         # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2
-        isomorphisms = { _compose(perm, alpha) for alpha in aut_c2 }
-        remaining_permutations -= isomorphisms
+        remaining_permutations.difference_update(_compose(perm, alpha) for alpha in aut_c2)
 
     return False
