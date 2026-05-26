@@ -3,11 +3,205 @@
 from __future__ import annotations
 
 from collections import deque
+from dataclasses import dataclass
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 
 from ...core.stabilizer_code import StabilizerCode
+
+@dataclass(frozen=True)
+class RedStabGraph:
+
+    def __init__(self) -> None:
+        self.n = 0
+        self.k = 0
+
+        # each node identified with the index in the array, input nodes after output nodes
+        # each node is represented by a tuple with flags for the property of the node:
+        # (self-loop, solid, minus-sign)
+        self.vertices : list[tuple[bool, bool, bool]] = []
+        self.edges : set[tuple[int, int]]= set() # (u,v) with u < v
+
+    def toggle_edge(self, u:int , v:int) -> None:
+        min_u_v = min(u, v)
+        max_u_v = max(u, v)
+        if (min_u_v, max_u_v) in self.edges:
+            self.edges.remove((min_u_v, max_u_v))
+        else:
+            self.edges.add((min_u_v, max_u_v))
+
+    def local_complementation(self, v:int) -> None:
+        neighbors = self.neighbors(v)
+        for i in range(len(neighbors)):
+            for j in range(i + 1, len(neighbors)):
+                p = neighbors[i]
+                q = neighbors[j]
+                self.toggle_edge(p, q)
+
+    def pivot_edge(self, u: int, v:int) -> None:
+        self.local_complementation(u)
+        self.local_complementation(v)
+        self.local_complementation(u)
+
+    def advance_loop(self, u: int) -> None:
+        self.vertices[u] = (self.vertices[u][1] ^ True, self.vertices[u][1], self.vertices[u][2] ^ self.vertices[u][1])
+
+    def flip_fill(self, u:int) -> None:
+        self.vertices[u] = (self.vertices[u][0], self.vertices[u][1] ^ True, self.vertices[u][2])
+    
+    def flip_sign(self, u:int) -> None:
+        self.vertices[u] = (self.vertices[u][0], self.vertices[u][1], self.vertices[u][2] ^ True)
+
+    def neighbors(self, u: int) -> list[int]:
+        return [v for v in range(self.n + self.k) if (u, v) in self.edges or (v, u) in self.edges]
+    
+    def input_neighbors(self, u: int) -> list[int]:
+            return [v for v in range(self.n, self.n + self.k) if (u, v) in self.edges or (v, u) in self.edges]
+    
+    def copy(self) -> RedStabGraph:
+        new_graph = RedStabGraph()
+        new_graph.n = self.n
+        new_graph.k = self.k
+        new_graph.vertices = [ (l, h, s) for l, h, s in self.vertices ]
+        new_graph.edges = self.edges.copy()
+        return new_graph
+    
+    def adj_matrix(self) -> np.ndarray:
+        nr = self.n + self.k
+        adj = np.zeros((nr, nr), dtype=np.uint8)
+        for u, v in self.edges:
+            adj[u][v] = 1
+            adj[v][u] = 1
+
+    def canon_key(self) -> tuple[tuple[tuple[int,...]], tuple[tuple[bool, bool, bool]]]:
+        return tuple(map(tuple, self.adj_matrix().tolist())), tuple(self.vertices)
+    
+    def apply_h(self, u:int) -> RedStabGraph:
+        result = self.copy()
+        l, s, m = result.vertices[u]
+        non_solid_n = [a for a in result.neighbors(u) if not result.vertices[a][1]]
+        if s and not l and not non_solid_n:  # T(i)
+            result.flip_fill(u)
+            return result
+        if s and l and not non_solid_n: # T(ii)
+            for n in result.neighbors(u):
+                result.advance_loop(n)
+                if not m:
+                    result.flip_sign(n)
+
+            result.local_complementation(u)
+            result.flip_sign(u)
+        if s and not l and non_solid_n: # T(iii)
+            for n in non_solid_n:
+                result.flip_fill(n)
+                result.pivot_edge(n, u)
+            # TODO
+        if s and l and non_solid_n: # T(iv)
+            for n in non_solid_n:
+                result.local_complementation(u)
+                result.local_complementation(n)
+
+                result.vertices[u] = (False, result.vertices[u][0], result.vertices[u][0])
+
+                for cur_n in result.neighbors(u):
+                    result.advance_loop(cur_n)
+
+                result.flip_fill(n)
+
+                # TODO
+
+        if not s: # T(v)
+            result.flip_fill(u)
+            return result
+
+    def apply_s(self, u:int) -> RedStabGraph:
+        result = self.copy()
+        l, s, m = result.vertices[u]
+
+        if s: # T(vi)
+            result.advance_loop(u)
+            return result
+        else: # T(vii)
+            for n in result.neighbors(u):
+                result.advance_loop(n)
+                if m:
+                    result.flip_sign(n)
+
+            result.local_complementation(u)
+
+    def apply_z(self, u:int) -> RedStabGraph:
+        result = self.copy()
+        l, s, m = result.vertices[u]
+
+        if s: # T5
+            result.flip_sign(u)
+            return result
+        else:
+            for n in result.neighbors(u): # T6
+                result.flip_sign(n)
+
+            if l:
+                result.flip_sign(u)
+         
+
+    def apply_cz(self, u:int, v:int) -> RedStabGraph:
+        pass
+
+    def equivalent_graphs(self) -> list[RedStabGraph]:
+        pass
+
+    @staticmethod
+    def from_adj_matrix(adj:np.ndarray, k : int, solid: int) -> RedStabGraph:
+        graph = RedStabGraph()
+        nr = adj.shape[1]
+        graph.n = nr - k
+        graph.k = k
+        for i in range(nr):
+            for j in range(i + 1, nr):
+                if adj[i, j]:
+                    graph.edges.add((i, j))
+
+        graph.vertices = []
+        for v in range(nr):
+            node = (adj[v, v] & 1, v < solid, False)
+            graph.vertices.append(node)
+        return graph
+    
+    def is_bipartite(self) -> bool:
+        n = self.n + self.k
+        colors = np.full(n, -1, dtype=np.int8)
+
+        neighbors_list : list[set] = [ set() for _ in range(n) ]
+        for u, v in self.edges:
+            (neighbors_list[u]).add(v)
+            (neighbors_list[v]).add(u)
+
+        for start in range(n):
+            if colors[start] != -1:
+                continue
+
+            colors[start] = 0
+            frontier = np.array([start], dtype=int)
+
+            while frontier.size:
+                current_color = colors[frontier[0]]
+                next_color = 1 - current_color
+
+                neighbors = set()
+                for node in frontier:
+                    neighbors |= neighbors_list[node]
+                neighbors = np.array(list(neighbors), dtype=int)
+
+                if np.any(colors[neighbors] == current_color):
+                    return False
+
+                new = neighbors[colors[neighbors] == -1]
+                colors[new] = next_color
+                frontier = new
+
+        return True
+
 
 def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
     """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
@@ -41,162 +235,74 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
 
     return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
 
-def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> np.ndarray:
+def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
     """Convert a stabilizer state into a graph state under local Clifford operations.
-    Returns the adjacency matrix of the graph state."""
+    Returns the reduced stabilizer-state"""
     def _rank(matrix: np.ndarray) -> int:
         if matrix.shape[0] == 0:
             return 0
         return mod2.rank(matrix)
 
-    def _make_X_invertible(t: np.ndarray) -> np.ndarray:
-        old_x_rank = _rank(t[:, :n])
-        while old_x_rank < n:
-            improved = False
+    def _bring_into_canon_form(t: np.ndarray) -> tuple[int, np.ndarray, list[tuple[int, int]]]:
+        pass
 
-            for q in range(n):
-                if old_x_rank == n:
-                    break
-
-                best_rank = old_x_rank
-                best_choice = (None, None)
-
-                x_col = t[:, q].copy()
-                z_col = t[:, q + n].copy()
-
-                for new_x, new_z in [ (x_col, z_col), (z_col, x_col), ((x_col + z_col) % 2, x_col) ]:
-                    t[:, q] = new_x
-                    new_x_rank = _rank(t[:, :n])
-                    if new_x_rank > best_rank:
-                        best_rank = new_x_rank
-                        best_choice = (new_x, new_z)
-
-                if best_choice[0] is not None:
-                    t[:, q] = best_choice[0]
-                    t[:, q + n] = best_choice[1]
-                    old_x_rank = best_rank
-                    improved = True
-                else:
-                    t[:, q] = x_col
-                    t[:, q + n] = z_col
-
-            if not improved:
-                break
-
-        return t
-
-    def _extract_adjacency_matrix(tableau: np.ndarray) -> np.ndarray:
+    def _extract_adjacency_matrix(tableau: np.ndarray, swaps: list[tuple[int, int]]) -> np.ndarray:
         """Extract the adjacency matrix from the stabilizer state."""
-        def _rref_no_column_swaps(matrix: np.ndarray) -> np.ndarray:
-            matrix = matrix.copy()
-            n_rows, n_cols = matrix.shape
-            pivot_row = 0
-            for col in range(n_cols):
-                if pivot_row >= n_rows:
-                    break
+        pass
 
-                pivot_candidates = np.flatnonzero(matrix[pivot_row:, col])
-
-                if pivot_candidates.size == 0:
-                    continue
-
-                pivot = pivot_row + int(pivot_candidates[0])
-
-                # swap row with potential pivot up
-                if pivot != pivot_row:
-                    matrix[[pivot_row, pivot], :] = matrix[[pivot, pivot_row], :]
-
-                # make pivot column a unit vector
-                for r in range(n_rows):
-                    if r != pivot_row and matrix[r, col]:
-                        matrix[r, :] ^= matrix[pivot_row, :]
-                pivot_row += 1
-
-            return matrix
-
-        rre = _rref_no_column_swaps(tableau)
-
-        if _rank(rre[:, :n]) != n:
-            raise ValueError("X part of the tableau is not full rank, something went wrong.")
-
-        return rre[:, n:]
-
-    def _remove_diagonal(tableau: np.ndarray) -> np.ndarray:
-        """Basically apply S gate on all qubits to remove self-loops in the graph state."""
-        np.fill_diagonal(tableau, 0)
-        return tableau
-
-    state = _make_X_invertible(tableau)
-    gamma = _extract_adjacency_matrix(state)
-    gamma = _remove_diagonal(gamma)
+    s, canon, swaps = _bring_into_canon_form(tableau)
+    gamma = _extract_adjacency_matrix(canon, swaps)
 
     if not np.array_equal(gamma, gamma.T):
         raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
 
-    return gamma
+    return RedStabGraph.from_adj_matrix(gamma, n, s)
 
 
-def _traverse_lc_orbit(graph: np.ndarray) -> bool:
-    # TODO: for k >= 2 we will have problems, bc we fixed a logical basis and we only look at how local cliffords at the inputs could change the logical basis, but there could be other gates (cnot, swap) that could be needed to be applied to the inputs (change the logical basis, not the code) to reach a bipartide code... but cnots dont have a clean graph equivalent like local complementation :(
-    def _lc(graph: np.ndarray, q: int) -> np.ndarray:
-        new_graph = graph.copy()
-        neighbors = np.flatnonzero(graph[q])
-
-        for idx in range(len(neighbors)):
-            neighbor = neighbors[idx]
-            for other_neighbor in neighbors[idx + 1:]:
-                new_graph[neighbor, other_neighbor] ^= 1
-                new_graph[other_neighbor, neighbor] ^= 1
-
-        np.fill_diagonal(new_graph, 0)
-        return new_graph
-
-    def _canonical_key(graph: np.ndarray) -> bytes:
-        return np.asarray(graph, dtype=np.uint8).tobytes()
-
-    def _is_bipartite(graph: np.ndarray) -> bool:
-        graph = np.asarray(graph, dtype=bool)
-        n = graph.shape[0]
-        colors = np.full(n, -1, dtype=np.int8)
-
-        for start in range(n):
-            if colors[start] != -1:
-                continue
-
-            colors[start] = 0
-            frontier = np.array([start], dtype=int)
-
-            while frontier.size:
-                current_color = colors[frontier[0]]
-                next_color = 1 - current_color
-
-                neighbors = np.flatnonzero(graph[frontier].any(axis=0))
-
-                if np.any(colors[neighbors] == current_color):
-                    return False
-
-                new = neighbors[colors[neighbors] == -1]
-                colors[new] = next_color
-                frontier = new
-
-        return True
-
-    n = graph.shape[0]
+def _traverse_lc_orbit(graph: RedStabGraph) -> bool:
+    nr = graph.n + graph.k
+    n = graph.n
+    k = graph.k
     seen = set()
     queue = deque([graph.copy()])
 
     while queue:
         current_graph = queue.popleft()
-        if _is_bipartite(current_graph):
-            return True
+        equivalent_graphs = current_graph.equivalent_graphs()
+        for g in equivalent_graphs:
+            if g.is_bipartite():
+                return True
 
-        for q in range(n):
-            new_graph = _lc(current_graph, q)
-            key = _canonical_key(new_graph)
+        for q in range(nr):
+            new_graph_h = current_graph.apply_h(q)
+            key_h = new_graph_h.canon_key()
 
-            if key not in seen:
-                queue.append(new_graph)
-                seen.add(key)
+            if key_h not in seen:
+                queue.append(new_graph_h)
+                seen.add(key_h)
+
+            new_graph_s = current_graph.apply_s(q)
+            key_s = new_graph_s.canon_key()
+
+            if key_s not in seen:
+                queue.append(new_graph_s)
+                seen.add(key_s)
+
+            new_graph_z = current_graph.apply_z(q)
+            key_z = new_graph_z.canon_key()
+
+            if key_z not in seen:
+                queue.append(new_graph_z)
+                seen.add(key_z)
+
+        for q in range(n, n+k):
+            for p in range(q+1, n+k):
+                new_graph_cz = current_graph.apply_cz(q, p)
+                key_cz = new_graph_cz.canon_key()
+
+                if key_cz not in seen:
+                    queue.append(new_graph_cz)
+                    seen.add(key_cz) 
 
     return False
 
