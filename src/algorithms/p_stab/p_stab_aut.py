@@ -1,4 +1,8 @@
-"""Automorphism-group based equivalence checking for general Stabilizer Codes."""
+"""Automorphism-group based equivalence checking for general Stabilizer Codes.
+
+References for this algorithm: 
+- Hanson Hao: Investigations on Automorphism Groups of Quantum Stabilizer Codes
+"""
 
 from __future__ import annotations
 
