@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from unittest import result
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
@@ -143,7 +144,6 @@ class RedStabGraph:
                         result.flip_sign(cur_n)
 
                 if init_m:
-                    result.flip_sign(n)
                     for cur_n in result.neighbors(n):
                         result.flip_sign(cur_n)
                 
@@ -231,8 +231,94 @@ class RedStabGraph:
                     result.flip_sign(n)
 
 
-    def equivalent_graphs(self) -> list[RedStabGraph]:
-        pass
+    def equivalent_graphs(self) -> tuple[bool, set[tuple[tuple[tuple[int,...]], tuple[tuple[bool, bool, bool]]]]]:
+        seen = set()
+        queue = deque([self.copy()])
+
+        found_bipartite = False
+
+        while queue:
+            current_graph = queue.popleft()
+
+            if current_graph.is_bipartite():
+                found_bipartite = True
+                return found_bipartite, set()
+
+            for u, v in current_graph.edges:
+                _, s_u, _ = current_graph.vertices[u]
+                _, s_v, _ = current_graph.vertices[v]
+
+                if s_u and not s_v or s_v and not s_u: 
+                    hollow = v if s_u else s_v
+                    solid = u if s_u else s_v
+
+                    if current_graph.vertices[solid][0]: # E(i)
+                        new_graph = current_graph.copy()
+
+                        init_solid = new_graph.vertices[solid][2]
+                        init_hollow = new_graph.vertices[hollow][2]
+                        both = [ v for v in new_graph.neighbors(n) if v in new_graph.neighbors(u) ]
+
+                        new_graph.local_complementation(solid)
+                        new_graph.local_complementation(hollow)
+
+                        new_graph.vertices[solid] = (False, new_graph.vertices[solid][1], new_graph.vertices[solid][2])
+
+                        for n in new_graph.neighbors(solid):
+                            new_graph.advance_loop(n)
+
+                        new_graph.flip_fill(hollow)
+                        new_graph.flip_fill(solid)
+
+                        for b in both:
+                            new_graph.flip_sign(b)
+                        
+                        if init_solid:
+                            new_graph.flip_sign(solid)
+                            for cur_n in new_graph.neighbors(solid):
+                                new_graph.flip_sign(cur_n)
+
+                        if init_hollow:
+                            for cur_n in new_graph.neighbors(hollow):
+                                new_graph.flip_sign(cur_n)
+
+                        key = new_graph.canon_key()
+
+                        if key not in seen:
+                            queue.append(new_graph)
+                            seen.add(key)
+
+                    else: # E(ii)
+                        new_graph = current_graph.copy()
+                        init_u = new_graph.vertices[u][2]
+                        init_v = new_graph.vertices[v][2]
+
+                        both = [ v for v in new_graph.neighbors(n) if v in new_graph.neighbors(u) ]
+
+                        new_graph.pivot_edge(u, v)
+
+                        new_graph.flip_fill(u)
+                        new_graph.flip_fill(v)
+
+                        for b in both:
+                            new_graph.flip_sign(b)
+
+                        if init_u:
+                            for cur_n in new_graph.neighbors(u):
+                                new_graph.flip_sign(cur_n)
+
+                        if init_v:
+                            for cur_n in new_graph.neighbors(v):
+                                new_graph.flip_sign(cur_n)
+
+                        key = new_graph.canon_key()
+
+                        if key not in seen:
+                            queue.append(new_graph)
+                            seen.add(key)
+
+
+        return found_bipartite, seen
 
     @staticmethod
     def from_adj_matrix(adj:np.ndarray, k : int, solid: int) -> RedStabGraph:
@@ -434,10 +520,12 @@ def _traverse_cliff_orbit(graph: RedStabGraph) -> bool:
 
     while queue:
         current_graph = queue.popleft()
-        equivalent_graphs = current_graph.equivalent_graphs()
-        for g in equivalent_graphs:
-            if g.is_bipartite():
-                return True
+        eq_bipartite, equivalent_graphs = current_graph.equivalent_graphs()
+
+        if eq_bipartite:
+            return True
+        
+        seen |= equivalent_graphs
 
         for q in range(nr):
             new_graph_h = current_graph.apply_h(q)
