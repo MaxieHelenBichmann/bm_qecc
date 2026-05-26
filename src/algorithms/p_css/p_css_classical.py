@@ -1,4 +1,9 @@
-"""Classical code equivalence based permutation equivalence checking."""
+"""Classical code equivalence based permutation equivalence checking.
+
+References for this algorithm: 
+- Nicolas Sendrier: Finding the Permutation Between Equivalent Linear Codes: The Support Splitting Algorithm
+- Thomas Feulner: The Automorphism Groups of Linear Codes and Canonical Representatives of Their Semilinear Isometry Classes
+"""
 
 from __future__ import annotations
 from collections import defaultdict
