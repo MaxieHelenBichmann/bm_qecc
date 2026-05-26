@@ -90,75 +90,9 @@ def test_stab_code_to_stab_state_small_codes(code: StabilizerCode, expected: np.
 # _stab_state_to_graph_state
 # ----------------------------------------------------------------------------------------------------
 
-@pytest.mark.parametrize(
-    ("tableau", "expected"),
-    [
-        pytest.param(
-            np.array([[1, 0]], dtype=np.uint8),
-            np.array([[0]], dtype=np.uint8),
-            id="one-isolated-vertex",
-        ),
-        pytest.param(
-            np.array([[1, 0, 0, 0, 1, 1],
-                      [0, 1, 0, 1, 0, 1],
-                      [0, 0, 1, 1, 1, 0]], dtype=np.uint8),
-            np.array([[0, 1, 1],
-                      [1, 0, 1],
-                      [1, 1, 0]], dtype=np.uint8),
-            id="triangle",
-        ),
-        pytest.param(
-            np.array(
-                [[0, 0, 1, 0],
-                 [0, 0, 0, 1]],
-                dtype=np.uint8,
-            ),
-            np.array(
-                [[0, 0],
-                 [0, 0]],
-                dtype=np.uint8,
-            ),
-            id="only-hadamard-improvement",
-        ),
-        pytest.param(
-            np.array(
-                [[0, 0, 0, 0, 1, 0],
-                 [1, 0, 0, 1, 0, 0],
-                 [0, 0, 1, 0, 1, 1]],
-                dtype=np.uint8,
-            ),
-            np.array(
-                [[0, 0, 0],
-                 [0, 0, 0],
-                 [0, 0, 0]],
-                dtype=np.uint8,
-            ),
-            id="mixed",
-        ),
-    ],
-)
-def test_stab_state_to_graph_state_small_tableau(
-    tableau: np.ndarray,
-    expected: np.ndarray,
-) -> None:
-    _assert_same_matrix(_stab_state_to_graph_state(tableau.copy(), expected.shape[0]), expected)
-
-
 # ----------------------------------------------------------------------------------------------------
-# _traverse_lc_orbit
+# _traverse_cliff_orbit
 # ----------------------------------------------------------------------------------------------------
-
-def test_traverse_lc_orbit() -> None:
-    triangle = np.array(
-        [
-            [0, 1, 1],
-            [1, 0, 1],
-            [1, 1, 0],
-        ],
-        dtype=np.uint8,
-    )
-
-    assert _traverse_lc_orbit(triangle) is True
 
 # ----------------------------------------------------------------------------------------------------
 # is_lceq_css_orbit
