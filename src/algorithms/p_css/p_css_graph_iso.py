@@ -1,4 +1,8 @@
-"""Graph-isomorphism based permutation equivalence checking."""
+"""Graph-isomorphism based permutation equivalence checking.
+
+References for this algorithm: 
+- Nicolas Sendrier: Finding the Permutation Between Equivalent Linear Codes: The Support Splitting Algorithm
+"""
 
 from __future__ import annotations
 
