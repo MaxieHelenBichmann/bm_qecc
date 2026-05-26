@@ -81,9 +81,11 @@ class RedStabGraph:
         result = self.copy()
         l, s, m = result.vertices[u]
         non_solid_n = [a for a in result.neighbors(u) if not result.vertices[a][1]]
+
         if s and not l and not non_solid_n:  # T(i)
             result.flip_fill(u)
             return result
+        
         if s and l and not non_solid_n: # T(ii)
             for n in result.neighbors(u):
                 result.advance_loop(n)
@@ -92,24 +94,60 @@ class RedStabGraph:
 
             result.local_complementation(u)
             result.flip_sign(u)
+
+            return result
+        
         if s and not l and non_solid_n: # T(iii)
             for n in non_solid_n:
                 result.flip_fill(n)
                 result.pivot_edge(n, u)
-            # TODO
+                n_n = result.neighbors(n)
+                n_u = result.neighbors(u)
+                for nn in n_n:
+                    if nn in n_u:
+                        result.flip_sign(nn)
+
+                if m:
+                    result.flip_sign(u)
+                    for cur_n in result.neighbors(u):
+                        result.flip_sign(cur_n)
+
+                if result.vertices[n][2]:
+                    result.flip_sign(n)
+                    for cur_n in result.neighbors(n):
+                        result.flip_sign(cur_n)
+            
+            return result
+   
         if s and l and non_solid_n: # T(iv)
             for n in non_solid_n:
+                init_m = result.vertices[n][2]
+                both = [ v for v in result.neighbors(n) if v in result.neighbors(u) ]
+
                 result.local_complementation(u)
                 result.local_complementation(n)
 
-                result.vertices[u] = (False, result.vertices[u][0], result.vertices[u][0])
+                result.vertices[u] = (False, result.vertices[u][1], result.vertices[u][2])
 
                 for cur_n in result.neighbors(u):
                     result.advance_loop(cur_n)
 
                 result.flip_fill(n)
 
-                # TODO
+                for b in both:
+                    result.flip_sign(b)
+                
+                if m:
+                    result.flip_sign(u)
+                    for cur_n in result.neighbors(u):
+                        result.flip_sign(cur_n)
+
+                if init_m:
+                    result.flip_sign(n)
+                    for cur_n in result.neighbors(n):
+                        result.flip_sign(cur_n)
+                
+            return result
 
         if not s: # T(v)
             result.flip_fill(u)
@@ -130,6 +168,8 @@ class RedStabGraph:
 
             result.local_complementation(u)
 
+            return result
+
     def apply_z(self, u:int) -> RedStabGraph:
         result = self.copy()
         l, s, m = result.vertices[u]
@@ -146,7 +186,50 @@ class RedStabGraph:
          
 
     def apply_cz(self, u:int, v:int) -> RedStabGraph:
-        pass
+        result = self.copy()
+        l_u, s_u, m_u = self.vertices[u]
+        l_v, s_v, m_v = self.vertices[v]
+
+        init_connected = (v in result.neighbors(u))
+
+        if s_u and s_v: # T(viii)
+            result.pivot_edge(u, v)
+            return result
+        
+        if s_u and not s_v or s_v and not s_u: # T(ix)
+            hollow = v if s_u else s_v
+            solid = u if s_u else s_v
+
+            hollow_m = m_v if s_u else m_u
+
+            for n in result.neighbors(hollow):
+                if (solid, n) in result.edges or (n, solid) in result.edges:
+                    result.pivot_edge(solid, n)
+
+            if init_connected and not hollow_m or not init_connected and hollow_m:
+                result.flip_sign(solid)
+                for n in result.neighbors(solid):
+                    result.flip_sign(n)
+
+            return result
+        
+        if not s_u and not s_v: # T(x)
+            both = [ v for v in result.neighbors(n) if v in result.neighbors(u) ]
+            n_u = result.neighbors(u)
+            n_v = result.neighbors(v)
+
+            result.pivot_edge(u, v)
+
+            for b in both:
+                result.flip_sign(b)
+
+            if m_u:
+                for n in n_v:
+                    result.flip_sign(n)
+            if m_v:
+                for n in n_u:
+                    result.flip_sign(n)
+
 
     def equivalent_graphs(self) -> list[RedStabGraph]:
         pass
@@ -238,20 +321,103 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
 def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
     """Convert a stabilizer state into a graph state under local Clifford operations.
     Returns the reduced stabilizer-state"""
-    def _rank(matrix: np.ndarray) -> int:
-        if matrix.shape[0] == 0:
-            return 0
-        return mod2.rank(matrix)
-
     def _bring_into_canon_form(t: np.ndarray) -> tuple[int, np.ndarray, list[tuple[int, int]]]:
-        pass
+        swaps = []
+        qubit_order = list(range(n))
 
-    def _extract_adjacency_matrix(tableau: np.ndarray, swaps: list[tuple[int, int]]) -> np.ndarray:
-        """Extract the adjacency matrix from the stabilizer state."""
-        pass
+        # row-reduce X block
+        row = 0
+        for col_target in range(n):
+            pivot = None
+            for c in range(col_target, n):
+                for rr in range(row, n):
+                    if tableau[rr, c] == 1:
+                        pivot = (rr, c)
+                        break
+                if pivot is not None:
+                    break
+
+            if pivot is None:
+                break
+
+            pivot_row, pivot_col = pivot
+            if pivot_col != col_target:
+                tableau[:, [pivot_col, col_target]] = tableau[:, [col_target, pivot_col]]
+                swaps.append((pivot_col, col_target))
+                qubit_order[pivot_col], qubit_order[col_target] = qubit_order[col_target], qubit_order[pivot_col]
+
+            if pivot_row != row:
+                tableau[[pivot_row, row], :] = tableau[[row, pivot_row], :]
+
+            for rr in range(n):
+                if rr != row and tableau[rr, col_target] == 1:
+                    tableau[rr, :] = (tableau[rr, :] + tableau[row, :]) % 2
+            row += 1
+
+        # X = [ I A ]
+        #     [ 0 0 ]
+
+        r = row
+
+        # row-reduce Z block
+        lower_row = row
+
+        for col_target in range(r, n):
+            pivot = None
+            for c in range(col_target, n):
+                for rr in range(lower_row, n):
+                    if tableau[rr, n + c] == 1:
+                        pivot = (rr, c)
+                        break
+                if pivot is not None:
+                    break
+
+            if pivot is None:
+                raise ValueError("Unexpected rank deficiency in Z block, something went wrong.")
+
+            pivot_row, pivot_col = pivot
+            if pivot_col != col_target:
+                tableau[:, [pivot_col, col_target]] = tableau[:, [col_target, pivot_col]]
+                swaps.append((pivot_col, col_target))
+                qubit_order[pivot_col], qubit_order[col_target] = qubit_order[col_target], qubit_order[pivot_col]
+
+            if pivot_row != lower_row:
+                tableau[[pivot_row, lower_row], :] = tableau[[lower_row, pivot_row], :]
+
+            for rr in range(n):
+                if rr != lower_row and tableau[rr, n + col_target] == 1:
+                    tableau[rr, :] = (tableau[rr, :] + tableau[lower_row, :]) % 2
+            lower_row += 1
+
+        # clear upper corner of Z block
+        for top in range(r):
+            for c in range(r, n):
+                if tableau[top, n + c] == 1:
+                    lower = r + (c - r)
+                    tableau[top, :] = (tableau[top, :] + tableau[lower, :]) % 2
+
+        return r, tableau, swaps
+
+    def _extract_adjacency_matrix(tableau: np.ndarray, swaps: list[tuple[int, int]], s: int) -> np.ndarray:
+        X = tableau[:, :n]
+        Z = tableau[:, n:]
+
+        A = X[:s, s:n]
+        B = Z[:s, :s]
+
+        gamma = np.zeros((n, n), dtype=np.uint8)
+        gamma[:s, :s] = B
+        gamma[:s, s:n] = A
+        gamma[s:n, :s] = A.T
+
+        for col1, col2 in reversed(swaps):
+            gamma[:, [col1, col2]] = gamma[:, [col2, col1]]
+            gamma[[col1, col2], :] = gamma[[col2, col1], :]
+
+        return gamma
 
     s, canon, swaps = _bring_into_canon_form(tableau)
-    gamma = _extract_adjacency_matrix(canon, swaps)
+    gamma = _extract_adjacency_matrix(canon, swaps, s)
 
     if not np.array_equal(gamma, gamma.T):
         raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
@@ -259,7 +425,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
     return RedStabGraph.from_adj_matrix(gamma, n, s)
 
 
-def _traverse_lc_orbit(graph: RedStabGraph) -> bool:
+def _traverse_cliff_orbit(graph: RedStabGraph) -> bool:
     nr = graph.n + graph.k
     n = graph.n
     k = graph.k
@@ -312,11 +478,11 @@ def is_lceq_css_orbit(code: StabilizerCode) -> bool:
 
     1.) Convert the stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
     2.) Convert the stabilizer state into a graph state under local Clifford operations.
-    3.) Traverse the LC orbit of the graph state and check if any graph in the orbit is bipartite.
+    3.) Traverse the LC orbit of the graph state on the physical qubits, as well as the general clifford orbit for the input/reference qubits, and check if any graph in the orbit is bipartite.
 
 
-    The conversion from stabilizer code into a graph state can be done in O(n^3) time. The LC orbit can be large in general, this is not an efficient algorithm, but might be better than brute-force checking of all local Clifford operations, as duplicate graphs in the orbit can be identified and skipped ?.
+    The conversion from stabilizer code into a graph state can be done in O(n^3) time. The LC orbit can be large in general, and the general Clifford orbit on the input/reference qubits adds an additional factor, so the algorithm is even worse than the brute-force checking of all local Cliffords.
     """
     stab_state = _stab_code_to_stab_state(code)
     graph_state = _stab_state_to_graph_state(stab_state, code.n + code.k)
-    return _traverse_lc_orbit(graph_state)
+    return _traverse_cliff_orbit(graph_state)
