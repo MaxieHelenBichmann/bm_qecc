@@ -1,4 +1,11 @@
-"""KLS normal form for checking whether a stabilizer code is LC-equivalent to a CSS code."""
+"""KLS normal form for checking whether a stabilizer code is LC-equivalent to a CSS code.
+
+References for this algorithm: 
+- Andrey Boris Khesin, Jonathan Z. Lu, Peter W. Shor: Universal Graph Representation of Stabilizer Codes
+- Andrey Boris Khesin, Jonathan Z. Lu, Peter W. Shor: Graphical quantum Clifford-encoder compilers from the ZX calculus
+- Alexander Tianlin Hu, Andrey Boris Khesin: Improved Graph Formalism for Quantum Circuit Simulation
+- Ross Duncan, Aleks Kissinger, Simon Perdrix, John van de Wetering: Graph-theoretic Simplification of Quantum Circuits with the ZX-calculus
+"""
 
 from __future__ import annotations
 
