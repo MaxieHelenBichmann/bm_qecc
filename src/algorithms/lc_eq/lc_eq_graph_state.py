@@ -1,4 +1,9 @@
-"""Graph-state machinery for local-Clifford equivalence checking."""
+"""Graph-state machinery for local-Clifford equivalence checking.
+
+References for this algorithm: 
+- Maarten Van den Nest, Jeroen Dehaene, Bart De Moor: An eﬃcient algorithm to recognize local Cliﬀord equivalence of graph states
+- Andre Bouchet: An efficient algorithm to recognize locally equivalent graphs
+"""
 
 from __future__ import annotations
 from itertools import product
