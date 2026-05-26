@@ -1,4 +1,8 @@
-"""LC Orbit traversal for checking whether a stabilizer code is LC-equivalent to a CSS code."""
+"""LC Orbit traversal for checking whether a stabilizer code is LC-equivalent to a CSS code.
+
+References for this algorithm: 
+- Matthew B. Elliott, Bryan Eastin, Carlton M. Caves: Graphical description of the action of Cliﬀord operators on stabilizer states
+"""
 
 from __future__ import annotations
 
