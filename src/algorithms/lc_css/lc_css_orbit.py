@@ -8,14 +8,12 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from unittest import result
 
 import numpy as np
-import ldpc.mod2.mod2_numpy as mod2
 
 from ...core.stabilizer_code import StabilizerCode
 
-@dataclass(frozen=True)
+@dataclass
 class RedStabGraph:
 
     def __init__(self) -> None:
@@ -50,7 +48,7 @@ class RedStabGraph:
         self.local_complementation(u)
 
     def advance_loop(self, u: int) -> None:
-        self.vertices[u] = (self.vertices[u][1] ^ True, self.vertices[u][1], self.vertices[u][2] ^ self.vertices[u][1])
+        self.vertices[u] = (self.vertices[u][1] ^ True, self.vertices[u][1], self.vertices[u][2] ^ self.vertices[u][0])
 
     def flip_fill(self, u:int) -> None:
         self.vertices[u] = (self.vertices[u][0], self.vertices[u][1] ^ True, self.vertices[u][2])
@@ -78,6 +76,8 @@ class RedStabGraph:
         for u, v in self.edges:
             adj[u][v] = 1
             adj[v][u] = 1
+
+        return adj
 
     def canon_key(self) -> tuple[tuple[tuple[int,...]], tuple[tuple[bool, bool, bool]]]:
         return tuple(map(tuple, self.adj_matrix().tolist())), tuple(self.vertices)
@@ -245,7 +245,7 @@ class RedStabGraph:
         init_connected = (v in result.neighbors(u))
 
         if s_u and s_v: # T(viii)
-            result.pivot_edge(u, v)
+            result.toggle_edge(u, v)
 
             if not self.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
@@ -253,14 +253,13 @@ class RedStabGraph:
             return result
         
         if s_u and not s_v or s_v and not s_u: # T(ix)
-            hollow = v if s_u else s_v
-            solid = u if s_u else s_v
+            hollow = v if s_u else u
+            solid = u if s_u else v
 
             hollow_m = m_v if s_u else m_u
 
             for n in result.neighbors(hollow):
-                if (solid, n) in result.edges or (n, solid) in result.edges:
-                    result.pivot_edge(solid, n)
+                result.toggle_edge(solid, n)
 
             if init_connected and not hollow_m or not init_connected and hollow_m:
                 result.flip_sign(solid)
@@ -273,7 +272,7 @@ class RedStabGraph:
             return result
         
         if not s_u and not s_v: # T(x)
-            both = [ v for v in result.neighbors(n) if v in result.neighbors(u) ]
+            both = [ n for n in result.neighbors(v) if n in result.neighbors(u) ]
             n_u = result.neighbors(u)
             n_v = result.neighbors(v)
 
@@ -321,7 +320,7 @@ class RedStabGraph:
 
                         init_solid = new_graph.vertices[solid][2]
                         init_hollow = new_graph.vertices[hollow][2]
-                        both = [ v for v in new_graph.neighbors(n) if v in new_graph.neighbors(u) ]
+                        both = [ n for n in new_graph.neighbors(v) if n in new_graph.neighbors(u) ]
 
                         new_graph.local_complementation(solid)
                         new_graph.local_complementation(hollow)
@@ -357,7 +356,7 @@ class RedStabGraph:
                         init_u = new_graph.vertices[u][2]
                         init_v = new_graph.vertices[v][2]
 
-                        both = [ v for v in new_graph.neighbors(n) if v in new_graph.neighbors(u) ]
+                        both = [ n for n in new_graph.neighbors(v) if n in new_graph.neighbors(u) ]
 
                         new_graph.pivot_edge(u, v)
 
@@ -468,12 +467,11 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
 
     return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
 
-def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
+def _stab_state_to_graph_state(tableau: np.ndarray, n: int, k: int) -> RedStabGraph:
     """Convert a stabilizer state into a graph state under local Clifford operations.
     Returns the reduced stabilizer-state"""
-    def _bring_into_canon_form(t: np.ndarray) -> tuple[int, np.ndarray, list[tuple[int, int]]]:
+    def _bring_into_canon_form() -> tuple[int, list[tuple[int, int]]]:
         swaps = []
-        qubit_order = list(range(n))
 
         # row-reduce X block
         row = 0
@@ -493,8 +491,8 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
             pivot_row, pivot_col = pivot
             if pivot_col != col_target:
                 tableau[:, [pivot_col, col_target]] = tableau[:, [col_target, pivot_col]]
+                tableau[:, [pivot_col + n, col_target + n]] = tableau[:, [col_target + n, pivot_col + n]]
                 swaps.append((pivot_col, col_target))
-                qubit_order[pivot_col], qubit_order[col_target] = qubit_order[col_target], qubit_order[pivot_col]
 
             if pivot_row != row:
                 tableau[[pivot_row, row], :] = tableau[[row, pivot_row], :]
@@ -528,9 +526,9 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
             pivot_row, pivot_col = pivot
             if pivot_col != col_target:
                 tableau[:, [pivot_col, col_target]] = tableau[:, [col_target, pivot_col]]
+                tableau[:, [pivot_col - n, col_target - n]] = tableau[:, [col_target - n, pivot_col - n]]
                 swaps.append((pivot_col, col_target))
-                qubit_order[pivot_col], qubit_order[col_target] = qubit_order[col_target], qubit_order[pivot_col]
-
+            
             if pivot_row != lower_row:
                 tableau[[pivot_row, lower_row], :] = tableau[[lower_row, pivot_row], :]
 
@@ -546,9 +544,9 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
                     lower = r + (c - r)
                     tableau[top, :] = (tableau[top, :] + tableau[lower, :]) % 2
 
-        return r, tableau, swaps
+        return r, swaps
 
-    def _extract_adjacency_matrix(tableau: np.ndarray, swaps: list[tuple[int, int]], s: int) -> np.ndarray:
+    def _extract_adjacency_matrix(swaps: list[tuple[int, int]], s: int) -> np.ndarray:
         X = tableau[:, :n]
         Z = tableau[:, n:]
 
@@ -566,13 +564,13 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int) -> RedStabGraph:
 
         return gamma
 
-    s, canon, swaps = _bring_into_canon_form(tableau)
-    gamma = _extract_adjacency_matrix(canon, swaps, s)
+    s, swaps = _bring_into_canon_form()
+    gamma = _extract_adjacency_matrix(swaps, s)
 
     if not np.array_equal(gamma, gamma.T):
         raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
 
-    return RedStabGraph.from_adj_matrix(gamma, n, s)
+    return RedStabGraph.from_adj_matrix(gamma, k, s)
 
 
 def _traverse_cliff_orbit(graph: RedStabGraph) -> bool:
@@ -636,5 +634,5 @@ def is_lceq_css_orbit(code: StabilizerCode) -> bool:
     The conversion from stabilizer code into a graph state can be done in O(n^3) time. The LC orbit can be large in general, and the general Clifford orbit on the input/reference qubits adds an additional factor, so the algorithm is even worse than the brute-force checking of all local Cliffords.
     """
     stab_state = _stab_code_to_stab_state(code)
-    graph_state = _stab_state_to_graph_state(stab_state, code.n + code.k)
+    graph_state = _stab_state_to_graph_state(stab_state, code.n + code.k, code.k)
     return _traverse_cliff_orbit(graph_state)
