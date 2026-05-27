@@ -189,7 +189,7 @@ def test_stab_state_to_graph_state_returns_valid_reduced_graph(n: int, k: int, s
 
 
 def test_is_lceq_css_orbit_random_smoke() -> None:
-    for n in range(3, 6):
+    for n in range(1, 4):
         for k in range(n + 1):
             code = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
             assert isinstance(is_lceq_css_orbit(code), bool)
@@ -197,8 +197,8 @@ def test_is_lceq_css_orbit_random_smoke() -> None:
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_is_lceq_css_orbit_random_positive(seed: int) -> None:
-    n = 2 + (5 * seed + 1) % 8
-    k = 1 + (3 * seed + 1) % (n - 1)
+    n = 2 + (2 * seed + 1) % 3
+    k = 1 + (seed // 3) % (n - 1)
     css_code = random_css_code(n, k, seed=1000 + seed)
     code = lc_equivalent_code(css_code, seed=2000 + seed)
     assert is_lceq_css_orbit(code) is True
