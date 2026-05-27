@@ -104,17 +104,20 @@ class RedStabGraph:
 
         if s and not l and not non_solid_n:  # T(i)
             result.flip_fill(u)
+
             if not self.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
+            
             return result
         
         if s and l and not non_solid_n: # T(ii)
+            result.local_complementation(u)
+
             for n in result.neighbors(u):
                 result.advance_loop(n)
                 if not m:
                     result.flip_sign(n)
 
-            result.local_complementation(u)
             result.flip_sign(u)
 
             if not self.is_valid():
@@ -123,24 +126,25 @@ class RedStabGraph:
             return result
         
         if s and not l and non_solid_n: # T(iii)
-            for n in non_solid_n:
-                result.flip_fill(n)
-                result.pivot_edge(n, u)
-                n_n = result.neighbors(n)
-                n_u = result.neighbors(u)
-                for nn in n_n:
-                    if nn in n_u:
-                        result.flip_sign(nn)
+            n = non_solid_n[0]
 
-                if m:
-                    result.flip_sign(u)
-                    for cur_n in result.neighbors(u):
-                        result.flip_sign(cur_n)
+            result.flip_fill(n)
+            result.pivot_edge(n, u)
+            n_n = result.neighbors(n)
+            n_u = result.neighbors(u)
+            for nn in n_n:
+                if nn in n_u:
+                    result.flip_sign(nn)
 
-                if result.vertices[n][2]:
-                    result.flip_sign(n)
-                    for cur_n in result.neighbors(n):
-                        result.flip_sign(cur_n)
+            if m:
+                result.flip_sign(u)
+                for cur_n in result.neighbors(u):
+                    result.flip_sign(cur_n)
+
+            if result.vertices[n][2]:
+                result.flip_sign(n)
+                for cur_n in result.neighbors(n):
+                    result.flip_sign(cur_n)
             
             if not self.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
@@ -148,31 +152,32 @@ class RedStabGraph:
             return result
    
         if s and l and non_solid_n: # T(iv)
-            for n in non_solid_n:
-                init_m = result.vertices[n][2]
-                both = [ v for v in result.neighbors(n) if v in result.neighbors(u) ]
+            n = non_solid_n[0]
 
-                result.local_complementation(u)
-                result.local_complementation(n)
+            init_m = result.vertices[n][2]
+            both = [ v for v in result.neighbors(n) if v in result.neighbors(u) ]
 
-                result.vertices[u] = (False, result.vertices[u][1], result.vertices[u][2])
+            result.local_complementation(u)
+            result.local_complementation(n)
 
+            result.vertices[u] = (False, result.vertices[u][1], result.vertices[u][2])
+
+            for cur_n in result.neighbors(u):
+                result.advance_loop(cur_n)
+
+            result.flip_fill(n)
+
+            for b in both:
+                result.flip_sign(b)
+            
+            if m:
+                result.flip_sign(u)
                 for cur_n in result.neighbors(u):
-                    result.advance_loop(cur_n)
+                    result.flip_sign(cur_n)
 
-                result.flip_fill(n)
-
-                for b in both:
-                    result.flip_sign(b)
-                
-                if m:
-                    result.flip_sign(u)
-                    for cur_n in result.neighbors(u):
-                        result.flip_sign(cur_n)
-
-                if init_m:
-                    for cur_n in result.neighbors(n):
-                        result.flip_sign(cur_n)
+            if init_m:
+                for cur_n in result.neighbors(n):
+                    result.flip_sign(cur_n)
                 
             if not self.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
