@@ -183,6 +183,42 @@ def test_stab_state_to_graph_state_returns_valid_reduced_graph(n: int, k: int, s
 # _traverse_cliff_orbit
 # ----------------------------------------------------------------------------------------------------
 
+
+def test_traverse_cliff_orbit_accepts_already_bipartite_graph() -> None:
+    graph = _red_graph(
+        [(False, True, False), (False, True, False)],
+        {(0, 1)},
+    )
+
+    assert graph.is_bipartite()
+    assert _traverse_cliff_orbit(graph) is True
+
+
+def test_traverse_cliff_orbit_finds_bipartite_graph_after_clifford_rewrites() -> None:
+    graph = _red_graph(
+        [(False, True, False), (False, True, False), (False, True, False)],
+        {(0, 1), (0, 2), (1, 2)},
+    )
+    before = graph.canon_key()
+
+    assert graph.is_bipartite() is False
+    assert _traverse_cliff_orbit(graph) is True
+    assert graph.canon_key() == before
+
+
+def test_traverse_cliff_orbit_handles_input_cz_branch() -> None:
+    graph = _red_graph(
+        [(False, True, False), (False, True, False), (False, True, False)],
+        {(0, 1), (0, 2), (1, 2)},
+        k=2,
+    )
+
+    assert graph.n == 1
+    assert graph.k == 2
+    assert graph.is_bipartite() is False
+    assert _traverse_cliff_orbit(graph) is True
+
+
 # ----------------------------------------------------------------------------------------------------
 # is_lceq_css_orbit
 # ----------------------------------------------------------------------------------------------------
