@@ -82,6 +82,21 @@ class RedStabGraph:
     def canon_key(self) -> tuple[tuple[tuple[int,...]], tuple[tuple[bool, bool, bool]]]:
         return tuple(map(tuple, self.adj_matrix().tolist())), tuple(self.vertices)
     
+    def is_valid(self) -> bool:
+        for u in range(self.n + self.k):
+            if self.vertices[u][1]:
+                continue
+
+            if self.vertices[u][0]: # hollow nodes never have loops
+                return False
+            
+            for v in range(u + 1, self.n + self.k): # hollow nodes have no edges between them
+                if self.vertices[v][1]:
+                    continue
+                if (u, v) in self.edges:
+                    return False
+        return True
+    
     def apply_h(self, u:int) -> RedStabGraph:
         result = self.copy()
         l, s, m = result.vertices[u]
@@ -89,6 +104,8 @@ class RedStabGraph:
 
         if s and not l and not non_solid_n:  # T(i)
             result.flip_fill(u)
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
             return result
         
         if s and l and not non_solid_n: # T(ii)
@@ -99,6 +116,9 @@ class RedStabGraph:
 
             result.local_complementation(u)
             result.flip_sign(u)
+
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
 
             return result
         
@@ -121,6 +141,9 @@ class RedStabGraph:
                     result.flip_sign(n)
                     for cur_n in result.neighbors(n):
                         result.flip_sign(cur_n)
+            
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
    
@@ -151,6 +174,9 @@ class RedStabGraph:
                     for cur_n in result.neighbors(n):
                         result.flip_sign(cur_n)
                 
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
+            
             return result
 
         if not s: # T(v)
@@ -163,7 +189,12 @@ class RedStabGraph:
 
         if s: # T(vi)
             result.advance_loop(u)
+
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
+            
             return result
+        
         else: # T(vii)
             for n in result.neighbors(u):
                 result.advance_loop(n)
@@ -172,6 +203,8 @@ class RedStabGraph:
 
             result.local_complementation(u)
 
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
             return result
 
     def apply_z(self, u:int) -> RedStabGraph:
@@ -180,13 +213,23 @@ class RedStabGraph:
 
         if s: # T5
             result.flip_sign(u)
+
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
+            
             return result
+        
         else:
             for n in result.neighbors(u): # T6
                 result.flip_sign(n)
 
             if l:
                 result.flip_sign(u)
+
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
+            
+            return result
          
 
     def apply_cz(self, u:int, v:int) -> RedStabGraph:
@@ -198,6 +241,10 @@ class RedStabGraph:
 
         if s_u and s_v: # T(viii)
             result.pivot_edge(u, v)
+
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
+        
             return result
         
         if s_u and not s_v or s_v and not s_u: # T(ix)
@@ -215,6 +262,9 @@ class RedStabGraph:
                 for n in result.neighbors(solid):
                     result.flip_sign(n)
 
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
+            
             return result
         
         if not s_u and not s_v: # T(x)
@@ -233,6 +283,11 @@ class RedStabGraph:
             if m_v:
                 for n in n_u:
                     result.flip_sign(n)
+
+            if not self.is_valid():
+                raise ValueError("Resulting graph is not reduced, something went wrong.")
+            
+            return result
 
 
     def equivalent_graphs(self) -> tuple[bool, set[tuple[tuple[tuple[int,...]], tuple[tuple[bool, bool, bool]]]]]:
