@@ -115,6 +115,7 @@ python3 -m benchmarks.run --output results/bm_output.csv
 python3 -m benchmarks.run --seed 69
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 python3 -m benchmarks.run --algorithm 'pm_css*'
+python3 -m benchmarks.run --stats --algorithm pm_css_sat
 ```
 
 ### Tests

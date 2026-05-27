@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
+from unittest import case
 
 import numpy as np
 
@@ -44,6 +45,9 @@ from .utils import (
     random_css_code,
 )
 
+N_STATS = 5
+MEAS_STATS = [(7,2),(10,4),(13,3),(17,7)]
+
 @dataclass(frozen=True)
 class Case:
     """One benchmark input."""
@@ -66,6 +70,17 @@ class Result:
     expected: bool | None
     success: bool
     error: str = ""
+
+@dataclass(frozen=True)
+class Statistic:
+    """One statistic result."""
+
+    algorithm: str
+    measurement: str
+    times: list[float]
+    mean: float
+    stddev: float
+    maximum: float
 
 
 Algorithm = Callable[..., bool]
@@ -113,6 +128,7 @@ def generated_css_pair(n: int, k: int, suffix: str) -> tuple[CSSCode, CSSCode] |
         DATA_DIR / f"{base}2_{suffix}.txt",
     )
     if not all(path.exists() for path in paths):
+        print(f"Generated CSS pair files not found for n={n}, k={k}.")
         return None
     code1_path, code2_path = paths
     return CSSCode.from_file(code1_path), CSSCode.from_file(code2_path)
@@ -171,6 +187,100 @@ def resolve_algorithm_names(selectors: Sequence[str] | None) -> list[str]:
 
     return sorted(selected_names)
 
+def random_non_permuted_css_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
+        if use_cached:
+            pair = generated_css_pair(n, k, "non_peq")
+            code1, code2 = pair or random_non_permuted_css_pair(n, k, seed=case_seed)
+        else:
+            code1, code2 = random_non_permuted_css_pair(n, k, seed=case_seed)
+        return Case(
+            name=f"random_non_permuted_css_{n}_{case_seed}",
+            inputs=(code1, code2),
+            expected_p=False,
+            expected_lc=None,
+        )
+
+def random_permuted_css_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
+    if use_cached:
+        pair = generated_css_pair(n, k, "peq")
+        code1, code2 = pair or random_permuted_css_pair(n, k, seed=case_seed)
+    else:
+        code1, code2 = random_permuted_css_pair(n, k, seed=case_seed)
+    return Case(
+        name=f"random_permuted_css_{n}_{k}_{case_seed}",
+        inputs=(code1, code2),
+        expected_p=True,
+        expected_lc=None,
+    )
+
+def random_non_permuted_stabilizer_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
+    if use_cached:
+        pair = generated_stabilizer_pair(n, k, "non_peq")
+        code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
+    else:
+        code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
+    return Case(
+        name=f"random_non_permuted_stb_{n}_{k}_{case_seed}",
+        inputs=(code1, code2),
+        expected_p=False,
+        expected_lc=None,
+    )
+    
+def random_permuted_stabilizer_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
+    if use_cached:
+        pair = generated_stabilizer_pair(n, k, "peq")
+        code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=case_seed)
+    else:
+        code1, code2 = random_permuted_stabilizer_pair(n, k, seed=case_seed)
+    return Case(
+        name=f"random_permuted_stb_{n}_{k}_{case_seed}",
+        inputs=(code1, code2),
+        expected_p=True,
+        expected_lc=None,
+    )
+
+def random_lcc_css_case(n: int, k: int, case_seed: int) -> Case:
+    code = random_css_code(n, k, seed=case_seed)
+    return Case(
+        name=f"random_lcc_css_{n}_{k}_{case_seed}",
+        inputs=(lc_equivalent_code(code, seed=case_seed + 420),),
+        expected_p=None,
+        expected_lc=True,
+    )
+
+def random_lcc_eq_case(n: int, k: int, case_seed: int) -> Case:
+    code1 = random_css_code(n, k, seed=case_seed)
+    return Case(
+        name=f"random_lcc_eq_{n}_{k}_{case_seed}",
+        inputs=(code1, lc_equivalent_code(code1, seed=case_seed + 420)),
+        expected_p=None,
+        expected_lc=True,
+    )
+
+def seeded_measurements(seed: int, algorithm: str) -> list[tuple[str, list[Case]]]:
+    rng = np.random.default_rng(seed)
+    seeds = rng.integers(0, 1000, size=N_STATS)
+    measurements : list[tuple[str, list[Case]]] = []
+
+    for n, k in MEAS_STATS:
+        if algorithm.startswith("pm_css"):
+            non_permuted_css = [random_non_permuted_css_case(n, k, s, False) for s in seeds]
+            permuted_css = [random_permuted_css_case(n, k, s+69, False) for s in seeds]
+            measurements.append((f"non_permuted_css_{n}_{k}", non_permuted_css))
+            measurements.append((f"permuted_css_{n}_{k}", permuted_css))
+        elif algorithm.startswith("pm_stb"):
+            non_permuted_stabilizer = [random_non_permuted_stabilizer_case(n, k, s+1337, False) for s in seeds]
+            permuted_stabilizer = [random_permuted_stabilizer_case(n, k, s+420, False) for s in seeds]
+            measurements.append((f"non_permuted_stab_{n}_{k}", non_permuted_stabilizer))
+            measurements.append((f"permuted_stab_{n}_{k}", permuted_stabilizer))
+        elif algorithm.startswith("lc_equ"):
+            lc_eq = [random_lcc_eq_case(n, k, s) for s in seeds]
+            measurements.append((f"lc_eq_{n}_{k}", lc_eq))
+        elif algorithm.startswith("lc_css"):
+            lc_cases = [random_lcc_css_case(n, k, s+13) for s in seeds]
+            measurements.append((f"lc_css_{n}_{k}", lc_cases))
+
+    return measurements
 
 def default_cases(seed: int) -> list[Case]:
     """Return test cases."""
@@ -185,55 +295,6 @@ def default_cases(seed: int) -> list[Case]:
     rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
     shor = CSSCode.from_file("data/shor")
     tetrahedral = CSSCode.from_file("data/tetrahedral")
-
-    def random_non_permuted_css_case(n: int, k: int, case_seed: int) -> Case:
-        pair = generated_css_pair(n, k, "non_peq")
-        code1, code2 = pair or random_non_permuted_css_pair(n, k, seed=case_seed)
-        return Case(
-            name=f"random_non_permuted_css_{n}",
-            inputs=(code1, code2),
-            expected_p=False,
-            expected_lc=None,
-        )
-
-    def random_permuted_css_case(n: int, k: int, case_seed: int) -> Case:
-        pair = generated_css_pair(n, k, "peq")
-        code1, code2 = pair or random_permuted_css_pair(n, k, seed=case_seed)
-        return Case(
-            name=f"random_permuted_css_{n}",
-            inputs=(code1, code2),
-            expected_p=True,
-            expected_lc=None,
-        )
-
-    def random_non_permuted_stabilizer_case(n: int, k: int, case_seed: int) -> Case:
-        pair = generated_stabilizer_pair(n, k, "non_peq")
-        code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
-        return Case(
-            name=f"random_non_permuted_stb_{n}",
-            inputs=(code1, code2),
-            expected_p=False,
-            expected_lc=None,
-        )
-    
-    def random_permuted_stabilizer_case(n: int, k: int, case_seed: int) -> Case:
-        pair = generated_stabilizer_pair(n, k, "peq")
-        code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=case_seed)
-        return Case(
-            name=f"random_permuted_stb_{n}",
-            inputs=(code1, code2),
-            expected_p=True,
-            expected_lc=None,
-        )
-    
-    def random_lcc_css_case(n: int, k: int, case_seed: int) -> Case:
-        code = random_css_code(n, k, seed=case_seed)
-        return Case(
-            name=f"random_lcc_css_{n}",
-            inputs=(lc_equivalent_code(code, seed=case_seed + 420),),
-            expected_p=None,
-            expected_lc=True,
-        )
 
     # ---------------------
 
@@ -341,48 +402,35 @@ def default_cases(seed: int) -> list[Case]:
         case_steane_permuted, # n = 7 , k = 1
         case_shor_permuted, # n = 9 , k = 1
         case_carbon_permuted, # n = 12 , k = 2
-        # case_tetrahedral_permuted, # n = 15 , k = 1
-        # case_hamming_15_permuted, # n = 15 , k = 7
-        # case_golay_permuted, # n = 23 , k = 1
-        # case_rotated_surface_d5_permuted, # n = 25 , k = 1
+        case_tetrahedral_permuted, # n = 15 , k = 1
+        case_hamming_15_permuted, # n = 15 , k = 7
+        case_golay_permuted, # n = 23 , k = 1
+        case_rotated_surface_d5_permuted, # n = 25 , k = 1
     ]
 
-    random_permuted = [
+    random_permuted_css = [
         random_permuted_css_case(4, 2, seed + 1),
         random_permuted_css_case(5, 1, seed + 2),
-        random_permuted_css_case(10, 4, seed + 3), 
-        random_permuted_css_case(12, 4, seed + 4), 
-        # random_permuted_css_case(14, 3, seed + 5), 
-        # random_permuted_css_case(20, 4, seed + 6), 
-        # random_permuted_stabilizer_case(4, 2, seed + 7),
-        # random_permuted_stabilizer_case(5, 1, seed + 8),
-        # random_permuted_stabilizer_case(10, 4, seed + 9), 
-        # random_permuted_stabilizer_case(12, 4, seed + 10), 
-        # random_permuted_stabilizer_case(14, 3, seed + 11), 
-        # random_permuted_stabilizer_case(20, 4, seed + 12), 
-        # random_permuted_stabilizer_case(30, 5, seed + 13),
-        # random_permuted_stabilizer_case(40, 10, seed + 14), 
-        # random_permuted_stabilizer_case(50, 15, seed + 9), 
-        # random_permuted_stabilizer_case(60, 20, seed + 10), 
-        # random_permuted_stabilizer_case(70, 12, seed + 11), 
+        random_permuted_css_case(6, 3, seed + 3),
+        random_permuted_css_case(7, 2, seed + 7),
+        random_permuted_css_case(8, 3, seed + 69), 
+        random_permuted_css_case(9, 5, seed + 420),
+        random_permuted_css_case(10, 4, seed), 
+        random_permuted_css_case(14, 6, seed + 5), 
+        random_permuted_css_case(17, 7, seed + 99), 
+        random_permuted_css_case(20, 12, seed + 62), 
     ]
 
-    random_non_permuted = [
+    random_non_permuted_css = [
+        random_non_permuted_css_case(4, 2, seed + 1),
         random_non_permuted_css_case(5, 1, seed + 20), 
-        random_non_permuted_css_case(8, 3, seed + 19), 
-        random_non_permuted_css_case(10, 4, seed + 21), 
-        random_non_permuted_css_case(12, 4, seed + 22), 
-        # random_non_permuted_css_case(14, 3, seed + 23), 
-        # random_non_permuted_css_case(20, 4, seed + 20), 
-        # random_non_permuted_stabilizer_case(5, 1, seed + 20), 
-        # random_non_permuted_stabilizer_case(10, 4, seed + 21), 
-        # random_non_permuted_stabilizer_case(12, 4, seed + 22), 
-        # random_non_permuted_stabilizer_case(14, 3, seed + 23), 
-        # random_non_permuted_stabilizer_case(20, 4, seed + 20), 
-        # random_non_permuted_stabilizer_case(40, 10, seed + 22), 
-        # random_non_permuted_stabilizer_case(50, 15, seed + 23), 
-        # random_non_permuted_stabilizer_case(60, 20, seed + 24),
-        # random_non_permuted_stabilizer_case(70, 12, seed + 25),
+        random_non_permuted_css_case(6, 3, seed + 42),
+        random_non_permuted_css_case(9, 5, seed + 1337),
+        random_non_permuted_css_case(11, 5, seed + 1337), 
+        random_non_permuted_css_case(15, 10, seed + 65), 
+        random_non_permuted_css_case(16, 3, seed + 8), 
+        random_non_permuted_css_case(19, 9, seed + 94), 
+        random_non_permuted_css_case(20, 12, seed + 62), 
     ]
 
     known_lc = [
@@ -400,7 +448,7 @@ def default_cases(seed: int) -> list[Case]:
         random_lcc_css_case(10, 4, seed + 69),
     ]
 
-    return known_permuted + random_permuted + random_non_permuted
+    return random_permuted_css
 
 
 def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
@@ -439,26 +487,131 @@ def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int
         )
 
 
-def run_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], repeats: int) -> list[Result]:
+def run_raw_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], repeats: int, verbose: bool = True) -> list[Result]:
     """Run selected algorithms on cases with the matching problem type."""
     results: list[Result] = []
     selected_names = set(algorithm_names)
 
     for algorithm_name in sorted(selected_names & ALGORITHMS.keys()):
         print(f"Running benchmark for algorithm: {algorithm_name}")
+        result_algorithm = []
         for case in cases:
             if not case_supports_algorithm(case, algorithm_name):
                 continue
             print(f"    Running case: {case.name}...")
-            results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
+            result_algorithm.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
 
-        print()
-        print_results([result for result in results if result.algorithm == algorithm_name])
-        print()
+        if verbose:
+            print_results(result_algorithm)
+
+        results.extend(result_algorithm)
+
     return results
 
+def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int, verbose: bool = True) -> list[Statistic]:
+    """Run selected algorithms on cases with the matching problem type."""
+    statistics: list[Statistic] = []
+    selected_names = set(algorithm_names)
 
-def write_csv(results: Sequence[Result], seed: int, output: Path) -> None:
+    for algorithm_name in sorted(selected_names & ALGORITHMS.keys()):
+        print(f"Running benchmark for algorithm: {algorithm_name}")
+        stats_algorithm = []
+        for measurement_name, measurement in seeded_measurements(seed=seed, algorithm=algorithm_name):
+            print(f"    Running measurement: {measurement_name}")
+            results: list[Result] = []
+            for case in measurement:
+                if not case_supports_algorithm(case, algorithm_name):
+                    continue
+                print(f"        Running case: {case.name}...")
+                results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
+
+            stat = compute_statistics(results, algorithm_name, measurement_name)
+
+            if stat is not None:
+                stats_algorithm.append(stat)
+
+        if verbose:
+            print_statistics(stats_algorithm)
+
+        statistics.extend(stats_algorithm)
+    
+    return statistics
+
+def compute_statistics(results: Sequence[Result], algorithm_name: str, measurement_name: str) -> Statistic | None:
+    """Compute mean and standard deviation of runtimes for each algorithm and case."""
+    times = []
+
+    for result in results:
+        if not result.success:
+            print(f"Warning: Skipping failed case {result.case} for algorithm {algorithm_name} in statistics.")
+            continue
+        if result.algorithm != algorithm_name:
+            continue
+
+        times.append(result.seconds)
+
+    if not times:
+        return None
+    
+    mean = np.mean(times)
+    stddev = np.std(times, ddof=1) if len(times) > 1 else 0.0
+
+    return Statistic(
+        algorithm=algorithm_name,
+        measurement=measurement_name,
+        times=times,
+        mean=mean,
+        stddev=stddev,
+        maximum=max(times),
+    )
+    
+def write_stats(stats: Sequence[Statistic], seed: int, output: Path) -> None:
+    """Write benchmark statistics to CSV."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    rows_short = [
+        {
+            "algorithm": stat.algorithm,
+            "measurement": stat.measurement,
+            "mean_seconds": f"{stat.mean:.9f}",
+            "stddev_seconds": f"{stat.stddev:.9f}",
+            "maximum_seconds": f"{stat.maximum:.9f}",
+        }
+        for stat in stats
+    ]
+
+    if len(rows_short) == 0:
+        return
+
+    with output.open("w", newline="", encoding="utf-8") as file:
+        csv.writer(file).writerow([seed])
+        writer = csv.DictWriter(file, fieldnames=list(rows_short[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows_short)
+
+    # ---
+    output_raw = output.with_name(output.stem + "_raw" + output.suffix)
+    output_raw.parent.mkdir(parents=True, exist_ok=True)
+    rows_raw = [
+        {
+            "seed": seed,
+            "algorithm": stat.algorithm,
+            "measurement": stat.measurement,
+            "sample": i,
+            "time_seconds": f"{time:.9f}",
+        }
+        for stat in stats
+        for i, time in enumerate(stat.times, start=1)
+    ]
+
+    if len(rows_raw) == 0:
+        return
+
+    with output_raw.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=list(rows_raw[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows_raw)
+
+def write_bms(results: Sequence[Result], seed: int, output: Path) -> None:
     """Write benchmark results to CSV."""
     output.parent.mkdir(parents=True, exist_ok=True)
     rows = [
@@ -485,12 +638,28 @@ def write_csv(results: Sequence[Result], seed: int, output: Path) -> None:
         writer.writeheader()
         writer.writerows(rows)
 
+
+def print_statistics(statistics: Sequence[Statistic]) -> None:
+    """Print benchmark statistics to console."""
+    if len(statistics) == 0:
+        print("No statistics to show.")
+        return
+    
+    print()
+    print(f"Benchmark statistics:\n")
+
+    for stat in statistics:
+        print(
+            f"{stat.algorithm:24} {stat.measurement:42} "
+            f"mean={stat.mean:.6f}s stddev={stat.stddev:.6f}s max={stat.maximum:.6f}s"
+        )
+
 def print_results(results: Sequence[Result]) -> None:
     """Print benchmark results to console."""
     if len(results) == 0:
         print("No cases ran, no results to show.")
         return
-    
+
     print(f"Benchmark results:\n")
 
     for result in results:
@@ -522,6 +691,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
+    parser.add_argument("--stats", action="store_true", default=False, help="Execute the algorithm on the cases with different seeds and print the statistics of the runtime.")
+    parser.add_argument("--stats_output", type=Path, default=Path("results/statistics.csv"), help="CSV output path for statistics.")
     args = parser.parse_args(argv)
     try:
         args.algorithm = resolve_algorithm_names(args.algorithm)
@@ -536,10 +707,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.repeats < 1:
         raise ValueError("--repeats must be at least 1.")
 
-   
-    results = run_benchmarks(default_cases(seed=args.seed), args.algorithm, args.repeats)
-    write_csv(results, args.seed, args.output)
-    return 0
+    if args.stats:
+        statistics = run_stat_benchmarks(args.algorithm, args.repeats, args.seed)
+        write_stats(statistics, args.seed, args.stats_output)
+        return 0
+                                      
+    else:
+        results = run_raw_benchmarks(default_cases(seed=args.seed), args.algorithm, args.repeats, verbose=True)
+        write_bms(results, args.seed, args.output)
+        return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())

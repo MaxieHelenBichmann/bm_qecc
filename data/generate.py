@@ -11,6 +11,18 @@ import sys
 # python3 data/generate.py 60 20 245
 # python3 data/generate.py 70 12 7
 
+# python3 data/generate.py 10 4 1337 --css=True
+# python3 data/generate.py 11 5 1337 --css=True
+# python3 data/generate.py 12 9 4 --css=True
+# python3 data/generate.py 13 2 64 --css=True
+# python3 data/generate.py 14 6 5 --css=True
+# python3 data/generate.py 15 10 65 --css=True
+# python3 data/generate.py 16 3 8 --css=True
+# python3 data/generate.py 17 7 2 --css=True
+# python3 data/generate.py 18 5 67 --css=True
+# python3 data/generate.py 19 9 94 --css=True
+# python3 data/generate.py 20 12 62 --css=True
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
