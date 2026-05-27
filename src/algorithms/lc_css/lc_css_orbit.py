@@ -27,6 +27,9 @@ class RedStabGraph:
         self.edges : set[tuple[int, int]]= set() # (u,v) with u < v
 
     def toggle_edge(self, u:int , v:int) -> None:
+        if u == v:
+            raise ValueError("Self-loops are stored on vertices, not in the edge set.")
+
         min_u_v = min(u, v)
         max_u_v = max(u, v)
         if (min_u_v, max_u_v) in self.edges:
@@ -83,6 +86,11 @@ class RedStabGraph:
         return tuple(map(tuple, self.adj_matrix().tolist())), tuple(self.vertices)
     
     def is_valid(self) -> bool:
+        nr = self.n + self.k
+        for u, v in self.edges:
+            if not (0 <= u < v < nr):
+                return False
+
         for u in range(self.n + self.k):
             if self.vertices[u][1]:
                 continue
@@ -105,7 +113,7 @@ class RedStabGraph:
         if s and not l and not non_solid_n:  # T(i)
             result.flip_fill(u)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -120,7 +128,7 @@ class RedStabGraph:
 
             result.flip_sign(u)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
 
             return result
@@ -146,7 +154,7 @@ class RedStabGraph:
                 for cur_n in result.neighbors(n):
                     result.flip_sign(cur_n)
             
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -179,7 +187,7 @@ class RedStabGraph:
                 for cur_n in result.neighbors(n):
                     result.flip_sign(cur_n)
                 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -195,7 +203,7 @@ class RedStabGraph:
         if s: # T(vi)
             result.advance_loop(u)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -208,7 +216,7 @@ class RedStabGraph:
 
             result.local_complementation(u)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             return result
 
@@ -219,7 +227,7 @@ class RedStabGraph:
         if s: # T5
             result.flip_sign(u)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -231,7 +239,7 @@ class RedStabGraph:
             if l:
                 result.flip_sign(u)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -247,7 +255,7 @@ class RedStabGraph:
         if s_u and s_v: # T(viii)
             result.toggle_edge(u, v)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
         
             return result
@@ -259,6 +267,8 @@ class RedStabGraph:
             hollow_m = m_v if s_u else m_u
 
             for n in result.neighbors(hollow):
+                if n == solid:
+                    continue
                 result.toggle_edge(solid, n)
 
             if init_connected and not hollow_m or not init_connected and hollow_m:
@@ -266,7 +276,7 @@ class RedStabGraph:
                 for n in result.neighbors(solid):
                     result.flip_sign(n)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -288,7 +298,7 @@ class RedStabGraph:
                 for n in n_u:
                     result.flip_sign(n)
 
-            if not self.is_valid():
+            if not result.is_valid():
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
@@ -312,8 +322,8 @@ class RedStabGraph:
                 _, s_v, _ = current_graph.vertices[v]
 
                 if s_u and not s_v or s_v and not s_u: 
-                    hollow = v if s_u else s_v
-                    solid = u if s_u else s_v
+                    hollow = v if s_u else u
+                    solid = u if s_u else v
 
                     if current_graph.vertices[solid][0]: # E(i)
                         new_graph = current_graph.copy()
@@ -384,11 +394,12 @@ class RedStabGraph:
         return found_bipartite, seen
 
     @staticmethod
-    def from_adj_matrix(adj:np.ndarray, k : int, solid: int) -> RedStabGraph:
+    def from_adj_matrix(adj:np.ndarray, k : int, solid: int | set[int]) -> RedStabGraph:
         graph = RedStabGraph()
         nr = adj.shape[1]
         graph.n = nr - k
         graph.k = k
+        solid_vertices = set(range(solid)) if isinstance(solid, int) else solid
         for i in range(nr):
             for j in range(i + 1, nr):
                 if adj[i, j]:
@@ -396,7 +407,7 @@ class RedStabGraph:
 
         graph.vertices = []
         for v in range(nr):
-            node = (adj[v, v] & 1, v < solid, False)
+            node = (bool(adj[v, v] & 1), v in solid_vertices, False)
             graph.vertices.append(node)
         return graph
     
@@ -470,8 +481,9 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
 def _stab_state_to_graph_state(tableau: np.ndarray, n: int, k: int) -> RedStabGraph:
     """Convert a stabilizer state into a graph state under local Clifford operations.
     Returns the reduced stabilizer-state"""
-    def _bring_into_canon_form() -> tuple[int, list[tuple[int, int]]]:
+    def _bring_into_canon_form() -> tuple[int, list[tuple[int, int]], set[int]]:
         swaps = []
+        qubit_order = list(range(n))
 
         # row-reduce X block
         row = 0
@@ -492,6 +504,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int, k: int) -> RedStabGr
             if pivot_col != col_target:
                 tableau[:, [pivot_col, col_target]] = tableau[:, [col_target, pivot_col]]
                 tableau[:, [pivot_col + n, col_target + n]] = tableau[:, [col_target + n, pivot_col + n]]
+                qubit_order[pivot_col], qubit_order[col_target] = qubit_order[col_target], qubit_order[pivot_col]
                 swaps.append((pivot_col, col_target))
 
             if pivot_row != row:
@@ -526,7 +539,8 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int, k: int) -> RedStabGr
             pivot_row, pivot_col = pivot
             if pivot_col != col_target:
                 tableau[:, [pivot_col, col_target]] = tableau[:, [col_target, pivot_col]]
-                tableau[:, [pivot_col - n, col_target - n]] = tableau[:, [col_target - n, pivot_col - n]]
+                tableau[:, [pivot_col + n, col_target + n]] = tableau[:, [col_target + n, pivot_col + n]]
+                qubit_order[pivot_col], qubit_order[col_target] = qubit_order[col_target], qubit_order[pivot_col]
                 swaps.append((pivot_col, col_target))
             
             if pivot_row != lower_row:
@@ -544,7 +558,7 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int, k: int) -> RedStabGr
                     lower = r + (c - r)
                     tableau[top, :] = (tableau[top, :] + tableau[lower, :]) % 2
 
-        return r, swaps
+        return r, swaps, set(qubit_order[:r])
 
     def _extract_adjacency_matrix(swaps: list[tuple[int, int]], s: int) -> np.ndarray:
         X = tableau[:, :n]
@@ -564,13 +578,13 @@ def _stab_state_to_graph_state(tableau: np.ndarray, n: int, k: int) -> RedStabGr
 
         return gamma
 
-    s, swaps = _bring_into_canon_form()
+    s, swaps, solid_vertices = _bring_into_canon_form()
     gamma = _extract_adjacency_matrix(swaps, s)
 
     if not np.array_equal(gamma, gamma.T):
         raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
 
-    return RedStabGraph.from_adj_matrix(gamma, k, s)
+    return RedStabGraph.from_adj_matrix(gamma, k, solid_vertices)
 
 
 def _traverse_cliff_orbit(graph: RedStabGraph) -> bool:
