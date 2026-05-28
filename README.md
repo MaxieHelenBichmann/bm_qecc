@@ -11,17 +11,17 @@ The following problems are to be benchmarked.
 
 - A) Are two given Stabilizer Codes C and C' equivalent (define the same codespace) up to permutation of the output qubits?
 
-$$C \thicksim_P \ C'  \quad \iff \quad \exists P \in S_n : \quad \exists R \in GL(2) : \quad \text{tableu}(C') = R \cdot \text{tableu}(C) \cdot \begin{pmatrix} P & 0 \\\ 0 & P\end{pmatrix} $$
+$$C \thicksim_P \ C'  \quad \iff \quad \exists P \in S_n : \quad \exists R \in GL(2) : \quad \text{tableau}(C') = R \cdot \text{tableau}(C) \cdot \begin{pmatrix} P & 0 \\\ 0 & P\end{pmatrix} $$
 
 ### Local-Clifford Equivalence
 
 - B) Are two given Stabilizer Codes C and C' Local-Clifford equivalent (define the same codespace) up to Local Clifford gates on the output qubits?
 
-$$C \thicksim_{LC} \ C'  \quad \iff \quad \exists U = U_1 \otimes ... \otimes U_n \ \text{with} \ U_i \in \\{I, H ,S\\}^l : \quad rowspace(\text{tableu}(C')) = U \cdot rowspace(\text{tableu}(C)) \cdot U^\dagger = \\{U \cdot g \cdot U^\dagger \ | \ g \in rowspace(\text{tableu}(C)) \\} $$
+$$C \thicksim_{LC} \ C'  \quad \iff \quad \exists U = U_1 \otimes ... \otimes U_n \ \text{with} \ U_i \in \\{I, H ,S\\}^l : \quad rowspace(\text{tableau}(C')) = U \cdot rowspace(\text{tableau}(C)) \cdot U^\dagger = \\{U \cdot g \cdot U^\dagger \ | \ g \in rowspace(\text{tableau}(C)) \\} $$
 
 - C) Is a given Stabilizer Code C Local-Clifford equivalent (define the same codespace up to Local Clifford gates on the output qubits) to a CSS Code?
 
-$$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x & 0 \\\ 0 & H_z\end{pmatrix} : \quad C \thicksim_{LC} \ C_{CSS} $$
+$$\exists C_{CSS} \ \text{with} \ \text{tableau}(C_{CSS}) = \begin{pmatrix} H_x & 0 \\\ 0 & H_z\end{pmatrix} : \quad C \thicksim_{LC} \ C_{CSS} $$
 
 ## Approaches
 
