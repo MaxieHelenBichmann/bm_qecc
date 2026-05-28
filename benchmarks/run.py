@@ -128,7 +128,6 @@ def generated_css_pair(n: int, k: int, suffix: str) -> tuple[CSSCode, CSSCode] |
         DATA_DIR / f"{base}2_{suffix}.txt",
     )
     if not all(path.exists() for path in paths):
-        print(f"Generated CSS pair files not found for n={n}, k={k}.")
         return None
     code1_path, code2_path = paths
     return CSSCode.from_file(code1_path), CSSCode.from_file(code2_path)
@@ -260,27 +259,28 @@ def random_lcc_eq_case(n: int, k: int, case_seed: int) -> Case:
 def seeded_measurements(seed: int, algorithm: str) -> list[tuple[str, list[Case]]]:
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1000, size=N_STATS)
-    measurements : list[tuple[str, list[Case]]] = []
+    measurements_pos : list[tuple[str, list[Case]]] = []
+    measurements_neg : list[tuple[str, list[Case]]] = []
 
     for n, k in MEAS_STATS:
         if algorithm.startswith("pm_css"):
             non_permuted_css = [random_non_permuted_css_case(n, k, s, False) for s in seeds]
             permuted_css = [random_permuted_css_case(n, k, s+69, False) for s in seeds]
-            measurements.append((f"non_permuted_css_{n}_{k}", non_permuted_css))
-            measurements.append((f"permuted_css_{n}_{k}", permuted_css))
+            measurements_neg.append((f"non_permuted_css_{n}_{k}", non_permuted_css))
+            measurements_pos.append((f"permuted_css_{n}_{k}", permuted_css))
         elif algorithm.startswith("pm_stb"):
             non_permuted_stabilizer = [random_non_permuted_stabilizer_case(n, k, s+1337, False) for s in seeds]
             permuted_stabilizer = [random_permuted_stabilizer_case(n, k, s+420, False) for s in seeds]
-            measurements.append((f"non_permuted_stab_{n}_{k}", non_permuted_stabilizer))
-            measurements.append((f"permuted_stab_{n}_{k}", permuted_stabilizer))
+            measurements_neg.append((f"non_permuted_stab_{n}_{k}", non_permuted_stabilizer))
+            measurements_pos.append((f"permuted_stab_{n}_{k}", permuted_stabilizer))
         elif algorithm.startswith("lc_equ"):
             lc_eq = [random_lcc_eq_case(n, k, s) for s in seeds]
-            measurements.append((f"lc_eq_{n}_{k}", lc_eq))
+            measurements_pos.append((f"lc_eq_{n}_{k}", lc_eq))
         elif algorithm.startswith("lc_css"):
             lc_cases = [random_lcc_css_case(n, k, s+13) for s in seeds]
-            measurements.append((f"lc_css_{n}_{k}", lc_cases))
+            measurements_pos.append((f"lc_css_{n}_{k}", lc_cases))
 
-    return measurements
+    return measurements_pos + measurements_neg
 
 def default_cases(seed: int) -> list[Case]:
     """Return test cases."""
@@ -493,12 +493,14 @@ def run_raw_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], re
     selected_names = set(algorithm_names)
 
     for algorithm_name in sorted(selected_names & ALGORITHMS.keys()):
-        print(f"Running benchmark for algorithm: {algorithm_name}")
+        if verbose:
+            print(f"Running benchmark for algorithm: {algorithm_name}")
         result_algorithm = []
         for case in cases:
             if not case_supports_algorithm(case, algorithm_name):
                 continue
-            print(f"    Running case: {case.name}...")
+            if verbose:
+                print(f"    Running case: {case.name}...")
             result_algorithm.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
 
         if verbose:
@@ -514,15 +516,18 @@ def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int,
     selected_names = set(algorithm_names)
 
     for algorithm_name in sorted(selected_names & ALGORITHMS.keys()):
-        print(f"Running benchmark for algorithm: {algorithm_name}")
+        if verbose:
+            print(f"Running benchmark for algorithm: {algorithm_name}")
         stats_algorithm = []
         for measurement_name, measurement in seeded_measurements(seed=seed, algorithm=algorithm_name):
-            print(f"    Running measurement: {measurement_name}")
+            if verbose:
+                print(f"    Running measurement: {measurement_name}")
             results: list[Result] = []
             for case in measurement:
                 if not case_supports_algorithm(case, algorithm_name):
                     continue
-                print(f"        Running case: {case.name}...")
+                if verbose:
+                    print(f"        Running case: {case.name}...")
                 results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
 
             stat = compute_statistics(results, algorithm_name, measurement_name)
@@ -678,7 +683,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description=__doc__,
         epilog="Available algorithms: " + ", ".join(all_algorithm_names()),
     )
-    parser.add_argument("--repeats", type=int, default=3, help="Number of repetitions; the average runtime is recorded.")
+    parser.add_argument("--repeats", type=int, default=1, help="Number of repetitions; the average runtime is recorded.")
     parser.add_argument(
         "--algorithm",
         action="append",
@@ -693,6 +698,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
     parser.add_argument("--stats", action="store_true", default=False, help="Execute the algorithm on the cases with different seeds and print the statistics of the runtime.")
     parser.add_argument("--stats_output", type=Path, default=Path("results/statistics.csv"), help="CSV output path for statistics.")
+    parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
     args = parser.parse_args(argv)
     try:
         args.algorithm = resolve_algorithm_names(args.algorithm)
@@ -713,7 +719,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
                                       
     else:
-        results = run_raw_benchmarks(default_cases(seed=args.seed), args.algorithm, args.repeats, verbose=True)
+        results = run_raw_benchmarks(default_cases(seed=args.seed), args.algorithm, args.repeats, verbose=args.verbose)
         write_bms(results, args.seed, args.output)
         return 0
 
