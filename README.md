@@ -112,10 +112,20 @@ Certain parameters can be set as well, e.g. in the following commands
 ```bash
 python3 -m benchmarks.run --repeats 1
 python3 -m benchmarks.run --output results/bm_output.csv
-python3 -m benchmarks.run --seed 69
+python3 -m benchmarks.run --seed 69 
+python3 -m benchmarks.run --verbose
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 python3 -m benchmarks.run --algorithm 'pm_css*'
 python3 -m benchmarks.run --stats --algorithm pm_css_sat
+```
+
+Run more detailed analysis, optionally:
+```bash
+pip3 install py-spy
+py-spy record \
+  --format flamegraph \
+  --output results/pm_css_matroid_flame.svg \
+  -- python -m benchmarks.run --algorithm pm_css_matroid --output results/pm_css_matroid_profile.csv
 ```
 
 ### Tests
