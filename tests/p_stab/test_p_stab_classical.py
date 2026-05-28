@@ -205,6 +205,11 @@ def test_compute_canonical_form_manual() -> None:
 # are_peq_stab_classical
 # ----------------------------------------------------------------------------------------------------
 
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [1193, 1074]])
+def test_are_peq_stab_classical_failing_bm(seed: int) -> None:
+    code1, code2 = random_non_permuted_stabilizer_pair(13, 3, seed=seed)
+    assert are_peq_stab_classical(code1, code2) is False
+
 def test_are_peq_stab_classical_random_smoke() -> None:
     for n in range(3, 6):
         for k in range(n + 1):
