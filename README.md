@@ -49,7 +49,7 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableu}(C_{CSS}) = \begin{pmatrix} H_x &
 #### $C \thicksim_{LC} \ C_{CSS}$
 - [x] Brute Force
 - [ ] KLS Normal Form **INVALID**
-- [ ] Graph State Machinery with LC Orbit **INVALID**
+- [x] Graph State Machinery with LC Orbit
 - [x] SAT
 
 
