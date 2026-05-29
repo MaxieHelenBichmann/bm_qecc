@@ -37,6 +37,8 @@ from src.core.css_code import CSSCode
 
 from .utils import (
     lc_equivalent_code,
+    non_permutation_equivalent_css_code,
+    non_permutation_equivalent_stabilizer_code,
     permutation_equivalent_code,
     permutation_equivalent_css_code,
     random_permuted_stabilizer_pair,
@@ -278,7 +280,7 @@ def random_lcc_eq_case(n: int, k: int, case_seed: int) -> Case:
     )
 
 def known_non_permuted_css_case(code1: CSSCode, case_seed: int) -> Case:
-        code2 = permutation_equivalent_css_code(code1, seed=case_seed)
+        code2 = non_permutation_equivalent_css_code(code1, seed=case_seed)
         return Case(
             name=f"known_non_permuted_css_{case_seed}",
             inputs=(code1, code2),
@@ -296,7 +298,7 @@ def known_permuted_css_case(code1: CSSCode, case_seed: int) -> Case:
     ) 
 
 def known_non_permuted_stabilizer_case(code1: StabilizerCode, case_seed: int) -> Case:
-    code2 = permutation_equivalent_code(code1, seed=case_seed)
+    code2 = non_permutation_equivalent_stabilizer_code(code1, seed=case_seed)
     return Case(
         name=f"known_non_permuted_stb_{case_seed}",
         inputs=(code1, code2),
