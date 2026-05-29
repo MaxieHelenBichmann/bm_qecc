@@ -530,28 +530,21 @@ def default_cases(seed: int) -> list[Case]:
     ]
 
     random_permuted_css = [
+        random_permuted_css_case(3, 1, seed + 1),
         random_permuted_css_case(4, 2, seed + 1),
-        random_permuted_css_case(5, 1, seed + 2),
+        random_permuted_css_case(5, 2, seed + 2),
         random_permuted_css_case(6, 3, seed + 3),
         random_permuted_css_case(7, 2, seed + 7),
         random_permuted_css_case(8, 3, seed + 69), 
         random_permuted_css_case(9, 5, seed + 420),
         random_permuted_css_case(10, 4, seed), 
-        random_permuted_css_case(14, 6, seed + 5), 
-        random_permuted_css_case(17, 7, seed + 99), 
-        random_permuted_css_case(20, 12, seed + 62), 
     ]
 
     random_non_permuted_css = [
-        random_non_permuted_css_case(4, 2, seed + 1),
-        random_non_permuted_css_case(5, 1, seed + 20), 
-        random_non_permuted_css_case(6, 3, seed + 42),
+        random_non_permuted_css_case(3, 1, seed + 1),
+        random_non_permuted_css_case(5, 2, seed + 20), 
+        random_non_permuted_css_case(7, 2, seed + 42),
         random_non_permuted_css_case(9, 5, seed + 1337),
-        random_non_permuted_css_case(11, 5, seed + 1337), 
-        random_non_permuted_css_case(15, 10, seed + 65), 
-        random_non_permuted_css_case(16, 3, seed + 8), 
-        random_non_permuted_css_case(19, 9, seed + 94), 
-        random_non_permuted_css_case(20, 12, seed + 62), 
     ]
 
     known_lc = [
@@ -569,7 +562,7 @@ def default_cases(seed: int) -> list[Case]:
         random_lcc_css_case(10, 4, seed + 69),
     ]
 
-    return random_permuted_css
+    return known_permuted + random_permuted_css + random_non_permuted_css + known_lc + known_lc_css + random_lc_css
 
 
 def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
