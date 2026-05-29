@@ -11,6 +11,23 @@ from pynauty import Graph, certificate
 
 from ...core.css_code import CSSCode
 
+
+def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
+    support = 0
+    for col in np.flatnonzero(row):
+        support |= 1 << int(col)
+    return support
+
+
+def _mask_as_tuple(mask: int) -> tuple[int, ...]:
+    support: list[int] = []
+    while mask:
+        bit = mask & -mask
+        support.append(bit.bit_length() - 1)
+        mask ^= bit
+    return tuple(support)
+
+
 def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
     """
     Circuits of the binary matroid whose ground set is the columns of A.
@@ -34,30 +51,33 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
     if K.shape[1] != A.shape[1]:
         raise ValueError("Kernel basis must have the same number of columns as the input matrix.")
 
-    k, n_cols = K.shape
-    candidates: list[set[int]] = []
+    k, _ = K.shape
+    row_supports = [_row_support_as_mask(row) for row in K]
+    candidates_by_size: list[list[int]] = [[] for _ in range(A.shape[1] + 1)]
 
-    # all nonzero combinations of kernel basis rows
+    # All nonzero combinations of kernel basis rows. Gray-code order changes
+    # one row at a time, avoiding a fresh vector and k row checks per mask.
+    support = 0
+    previous_gray = 0
     for mask in range(1, 1 << k):
-        x = np.zeros(n_cols, dtype=np.uint8)
+        gray = mask ^ (mask >> 1)
+        changed = gray ^ previous_gray
+        support ^= row_supports[changed.bit_length() - 1]
+        previous_gray = gray
 
-        for i in range(k):
-            if (mask >> i) & 1:
-                x ^= K[i]
-
-        support = set(np.flatnonzero(x))
         if support:
-            candidates.append(support)
+            candidates_by_size[support.bit_count()].append(support)
 
     # inclusion-minimal supports
-    candidates.sort(key=len)
-    circuits: list[set[int]] = []
+    circuits: list[int] = []
 
-    for support in candidates:
-        if not any(c <= support for c in circuits):
-            circuits.append(support)
+    for candidates in candidates_by_size:
+        for support in candidates:
+            if not any((circuit & support) == circuit for circuit in circuits):
+                circuits.append(support)
 
-    return [tuple(sorted(c)) for c in circuits]
+    return sorted((_mask_as_tuple(circuit) for circuit in circuits), key=lambda circuit: (len(circuit), circuit))
+
 
 def _graph_from_circuits(n: int, circuits_hx: list[tuple[int, ...]], circuits_hz: list[tuple[int, ...]]) -> Graph:
 

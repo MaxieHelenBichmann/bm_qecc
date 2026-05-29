@@ -23,6 +23,52 @@ def test_circuits_binary_matroid_simple_dependency() -> None:
 
     assert _circuits_binary_matroid(matrix) == [(0, 1, 2)]
 
+
+def test_circuits_binary_matroid_matches_direct_enumeration() -> None:
+    def direct_circuits(matrix: np.ndarray) -> set[tuple[int, ...]]:
+        import ldpc.mod2.mod2_numpy as mod2
+
+        kernel = mod2.nullspace(matrix)
+        if hasattr(kernel, "toarray"):
+            kernel = kernel.toarray()
+
+        kernel = (np.asarray(kernel) & 1).astype(np.uint8, copy=False)
+        if kernel.size == 0:
+            return set()
+
+        candidates: list[set[int]] = []
+        for mask in range(1, 1 << kernel.shape[0]):
+            vector = np.zeros(kernel.shape[1], dtype=np.uint8)
+            for i in range(kernel.shape[0]):
+                if (mask >> i) & 1:
+                    vector ^= kernel[i]
+
+            support = set(np.flatnonzero(vector))
+            if support:
+                candidates.append(support)
+
+        candidates.sort(key=len)
+        circuits: list[set[int]] = []
+        for support in candidates:
+            if not any(circuit <= support for circuit in circuits):
+                circuits.append(support)
+
+        return {tuple(sorted(circuit)) for circuit in circuits}
+
+    rng = np.random.default_rng(1234)
+    matrices = [
+        np.zeros((2, 4), dtype=np.int8),
+        np.eye(4, dtype=np.int8),
+        np.array([[1, 1, 0, 1], [0, 1, 1, 1]], dtype=np.int8),
+    ]
+    matrices.extend(
+        rng.integers(0, 2, size=(rows, cols), dtype=np.int8)
+        for rows, cols in [(2, 5), (3, 6), (4, 6)]
+    )
+
+    for matrix in matrices:
+        assert set(_circuits_binary_matroid(matrix)) == direct_circuits(matrix)
+
 # ----------------------------------------------------------------------------------------------------
 # _graph_from_circuits
 # ----------------------------------------------------------------------------------------------------
