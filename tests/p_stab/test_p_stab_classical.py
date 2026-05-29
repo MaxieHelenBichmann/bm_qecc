@@ -210,6 +210,10 @@ def test_are_peq_stab_classical_failing_bm(seed: int) -> None:
     code1, code2 = random_non_permuted_stabilizer_pair(13, 3, seed=seed)
     assert are_peq_stab_classical(code1, code2) is False
 
+def test_are_peq_stab_classical_failing_bm2() -> None:
+    code1, code2 = random_permuted_stabilizer_pair(n=8, k=3, seed=111)
+    assert are_peq_stab_classical(code1, code2) is True
+
 def test_are_peq_stab_classical_random_smoke() -> None:
     for n in range(3, 6):
         for k in range(n + 1):
