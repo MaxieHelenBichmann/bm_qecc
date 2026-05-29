@@ -417,7 +417,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
 
     return measurements_pos + measurements_neg
     
-def default_cases(seed: int) -> list[Case]:
+def default_cases(seed: int, random: bool = False) -> list[Case]:
     """Return test cases."""
     case_bell_pair_same = Case(
             name="bell_pair_same",
@@ -562,7 +562,7 @@ def default_cases(seed: int) -> list[Case]:
         random_lcc_css_case(10, 4, seed + 69),
     ]
 
-    return known_permuted + random_permuted_css + random_non_permuted_css + known_lc + known_lc_css + random_lc_css
+    return random_permuted_css + random_non_permuted_css + random_lc_css if random else known_permuted + known_lc + known_lc_css
 
 
 def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
@@ -834,7 +834,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
                                       
     else:
-        results = run_raw_benchmarks(default_cases(seed=args.seed), args.algorithm, args.repeats, verbose=args.verbose)
+        results = run_raw_benchmarks(default_cases(seed=args.seed, random=args.random), args.algorithm, args.repeats, verbose=args.verbose)
         write_bms(results, args.seed, args.output)
         return 0
 
