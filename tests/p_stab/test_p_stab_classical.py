@@ -7,6 +7,7 @@ import pytest
 
 from benchmarks.utils import (
     RandomizeError,
+    permutation_equivalent_code,
     random_non_permuted_stabilizer_pair,
     random_permuted_stabilizer_pair,
 )
@@ -212,6 +213,18 @@ def test_are_peq_stab_classical_failing_bm(seed: int) -> None:
 
 def test_are_peq_stab_classical_failing_bm2() -> None:
     code1, code2 = random_permuted_stabilizer_pair(n=8, k=3, seed=111)
+    assert are_peq_stab_classical(code1, code2) is True
+
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [89, 654, 438]])
+def test_are_peq_stab_classical_failing_bm3(seed: int) -> None:
+    code1 = StabilizerCode.from_file("data/five_qubit_perfect")
+    code2 = permutation_equivalent_code(code1, seed=seed)
+    assert are_peq_stab_classical(code1, code2) is True
+
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [89, 773, 654, 438, 433, 858, 85]])
+def test_are_peq_stab_classical_failing_bm4(seed: int) -> None:
+    code1 = StabilizerCode.from_file("data/carbon")
+    code2 = permutation_equivalent_code(code1, seed=seed)
     assert are_peq_stab_classical(code1, code2) is True
 
 def test_are_peq_stab_classical_random_smoke() -> None:
