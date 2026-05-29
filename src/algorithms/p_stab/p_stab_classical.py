@@ -188,77 +188,104 @@ def _compute_signatures(generator_matrix: np.ndarray) -> list[tuple[int, ...]]:
             )
         return K
 
-    def _gf4_row_basis(M: np.ndarray) -> list[np.ndarray]:
-        # basis (base vectors as columns) of the row space of M, with operations done in GF(4)
+    def _gf4_values(G: np.ndarray) -> np.ndarray:
+        values = np.empty(G.shape, dtype=np.uint8)
+        for i in range(G.shape[0]):
+            for j in range(G.shape[1]):
+                values[i, j] = G[i, j].value
+        return values
+
+    def _gf4_column_gram_contributions(G: np.ndarray) -> np.ndarray:
+        k, n = G.shape
+        contributions = np.zeros((n, k, k), dtype=np.uint8)
+
+        for col in range(n):
+            x = G[:, col] & 1
+            z = G[:, col] >> 1
+            contributions[col, :, :] = (x[:, None] & z[None, :]) ^ (z[:, None] & x[None, :])
+
+        return contributions
+
+    def _gf4_value_rref(matrix: np.ndarray) -> tuple[int, np.ndarray, list[int]]:
+        if matrix.shape[0] == 0:
+            return 0, matrix, []
+
+        matrix = matrix.copy()
+        m, n = matrix.shape
+        rank = 0
+        row = 0
+        pivot_columns = []
+
+        for bit_col in range(2 * n):
+            col = bit_col % n
+            bit = bit_col // n
+
+            pivot = None
+            for r in range(row, m):
+                if (matrix[r, col] >> bit) & 1:
+                    pivot = r
+                    break
+
+            if pivot is None:
+                continue
+
+            if pivot != row:
+                matrix[[row, pivot]] = matrix[[pivot, row]]
+
+            for r in range(m):
+                if r != row and ((matrix[r, col] >> bit) & 1):
+                    matrix[r, :] ^= matrix[row, :]
+
+            pivot_columns.append(col)
+            rank += 1
+            row += 1
+            if row == m:
+                break
+
+        return rank, matrix, pivot_columns
+
+    def _gf4_value_row_basis(M: np.ndarray) -> np.ndarray:
         if M.shape[0] == 0:
-            return [np.array([ZERO] * M.shape[1], dtype=object)]
-        rank, rref , _ = _gf4_rref(M)
+            return np.zeros((0, M.shape[1]), dtype=np.uint8)
 
-        if rank == M.shape[0]:
-            return [rref[i, :] for i in range(rank)]
+        rank, rref, _ = _gf4_value_rref(M)
+        return rref[:rank, :]
 
-        pivot_rows = []
-        for i in range(rref.shape[0]):
-            if not all(rref[i, c].is_zero() for c in range(rref.shape[1])):
-                pivot_rows.append(i)
-        return [rref[i, :] for i in pivot_rows]
-
-    def _gf4_gram(G: np.ndarray) -> np.ndarray:
-        # gram matrix of G and G in GF(4) but stabilizer semantics
-        k = G.shape[0]
-
-        gram = np.zeros((k, k), dtype=np.uint8)
-
-        for i in range(k):
-            for j in range(i+1, k):
-                ip = _gf4_trace_inner_product(G[i], G[j]).value
-                gram[i, j] = ip
-                gram[j, i] = ip
-
-
-        return gram
-
-    def _gf2_gf4_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
-        # gram matrix of A in GF(2) and B in GF(4)
+    def _gf2_gf4_value_matmul(A: np.ndarray, B: np.ndarray) -> np.ndarray:
         m, ra = A.shape
         rb, n = B.shape
         if ra != rb:
             raise ValueError("Incompatible shapes for matrix multiplication.")
 
-        C = np.empty((m, n), dtype=object)
+        C = np.zeros((m, n), dtype=np.uint8)
         for i in range(m):
-            for j in range(n):
-                s = ZERO
-                for t in range(ra):
-                    s += GF4(A[i, t]) * B[t, j]
-                C[i, j] = s
+            rows = np.flatnonzero(A[i])
+            if rows.size:
+                C[i, :] = np.bitwise_xor.reduce(B[rows, :], axis=0)
+
         return C
 
-    def _weight_enumerator_of_hull_punctured(G: np.ndarray, col_idx: int) -> list[int]:
-        Gp = np.delete(G, col_idx, axis=1)
+    def _weight_enumerator_of_hull_punctured(col_idx: int) -> list[int]:
+        Gp = np.delete(G_values, col_idx, axis=1)
         g_p = Gp.shape[1]
 
         if Gp.shape[0] == 0:
             return [1] + [0] * g_p
 
         # gram is in GF(2) due to the trace inner product that simulates the symplectic product (aka commutation/anti-commutation)
-        gram = _gf4_gram(Gp)
+        gram = full_gram ^ column_gram_contributions[col_idx]
 
         coeff_basis = _gf2_kernel_basis(gram.T) # c @ gram = gram.T @ c.T = 0 -> x = c @ Gp with <x, Gp[i]> = 0 for all rows j -> x orthogonal to all rows of Gp -> x in Gp perp
 
         if coeff_basis.shape[0] == 0:
-            hull_basis = np.zeros((0, g_p), dtype=object)
+            hull_basis = np.zeros((0, g_p), dtype=np.uint8)
         else:
-            basis_rows = _gf4_row_basis(_gf2_gf4_matmul(coeff_basis, Gp))
-            if len(basis_rows) == 0:
-                hull_basis = np.zeros((0, g_p), dtype=object)
-            else:
-                hull_basis = np.array(basis_rows, dtype=object) # c @ Gp = x -> words in Gp that are orthogonal to all rows of Gp -> hull
+            hull_basis = _gf4_value_row_basis(_gf2_gf4_value_matmul(coeff_basis, Gp)) # c @ Gp = x -> words in Gp that are orthogonal to all rows of Gp -> hull
 
         hull_h, hull_n = hull_basis.shape
         enumerator = [1] + [0] * g_p
 
-        word = np.array([ZERO for _ in range(hull_n)], dtype=object)
+        word = np.zeros(hull_n, dtype=np.uint8)
         previous_gray = 0
 
         for t in range(1, 1 << hull_h):
@@ -267,20 +294,23 @@ def _compute_signatures(generator_matrix: np.ndarray) -> list[tuple[int, ...]]:
             row_idx = changed.bit_length() - 1
 
             # GF(2)-additive
-            for j in range(hull_n):
-                word[j] += hull_basis[row_idx, j]
+            word ^= hull_basis[row_idx]
 
-            wt = sum(not x.is_zero() for x in word)
+            wt = int(np.count_nonzero(word))
             enumerator[wt] += 1
 
             previous_gray = gray
 
         return enumerator
 
+    G_values = _gf4_values(generator_matrix)
+    column_gram_contributions = _gf4_column_gram_contributions(G_values)
+    full_gram = np.bitwise_xor.reduce(column_gram_contributions, axis=0, initial=0)
+
     invariants = []
 
     for col_idx in range(generator_matrix.shape[1]):
-        inv = tuple(_weight_enumerator_of_hull_punctured(generator_matrix, col_idx))
+        inv = tuple(_weight_enumerator_of_hull_punctured(col_idx))
         invariants.append(inv)
 
     return invariants
