@@ -372,8 +372,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5)
                                ]:
-                measurements_neg.append((name, [known_non_permuted_css_case(code, s) for s in seeds]))
-                measurements_pos.append((name, [known_permuted_css_case(code, s) for s in seeds]))
+                measurements_neg.append((name + "_non_permuted", [known_non_permuted_css_case(code, s) for s in seeds]))
+                measurements_pos.append((name + "_permuted", [known_permuted_css_case(code, s) for s in seeds]))
 
         elif algorithm.startswith("pm_stb"):
             for name, code in [
@@ -388,8 +388,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_neg.append((name, [known_non_permuted_stabilizer_case(code, s) for s in seeds]))
-                measurements_pos.append((name, [known_permuted_stabilizer_case(code, s) for s in seeds]))
+                measurements_neg.append((name + "_non_permuted", [known_non_permuted_stabilizer_case(code, s) for s in seeds]))
+                measurements_pos.append((name + "_permuted", [known_permuted_stabilizer_case(code, s) for s in seeds]))
         elif algorithm.startswith("lc_equ"):
               for name, code in [
                                 ("bell_pair", bell_pair), # n = 2 , k = 0
@@ -403,7 +403,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_pos.append((name, [known_lcc_eq_case(code, s) for s in seeds]))
+                measurements_pos.append((name + "_lc_eq", [known_lcc_eq_case(code, s) for s in seeds]))
         elif algorithm.startswith("lc_css"):
               for name, code in [
                                 ("bell_pair", bell_pair),  # n = 2 , k = 0
@@ -417,7 +417,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_pos.append((name, [known_lcc_css_case(code, s) for s in seeds]))
+                measurements_pos.append((name + "_lc_css", [known_lcc_css_case(code, s) for s in seeds]))
 
     return measurements_pos + measurements_neg
     
