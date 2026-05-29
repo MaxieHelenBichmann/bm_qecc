@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import ldpc.mod2.mod2_numpy as mod2
 
 from benchmarks.utils import (
     RandomizeError,
@@ -11,10 +12,9 @@ from benchmarks.utils import (
     random_permuted_css_pair,
 )
 from src.algorithms.p_css.p_css_classical import (
-    _check_permutation_equivalence,
     _compute_canonical_form,
     _compute_signatures,
-    _extract_permutations,
+    _iter_permutations,
     are_peq_css_classical,
 )
 from src.core.css_code import CSSCode
@@ -79,6 +79,11 @@ def test_compute_canonical_form_stable_row_operations() -> None:
 # ----------------------------------------------------------------------------------------------------
 
 def test_extract_permutations_matching_convention() -> None:
+    def _rank(matrix: np.ndarray) -> int:
+        if matrix.shape[0] == 0:
+            return 0
+        return mod2.rank(matrix)
+
     canon = np.array([[1, 0, 1, 0],
                       [0, 1, 1, 0]], dtype=np.uint8)
     can_to_g1 = [[1, 0, 3, 2]]
@@ -89,10 +94,15 @@ def test_extract_permutations_matching_convention() -> None:
     code2 = CSSCode(Hx=np.array([[1, 0, 1, 0],
                                  [1, 1, 0, 0]], dtype=np.int8), Hz=None)
 
-    extracted = _extract_permutations(canon, canon, can_to_g1, can_to_g2)
+    extracted = list(_iter_permutations(canon, canon, can_to_g1, can_to_g2))
 
     assert extracted == [expected_permutation]
-    assert _check_permutation_equivalence(code1, code2, extracted[0]) is True
+    assert _rank(code1.Hx) == _rank(code2.Hx) == _rank(
+        np.vstack([code2.Hx, code1.Hx[:, extracted[0]]])
+    )
+    assert _rank(code1.Hz) == _rank(code2.Hz) == _rank(
+        np.vstack([code2.Hz, code1.Hz[:, extracted[0]]])
+    )
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_css_classical

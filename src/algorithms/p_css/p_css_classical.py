@@ -7,6 +7,7 @@ References for this algorithm:
 
 from __future__ import annotations
 from collections import defaultdict
+from collections.abc import Iterator
 
 import hashlib
 
@@ -216,31 +217,26 @@ def _compute_canonical_form(G: np.ndarray, cells: list[list[int]]) -> tuple[np.n
 
     return best_matrix, best_perms
 
-def _extract_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: list[list[int]], can_to_g2: list[list[int]]) -> list[list[int]]:
+def _iter_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: list[list[int]], can_to_g2: list[list[int]]) -> Iterator[tuple[int, ...]]:
     def _inverse_perm(p):
         inv = [None] * len(p)
         for i, x in enumerate(p):
             inv[x] = i
-        return inv
+        return tuple(inv)
 
     def _compose(p, q):
-        return tuple(p[q[i]] for i in range(len(q)))
+        return tuple(p[i] for i in q)
 
     if not np.array_equal(np.asarray(canon1, dtype=np.int8) & 1, np.asarray(canon2, dtype=np.int8) & 1):
-        return []
+        return
 
     # find all permutations that map g1 to g2
     g2_to_can =  [_inverse_perm(p2) for p2 in can_to_g2]
-    
-    perms = []
+
     for p1 in can_to_g1:
+        p1 = tuple(p1)
         for p2 in g2_to_can:
-            perms.append(_compose(p1, p2))
-    return perms
-
-def _check_permutation_equivalence(c1: CSSCode, c2: CSSCode, permutation: list[int]) -> bool:
-    return _rank(c2.Hx) == _rank(c1.Hx[:, permutation]) == _rank(np.vstack([c2.Hx, c1.Hx[:, permutation]])) and _rank(c2.Hz) == _rank(c1.Hz[:, permutation]) == _rank(np.vstack([c2.Hz, c1.Hz[:, permutation]]))
-
+            yield _compose(p1, p2)
 
 def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
     """Check permutation equivalence using algorithms for classical code equivalence. A two-layer approach is used, where the first layer uses Sendrier's Support Splitting Algorithm to partition the columns of the generator matrices into equivalence classes based on the weight enumerator of the hull of the punctured code. 
@@ -253,6 +249,15 @@ def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
 
     This algorithm should be more efficient than the brute-force algorithm, since it avoids checking all permutations, BUT it is still not efficient in the worst case.
     """
+    if c1.n != c2.n:
+        return False
+
+    hx_rank = _rank(c1.Hx)
+    hz_rank = _rank(c1.Hz)
+
+    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
+        return False
+
     # Sendrier
 
     def _generator_matrix_from_parity_check(H: np.ndarray, n: int) -> np.ndarray:
@@ -286,11 +291,8 @@ def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
     canon_c1, perm1 = _compute_canonical_form(Gx1, list(partition_c1.values()))
     canon_c2, perm2 = _compute_canonical_form(Gx2, list(partition_c2.values()))
 
-    permutations = _extract_permutations(canon_c1, canon_c2, perm1, perm2)
-
-
-    for perm in permutations:
-        if _check_permutation_equivalence(c1, c2, perm):
+    for perm in _iter_permutations(canon_c1, canon_c2, perm1, perm2):
+        if hx_rank == _rank(np.vstack([c2.Hx, c1.Hx[:, perm]])) and hz_rank == _rank(np.vstack([c2.Hz, c1.Hz[:, perm]])):
             return True
 
     return False
