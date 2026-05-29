@@ -37,6 +37,7 @@ from src.core.css_code import CSSCode
 
 from .utils import (
     lc_equivalent_code,
+    permutation_equivalent_code,
     permutation_equivalent_css_code,
     random_permuted_stabilizer_pair,
     random_permuted_css_pair,
@@ -45,8 +46,28 @@ from .utils import (
     random_css_code,
 )
 
-N_STATS = 5
-MEAS_STATS = [(7,2),(10,4),(13,3),(17,7)]
+N_STATS = 7
+MEAS_STATS = [
+    (3,1),
+    (5,2),
+    (7,2),
+    (10,4),
+    (13,3),
+    (15,2),
+    (17,5),
+    (20,2)
+]
+
+bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
+three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
+steane = CSSCode.from_file("data/steane")
+five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
+carbon = CSSCode.from_file("data/carbon")
+golay = CSSCode.from_file("data/golay")
+hamming_15 = CSSCode.from_file("data/hamming_15")
+rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
+shor = CSSCode.from_file("data/shor")
+tetrahedral = CSSCode.from_file("data/tetrahedral")
 
 @dataclass(frozen=True)
 class Case:
@@ -256,48 +277,148 @@ def random_lcc_eq_case(n: int, k: int, case_seed: int) -> Case:
         expected_lc=True,
     )
 
-def seeded_measurements(seed: int, algorithm: str) -> list[tuple[str, list[Case]]]:
+def known_non_permuted_css_case(code1: CSSCode, case_seed: int) -> Case:
+        code2 = permutation_equivalent_css_code(code1, seed=case_seed)
+        return Case(
+            name=f"known_non_permuted_css_{case_seed}",
+            inputs=(code1, code2),
+            expected_p=False,
+            expected_lc=None,
+        )
+
+def known_permuted_css_case(code1: CSSCode, case_seed: int) -> Case:
+    code2 = permutation_equivalent_css_code(code1, seed=case_seed)
+    return Case(
+        name=f"known_permuted_css_{case_seed}",
+        inputs=(code1, code2),
+        expected_p=True,
+        expected_lc=None,
+    ) 
+
+def known_non_permuted_stabilizer_case(code1: StabilizerCode, case_seed: int) -> Case:
+    code2 = permutation_equivalent_code(code1, seed=case_seed)
+    return Case(
+        name=f"known_non_permuted_stb_{case_seed}",
+        inputs=(code1, code2),
+        expected_p=False,
+        expected_lc=None,
+    )
+    
+def known_permuted_stabilizer_case(code1: StabilizerCode, case_seed: int) -> Case:
+    code2 = permutation_equivalent_code(code1, seed=case_seed)
+    return Case(
+        name=f"known_permuted_stb_{case_seed}",
+        inputs=(code1, code2),
+        expected_p=True,
+        expected_lc=None,
+    )
+
+def known_lcc_css_case(code: StabilizerCode, case_seed: int) -> Case:
+    return Case(
+        name=f"known_lcc_css_{case_seed}",
+        inputs=(lc_equivalent_code(code, seed=case_seed),),
+        expected_p=None,
+        expected_lc=True,
+    )
+
+def known_lcc_eq_case(code: StabilizerCode, case_seed: int) -> Case:
+    code2 = lc_equivalent_code(code, seed=case_seed + 420)
+    return Case(
+        name=f"known_lcc_eq_{case_seed}",
+        inputs=(code, code2),
+        expected_p=None,
+        expected_lc=True,
+    )
+
+
+def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[str, list[Case]]]:
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1000, size=N_STATS)
     measurements_pos : list[tuple[str, list[Case]]] = []
     measurements_neg : list[tuple[str, list[Case]]] = []
 
-    for n, k in MEAS_STATS:
+    if random:
+        for n, k in MEAS_STATS:
+            if algorithm.startswith("pm_css"):
+                non_permuted_css = [random_non_permuted_css_case(n, k, s, False) for s in seeds]
+                permuted_css = [random_permuted_css_case(n, k, s+69, False) for s in seeds]
+                measurements_neg.append((f"non_permuted_css_{n}_{k}", non_permuted_css))
+                measurements_pos.append((f"permuted_css_{n}_{k}", permuted_css))
+            elif algorithm.startswith("pm_stb"):
+                non_permuted_stabilizer = [random_non_permuted_stabilizer_case(n, k, s+1337, False) for s in seeds]
+                permuted_stabilizer = [random_permuted_stabilizer_case(n, k, s+420, False) for s in seeds]
+                measurements_neg.append((f"non_permuted_stab_{n}_{k}", non_permuted_stabilizer))
+                measurements_pos.append((f"permuted_stab_{n}_{k}", permuted_stabilizer))
+            elif algorithm.startswith("lc_equ"):
+                lc_eq = [random_lcc_eq_case(n, k, s) for s in seeds]
+                measurements_pos.append((f"lc_eq_{n}_{k}", lc_eq))
+            elif algorithm.startswith("lc_css"):
+                lc_cases = [random_lcc_css_case(n, k, s+13) for s in seeds]
+                measurements_pos.append((f"lc_css_{n}_{k}", lc_cases))
+    else:
         if algorithm.startswith("pm_css"):
-            non_permuted_css = [random_non_permuted_css_case(n, k, s, False) for s in seeds]
-            permuted_css = [random_permuted_css_case(n, k, s+69, False) for s in seeds]
-            measurements_neg.append((f"non_permuted_css_{n}_{k}", non_permuted_css))
-            measurements_pos.append((f"permuted_css_{n}_{k}", permuted_css))
+            for name, code in [
+                                ("bell_pair", bell_pair), # n = 2 , k = 0
+                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1 
+                                ("steane", steane), # n = 7 , k = 1
+                                ("shor", shor),  # n = 9 , k = 1
+                                ("carbon", carbon), # n = 12 , k = 2
+                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
+                                ("hamming_15", hamming_15), # n = 15 , k = 7
+                                ("golay", golay),  # n = 23 , k = 1
+                                ("rotated_surface_d5", rotated_surface_d5)
+                               ]:
+                measurements_neg.append((name, [known_non_permuted_css_case(code, s) for s in seeds]))
+                measurements_pos.append((name, [known_permuted_css_case(code, s) for s in seeds]))
+
         elif algorithm.startswith("pm_stb"):
-            non_permuted_stabilizer = [random_non_permuted_stabilizer_case(n, k, s+1337, False) for s in seeds]
-            permuted_stabilizer = [random_permuted_stabilizer_case(n, k, s+420, False) for s in seeds]
-            measurements_neg.append((f"non_permuted_stab_{n}_{k}", non_permuted_stabilizer))
-            measurements_pos.append((f"permuted_stab_{n}_{k}", permuted_stabilizer))
+            for name, code in [
+                                ("bell_pair", bell_pair), # n = 2 , k = 0
+                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1
+                                ("steane", steane), # n = 7 , k = 1
+                                ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("shor", shor),  # n = 9 , k = 1
+                                ("carbon", carbon), # n = 12 , k = 2
+                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
+                                ("hamming_15", hamming_15), # n = 15 , k = 7
+                                ("golay", golay),  # n = 23 , k = 1
+                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
+                               ]:
+                measurements_neg.append((name, [known_non_permuted_stabilizer_case(code, s) for s in seeds]))
+                measurements_pos.append((name, [known_permuted_stabilizer_case(code, s) for s in seeds]))
         elif algorithm.startswith("lc_equ"):
-            lc_eq = [random_lcc_eq_case(n, k, s) for s in seeds]
-            measurements_pos.append((f"lc_eq_{n}_{k}", lc_eq))
+              for name, code in [
+                                ("bell_pair", bell_pair), # n = 2 , k = 0
+                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1 
+                                ("steane", steane), # n = 7 , k = 1
+                                ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("shor", shor),  # n = 9 , k = 1
+                                ("carbon", carbon), # n = 12 , k = 2
+                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
+                                ("hamming_15", hamming_15), # n = 15 , k = 7
+                                ("golay", golay),  # n = 23 , k = 1
+                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
+                               ]:
+                measurements_pos.append((name, [known_lcc_eq_case(code, s) for s in seeds]))
         elif algorithm.startswith("lc_css"):
-            lc_cases = [random_lcc_css_case(n, k, s+13) for s in seeds]
-            measurements_pos.append((f"lc_css_{n}_{k}", lc_cases))
+              for name, code in [
+                                ("bell_pair", bell_pair),  # n = 2 , k = 0
+                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1
+                                ("steane", steane), # n = 7 , k = 1
+                                ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("shor", shor),  # n = 9 , k = 1
+                                ("carbon", carbon), # n = 12 , k = 2
+                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
+                                ("hamming_15", hamming_15), # n = 15 , k = 7
+                                ("golay", golay),  # n = 23 , k = 1
+                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
+                               ]:
+                measurements_pos.append((name, [known_lcc_css_case(code, s) for s in seeds]))
 
     return measurements_pos + measurements_neg
-
+    
 def default_cases(seed: int) -> list[Case]:
     """Return test cases."""
-    bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
-
-    three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
-    steane = CSSCode.from_file("data/steane")
-    five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
-    carbon = CSSCode.from_file("data/carbon")
-    golay = CSSCode.from_file("data/golay")
-    hamming_15 = CSSCode.from_file("data/hamming_15")
-    rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
-    shor = CSSCode.from_file("data/shor")
-    tetrahedral = CSSCode.from_file("data/tetrahedral")
-
-    # ---------------------
-
     case_bell_pair_same = Case(
             name="bell_pair_same",
             inputs=(bell_pair, bell_pair),
@@ -510,7 +631,7 @@ def run_raw_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], re
 
     return results
 
-def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int, verbose: bool = True) -> list[Statistic]:
+def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int, verbose: bool = True, random: bool = False) -> list[Statistic]:
     """Run selected algorithms on cases with the matching problem type."""
     statistics: list[Statistic] = []
     selected_names = set(algorithm_names)
@@ -519,7 +640,7 @@ def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int,
         if verbose:
             print(f"Running benchmark for algorithm: {algorithm_name}")
         stats_algorithm = []
-        for measurement_name, measurement in seeded_measurements(seed=seed, algorithm=algorithm_name):
+        for measurement_name, measurement in seeded_measurements(seed=seed, algorithm=algorithm_name, random=random):
             if verbose:
                 print(f"    Running measurement: {measurement_name}")
             results: list[Result] = []
@@ -699,6 +820,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--stats", action="store_true", default=False, help="Execute the algorithm on the cases with different seeds and print the statistics of the runtime.")
     parser.add_argument("--stats_output", type=Path, default=Path("results/statistics.csv"), help="CSV output path for statistics.")
     parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
+    parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
     args = parser.parse_args(argv)
     try:
         args.algorithm = resolve_algorithm_names(args.algorithm)
@@ -714,7 +836,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ValueError("--repeats must be at least 1.")
 
     if args.stats:
-        statistics = run_stat_benchmarks(args.algorithm, args.repeats, args.seed)
+        statistics = run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.verbose, args.random)
         write_stats(statistics, args.seed, args.stats_output)
         return 0
                                       
