@@ -116,8 +116,7 @@ python3 -m benchmarks.run --seed 69
 python3 -m benchmarks.run --verbose
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 python3 -m benchmarks.run --algorithm 'pm_css*'
-python3 -m benchmarks.run --stats --algorithm pm_css_sat --random
-python3 -m benchmarks.run --stats --algorithm pm_stb_classical
+python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose
 ```
 
 Run more detailed analysis, optionally:
