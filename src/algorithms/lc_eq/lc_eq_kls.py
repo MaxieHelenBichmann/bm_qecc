@@ -5,11 +5,13 @@ References for this algorithm:
 - Andrey Boris Khesin, Jonathan Z. Lu, Peter W. Shor: Graphical quantum Clifford-encoder compilers from the ZX calculus
 - Alexander Tianlin Hu, Andrey Boris Khesin: Improved Graph Formalism for Quantum Circuit Simulation
 - Ross Duncan, Aleks Kissinger, Simon Perdrix, John van de Wetering: Graph-theoretic Simplification of Quantum Circuits with the ZX-calculus
+- Maarten Van den Nest, Jeroen Dehaene, Bart De Moor: An eﬃcient algorithm to recognize local Cliﬀord equivalence of graph states
+- Andre Bouchet: An efficient algorithm to recognize locally equivalent graphs
 """
 
 from __future__ import annotations
 
-from collections import deque
+from collections import deque, defaultdict
 
 import numpy as np
 import pyzx as zx
@@ -690,7 +692,163 @@ def _kls_normal_form(graph: GSLC) -> None | True:
 
     if witness:
         return True
+    
+def _extract_connected_components(g: np.ndarray) -> list[list[int]]:
+    n = g.shape[0]
+    connected_components : list[list[int]] = []
+    seen : set[int] = set()
 
+    while len(seen) < n:
+        start = next(i for i in range(n) if i not in seen)
+        comp = []
+
+        queue = deque([start])
+        seen.add(start)
+
+        while queue:
+            cur : int = queue.popleft()
+            comp.append(cur)
+
+            for neighbor in g[cur, :].nonzero()[0]:
+                neighbor = int(neighbor)
+
+                if neighbor not in seen:
+                    seen.add(neighbor)
+                    queue.append(neighbor)
+
+        connected_components.append(sorted(comp))
+
+    return connected_components
+
+def _lc_equiv_connected(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
+    """Check if two graph states are equivalent under local complementations using an efficient algorithm that considers a linear system of equations."""
+
+    def _build_lse():
+        """Build the matrix A for the following LSE
+        ( sum_{i=0}^{n-1} g1[i,j] * g2[i,k] * c_i ) + g1[j,k] * a_k + g2[j,k] * d_j + delta[j,k] * b_j = 0 
+        with n^2 equations for j,k = 0...n-1 and the following 4n unknowns:
+            [a_0,...,a_{n-1},
+            b_0,...,b_{n-1},
+            c_0,...,c_{n-1},
+            d_0,...,d_{n-1}]
+        """
+        A = np.zeros((n * n, 4 * n), dtype=np.uint8)
+        def a_idx(i):
+            return i
+        def b_idx(i):
+            return n + i
+        def d_idx(i):
+            return 3 * n + i
+
+        row = 0
+        for j in range(n):
+            for k in range(n):
+                # sum_{i=0}^{n-1} g1[i,j] * g2[i,k] * c_i
+                A[row, 2 * n:3 * n] = g1[j, :] & g2[:, k]
+                # g1[j, k] * a_k
+                A[row, a_idx(k)] ^= g1[j, k]
+                # g2[j, k] * d_j
+                A[row, d_idx(j)] ^= g2[j, k]
+                # delta[j, k] * b_j
+                if j == k:
+                    A[row, b_idx(j)] ^= 1
+                row += 1
+        return A
+
+    def _satisfy_constraints(x : np.ndarray) -> bool:
+        """Check that the solution x of the LSE also satisfies the following constraints on the unknowns for i = 0...n-1:
+        a_i d_i + b_i c_i = 1
+        """
+        x = np.asarray(x, dtype=np.uint8) % 2
+        a = x[0:n]
+        b = x[n:2*n]
+        c = x[2*n:3*n]
+        d = x[3*n:4*n]
+        dets = (a & d) ^ (b & c)
+        return np.all(dets == 1)
+
+    def _kernel_basis(A: np.ndarray) -> np.ndarray:
+        A = (np.asarray(A) & 1).astype(np.uint8)
+        K = mod2.nullspace(A)
+        if hasattr(K, "toarray"):
+            K = K.toarray()
+        K = (np.asarray(K) & 1).astype(np.uint8)
+        if K.size == 0:
+            return np.zeros((0, A.shape[1]), dtype=np.uint8)
+        if K.ndim == 1:
+            K = K.reshape(1, -1)
+        if K.shape[1] != A.shape[1]:
+            raise ValueError(
+                "Kernel basis must have the same number of columns as the input matrix."
+            )
+        return K
+
+
+    A = _build_lse()
+    V = _kernel_basis(A)
+
+    dim = V.shape[0]
+
+    if dim == 0: # trivial nullspace
+        return False
+
+    # false assumption of the paper of Van den Nest, as Bouchet (lemma 1, in Van de Nest) requires the graph to be connected for the proof to work (which we do not guarantee, thus code broken) -> not polynomial anymore, but maybe preprocess graphs according to connected components (and their size) and run algorithm on each one separately
+    if dim > 4:
+        for i in range(dim):
+            for j in range(i, dim):
+                x = V[i] ^ V[j]
+                if _satisfy_constraints(x):
+                    return True
+    else:
+        for coeffs in product([0, 1], repeat=dim):
+            x = np.zeros(4 * n, dtype=np.uint8)
+            for bit, basis_vec in zip(coeffs, V):
+                if bit:
+                    x ^= basis_vec
+                if _satisfy_constraints(x):
+                    return True
+
+    return False
+
+def _lc_equiv_graph_states(graph_1: np.ndarray, graph_2: np.ndarray) -> bool:
+    connected_components_g1 = sorted(_extract_connected_components(graph_1), key=len)
+    connected_components_g2 = sorted(_extract_connected_components(graph_2), key=len)
+
+    if len(connected_components_g1) != len(connected_components_g2):
+        return False
+    
+    subgraphs_g1 = defaultdict(list)
+    subgraphs_g2 = defaultdict(list)
+
+    for comp in connected_components_g1:
+        subgraphs_g1[len(comp)].append(graph_1[np.ix_(comp, comp)])
+    
+    for comp in connected_components_g2:
+        subgraphs_g2[len(comp)].append(graph_2[np.ix_(comp, comp)])
+
+    if set(subgraphs_g1.keys()) != set(subgraphs_g2.keys()):
+        return False
+
+    for size in subgraphs_g1.keys():
+        if len(subgraphs_g1[size]) != len(subgraphs_g2[size]):
+            return False
+        
+        unmatched_subgraphs_g2 = list(subgraphs_g2[size])
+
+        for sg1 in subgraphs_g1[size]:
+            match_idx = None
+
+            for i, sg2 in enumerate(unmatched_subgraphs_g2):
+                if _lc_equiv_connected(sg1, sg2, size):
+                    match_idx = i
+                    break
+
+            if match_idx is None:
+                return False
+            
+            unmatched_subgraphs_g2.pop(match_idx)
+            
+    return True
 
 def are_lceq_kls(code1: StabilizerCode, code2: StabilizerCode) -> bool:
     """Check if two stabilizer codes are LC-equivalent by converting them into KLS normal form and checking of they are the same.
@@ -700,7 +858,7 @@ def are_lceq_kls(code1: StabilizerCode, code2: StabilizerCode) -> bool:
     2.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
     3.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
 
-    4.) Check if the resulting graphs are equal.
+    4.) Check if the resulting graphs are equal, using the efficient algorithm.
     """
     graph1 = _code_to_graph(code1)
     _hk_normal_form(graph1)
@@ -710,4 +868,7 @@ def are_lceq_kls(code1: StabilizerCode, code2: StabilizerCode) -> bool:
     _hk_normal_form(graph2)
     _kls_normal_form(graph2)
 
-    return graph1 == graph2
+    adj1 = graph1.get_full_adjacency()
+    adj2 = graph2.get_full_adjacency()
+
+    return _lc_equiv_graph_states(adj1, adj2)
