@@ -7,6 +7,7 @@ References for this algorithm:
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
 from collections import deque, defaultdict
 
 import numpy as np
@@ -18,6 +19,12 @@ from ...core.css_code import CSSCode
 
 def _compose(p, q):
     return tuple(p[i] for i in q)
+
+def _inverse(p):
+    inv = [None] * len(p)
+    for i, x in enumerate(p):
+        inv[x] = i
+    return tuple(inv)
 
 def _compute_invariant_a(code: CSSCode) -> list[int]:
     """Compute combined invariant of (non)zero columns of Hx and Hz for each column of the CSS code.
@@ -148,28 +155,33 @@ def _graph_from_invariants(n: int, invariants: list[list[int]]) -> Graph:
         vertex_coloring=[set(range(n))] + coloring
     )
 
-def _extract_aut_and_permutation(g1: Graph, g2: Graph, n: int) -> tuple[list[tuple[int, ...]], tuple[int, ...]]:
-    def _inverse_perm(p):
-        inv = [None] * len(p)
-        for i, x in enumerate(p):
-            inv[x] = i
-        return inv
-
+def _isomorphism_data(g1: Graph, g2: Graph) -> tuple[tuple[int, ...], list[tuple[int, ...]]] | None:
     if certificate(g1) != certificate(g2):
-        return [], ()
+        return None
 
     # get one isomorphism from g1 to g2 using the canonical labeling
     can_to_g1 = canon_label(g1)
     can_to_g2 = canon_label(g2)
-    g1_to_can = _inverse_perm(can_to_g1)
+    g1_to_can = _inverse(can_to_g1)
 
     phi = _compose(can_to_g2, g1_to_can)
 
     # get the full automorphism group of g2
     generators, _, _, _, _ = autgrp(g2)
-    gens = [tuple(gen) for gen in generators] + [tuple(_inverse_perm(gen)) for gen in generators]
+    gens = [tuple(gen) for gen in generators] + [tuple(_inverse(gen)) for gen in generators]
 
+    return phi, gens
+
+def _iter_qubit_permutations(g1: Graph, g2: Graph, n: int) -> Iterator[tuple[int, ...]]:
+    data = _isomorphism_data(g1, g2)
+    if data is None:
+        return
+
+    phi, gens = data
     identity = tuple(range(len(phi)))
+
+    yield tuple(phi[i] for i in range(n))
+
     aut_g2 = {identity}
     queue = deque([identity])
     while queue:
@@ -179,8 +191,7 @@ def _extract_aut_and_permutation(g1: Graph, g2: Graph, n: int) -> tuple[list[tup
             if nxt not in aut_g2:
                 aut_g2.add(nxt)
                 queue.append(nxt)
-
-    return aut_g2, phi
+                yield tuple(gen[current[phi[i]]] for i in range(n))
 
 def are_peq_css_graph_iso(c1: CSSCode, c2: CSSCode) -> bool:
     """Check permutation equivalence by checking for isomorphism of the associated graphs constructed from the codes using some invariants.
@@ -193,6 +204,17 @@ def are_peq_css_graph_iso(c1: CSSCode, c2: CSSCode) -> bool:
 
     This algorithm should be more efficient than the brute-force algorithm, since the number of valid permutations (under the given invariants) that have to be checked is typically much smaller than the full number of permutations. BUT the number of valid permutations can still be factorial in the worst case, in the case of highly symmetric codes or poor invariants, and graph isomorphism is not known to be in P. Issues with good invariants is that they can be costly to compute.
     """
+    def _rank(A: np.ndarray) -> int:
+        if A.shape[0] == 0 or A.shape[1] == 0:
+            return 0
+        return mod2.rank(A)
+
+    hx_rank = _rank(c1.Hx)
+    hz_rank = _rank(c1.Hz)
+
+    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
+        return False
+
     # TODO: add more invariants
     invariants_c1 = [_compute_invariant_a(c1), _compute_invariant_b(c1)]
     invariants_c2 = [_compute_invariant_a(c2), _compute_invariant_b(c2)]
@@ -201,29 +223,9 @@ def are_peq_css_graph_iso(c1: CSSCode, c2: CSSCode) -> bool:
     graph_c1 = _graph_from_invariants(c1.n, invariants_c1)
     graph_c2 = _graph_from_invariants(c2.n, invariants_c2)
 
-    aut_g2, phi = _extract_aut_and_permutation(graph_c1, graph_c2, c1.n)
-
-    def _rank(A: np.ndarray) -> int:
-        if A.shape[0] == 0 or A.shape[1] == 0:
-            return 0
-        return mod2.rank(A)
-    
-    hx_rank = _rank(c1.Hx)
-    hz_rank = _rank(c1.Hz)
-
-    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
-        return False
-    
     seen = set()
 
-    for aut in aut_g2:
-        # apply the automorphisms of g2 to phi to get all isomorphisms from g1 to g2
-        # isomorphisms(g1, g2) = { α ∘ φ | α ∈ Aut(g2) } with φ: g1 -> g2
-        full_perm = _compose(aut, phi)
-
-        # extract the permutations of only the qubit vertices from the isomorphisms (permutations map columns of c2 to columns of c1)
-        qubit_perm = tuple(full_perm[i] for i in range(c1.n))
-
+    for qubit_perm in _iter_qubit_permutations(graph_c1, graph_c2, c1.n):
         if qubit_perm in seen:
             continue
 
