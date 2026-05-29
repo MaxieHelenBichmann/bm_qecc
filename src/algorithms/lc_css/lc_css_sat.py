@@ -8,34 +8,19 @@ import numpy as np
 from ...core.stabilizer_code import StabilizerCode
 
 def _elementwise_map(normal_bool, variables):
-    elem = []
-    for k in range(len(normal_bool)):
-        if normal_bool[k] == 1:
-            elem.append(variables[k])
-        else:
-            elem.append(z3.Not(variables[k]))
-    return z3.And(elem)
+    return z3.And([
+        v if bit == 1 else z3.Not(v)
+        for bit, v in zip(normal_bool, variables)
+    ])
 
 def _exactly_one(variables):
-
-    def _at_least_one():
-        return z3.Or(variables)
-
-    def _at_most_one():
-        return z3.And([
-            z3.Or(z3.Not(variables[i]), z3.Not(variables[j]))
-            for i in range(len(variables))
-            for j in range(i + 1, len(variables))
-        ])
-
-    return z3.And(_at_least_one(), _at_most_one())
+    return z3.PbEq([(v, 1) for v in variables], 1)
 
 def _xor_list(variables):
-    if len(variables) == 0:
-        return z3.BoolVal(False)
-    if len(variables) == 1:
-        return variables[0]
-    return z3.Xor(variables[0], _xor_list(variables[1:]))
+    acc = z3.BoolVal(False)
+    for v in variables:
+        acc = z3.Xor(acc, v)
+    return acc
 
 
 def is_lceq_css_sat(code: StabilizerCode) -> bool:
