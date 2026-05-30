@@ -24,6 +24,7 @@ from src.algorithms.lc_eq.lc_eq_graph_state_small_k import are_lceq_graph_state_
 from src.algorithms.lc_eq.lc_eq_bruteforce import are_lceq_bruteforce
 from src.algorithms.lc_eq.lc_eq_sat import are_lceq_sat
 from src.algorithms.lc_eq.lc_eq_kls import are_lceq_kls
+from src.algorithms.lc_eq.lc_eq_graph_iso import are_lceq_graph_iso
 from src.algorithms.p_css.p_css_bruteforce import are_peq_css_bruteforce
 from src.algorithms.p_css.p_css_classical import are_peq_css_classical
 from src.algorithms.p_css.p_css_graph_iso import are_peq_css_graph_iso
@@ -131,6 +132,7 @@ ALGORITHMS: dict[str, Algorithm] = {
     "lc_equ_graph_state_small_k": are_lceq_graph_state_small_k,
     "lc_equ_bruteforce": are_lceq_bruteforce,
     "lc_equ_kls": are_lceq_kls,
+    "lc_equ_graph_iso": are_lceq_graph_iso,
     "lc_equ_sat": are_lceq_sat,
     "lc_css_bruteforce": is_lceq_css_bruteforce,
     "lc_css_kls": is_lceq_css_kls,
@@ -353,7 +355,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
     seeds = rng.integers(0, 1000, size=N_STATS)
     measurements_pos : list[tuple[str, list[Case]]] = []
     measurements_neg : list[tuple[str, list[Case]]] = []
-    sizes = [(n, i) for n in MEAS_STATS for i in range(1, n, 1 if n < 7 else 2)]
+    sizes = [(n, i) for n in MEAS_STATS for i in range(0, n, 1 if n < 7 else 2)]
 
     if random:
         for n, k in sizes:

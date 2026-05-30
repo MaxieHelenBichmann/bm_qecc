@@ -43,12 +43,13 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableau}(C_{CSS}) = \begin{pmatrix} H_x 
 ### Local-Clifford Equivalence
 #### $C \thicksim_{LC} \ C'$
 - [x] Brute Force
-- [ ] Graph State Machinery **INVALID**
+- [ ] Graph State Machinery **INVALID for k > 2**
+- [x] Graph Isomorphism
 - [x] SAT
 
 #### $C \thicksim_{LC} \ C_{CSS}$
 - [x] Brute Force
-- [ ] KLS Normal Form **INVALID**
+- [ ] KLS Normal Form **INVALID for k > 2**
 - [x] Graph State Machinery with LC Orbit
 - [x] SAT
 
