@@ -343,21 +343,22 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
     n_g = matrix.shape[1]
     best_matrix: np.ndarray | None = None
     best_full_key: tuple[tuple[int, ...], ...] | None = None
+    best_prefix_keys: list[tuple[tuple[int, ...], ...]] | None = None
 
     cells = [sorted(cell) for cell in cells if cell]
 
-    def _search(prefix: list[int], remaining_cells: list[list[int]]) -> None: # recursive search over the space of permutations
-        nonlocal best_matrix, best_full_key
+    def _search(prefix: list[int], remaining_cells: list[list[int]], path_keys: list[tuple[tuple[int, ...], ...]]) -> None: # recursive search over the space of permutations
+        nonlocal best_matrix, best_full_key, best_prefix_keys
         i = len(prefix)
         trial_perm = prefix + _flatten(remaining_cells)
         M_trial = matrix[:, trial_perm]
         M_semi = _prefix_semicanonical(M_trial, i)
+        current_prefix = prefix_key(M_semi, i)
 
         # Prefix pruning.
 
         if best_matrix is not None and i > 0:
-            current_prefix = prefix_key(M_semi, i)
-            best_prefix = prefix_key(best_matrix, i)
+            best_prefix = best_prefix_keys[i]
 
             if current_prefix > best_prefix: # prune this branch, since the canonical form must be lexicographically minimal
                 return
@@ -365,6 +366,7 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
             if current_prefix < best_prefix: # update the best prefix, since we found a better one on current path
                 best_matrix = None
                 best_full_key = None
+                best_prefix_keys = None
 
         if i == n_g: # we are at leaf (have a full permutation)
             full_key = matrix_key(M_semi)
@@ -372,6 +374,7 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
             if best_full_key is None or full_key < best_full_key:
                 best_full_key = full_key
                 best_matrix = M_semi
+                best_prefix_keys = path_keys + [current_prefix]
             return
 
         # Select first nonempty cell
@@ -383,9 +386,9 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
             new_cells = [list(c) for c in remaining_cells]
             new_cells[cell_idx].remove(col)
             new_cells = [c for c in new_cells if c]
-            _search(new_prefix, new_cells)
+            _search(new_prefix, new_cells, path_keys + [current_prefix])
 
-    _search([], cells)
+    _search([], cells, [])
 
     return best_matrix
 

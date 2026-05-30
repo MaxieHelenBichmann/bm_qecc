@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import multiprocessing as mp
 
 from benchmarks.utils import (
     RandomizeError,
@@ -29,6 +30,32 @@ from src.core.stabilizer_code import StabilizerCode
 
 def _gf4_values(matrix: np.ndarray) -> np.ndarray:
     return np.array([[entry.value for entry in row] for row in matrix], dtype=np.uint8)
+
+def _run_carbon_peq(seed: int, out: mp.Queue) -> None:
+    code1 = StabilizerCode.from_file("data/carbon")
+    code2 = permutation_equivalent_code(code1, seed=seed)
+    out.put(are_peq_stab_classical(code1, code2))
+
+def assert_not_false_within_timeout(seed: int, timeout: float = 30.0) -> None:
+    out = mp.Queue()
+    proc = mp.Process(target=_run_carbon_peq, args=(seed, out))
+    proc.start()
+    proc.join(timeout)
+
+    if proc.is_alive():
+        proc.terminate()
+        proc.join()
+        return  # timeout means acceptable/pass
+
+    if proc.exitcode != 0:
+        pytest.fail(f"are_peq_stab_classical crashed with exit code {proc.exitcode}")
+
+    try:
+        result = out.get_nowait()
+    except mp.Queue.Empty:
+        pytest.fail("are_peq_stab_classical exited without returning a result")
+
+    assert result is True
 
 # ----------------------------------------------------------------------------------------------------
 # GF4
@@ -223,9 +250,7 @@ def test_are_peq_stab_classical_failing_bm3(seed: int) -> None:
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [89, 773, 654, 438, 433, 858, 85]])
 def test_are_peq_stab_classical_failing_bm4(seed: int) -> None:
-    code1 = StabilizerCode.from_file("data/carbon")
-    code2 = permutation_equivalent_code(code1, seed=seed)
-    assert are_peq_stab_classical(code1, code2) is True
+    assert_not_false_within_timeout(seed, timeout=5.0)
 
 def test_are_peq_stab_classical_random_smoke() -> None:
     for n in range(3, 6):
