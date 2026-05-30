@@ -57,7 +57,8 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableau}(C_{CSS}) = \begin{pmatrix} H_x 
 
 I use the term "Benchmark" to measure the runtime of the python algorithms with an expected workload - input codes [[ $n,k,d$ ]] with $n$ ranging from $2$ to $\thicksim 50$.\
 This Repo is **NOT** meant for more detailed benchmark or profiling analyses for now [^1]. The goal is to get a feeling for the different complexity classes of the algorithms, to make a more informed decision for the implementation in the MQT.\
-Furthermore, the input is guaranteed to always be valid, thus the implemented core algorithms do not have to check small invariants.
+Furthermore, the input is guaranteed to always be valid, thus the implemented core algorithms do not have to check small invariants.\
+Trivial and more complex invariants for the different equivalence notions are collected separately. 
 
 [^1]: Maybe if I have the time, I will implement the algorithms in C++ and run actual benchmarks, but I doubt that will happen during the thesis :(
 
@@ -77,6 +78,9 @@ src/
     lc_eq/
     p_css/
     p_stab/
+  invariants       # invariants under equivalence-relations
+    lc_eq/
+    p_eq/
 
 tests/             # partially randomized and edge case tests
   lc_css/
@@ -142,6 +146,6 @@ python3 -m pytest
 For the Automorphism-based algorithm, I use [GAP / Guava](https://docs.gap-system.org/pkg/guava/doc/manual.pdf), thus the GAP executable and Guava's dependencies are needed.
 Before running a benchmark with this algorithm, Guava's dependencies should be in `bm_qecc/.gap` AND the following command has to be executed:
 ```bash
-export GAP_EXECUTABLE=/path/to/gap
+export GAP_EXECUTABLE=/Users/maxie/miniforge3/envs/bm-qecc/bin/gap
 ```
 But as I would estimate that this Automorphism-based algorithm will NOT be efficient at all, it will probably not be used in the MQT and thus I will not deal with this dependency apart from getting some measurements in this Repo.
