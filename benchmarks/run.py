@@ -17,6 +17,7 @@ import numpy as np
 from src.algorithms.lc_css.lc_css_bruteforce import is_lceq_css_bruteforce
 from src.algorithms.lc_css.lc_css_kls import is_lceq_css_kls
 from src.algorithms.lc_css.lc_css_orbit import is_lceq_css_orbit
+from src.algorithms.lc_css.lc_css_orbit_small_k import is_lceq_css_orbit_small_k
 from src.algorithms.lc_css.lc_css_sat import is_lceq_css_sat
 from src.algorithms.lc_eq.lc_eq_graph_state import are_lceq_graph_state
 from src.algorithms.lc_eq.lc_eq_bruteforce import are_lceq_bruteforce
@@ -132,6 +133,7 @@ ALGORITHMS: dict[str, Algorithm] = {
     "lc_css_bruteforce": is_lceq_css_bruteforce,
     "lc_css_kls": is_lceq_css_kls,
     "lc_css_orbit": is_lceq_css_orbit,
+    "lc_css_orbit_small_k": is_lceq_css_orbit_small_k,
     "lc_css_sat": is_lceq_css_sat,
 }
 
@@ -172,6 +174,8 @@ def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
     if algorithm_name.startswith("lc_equ") and len(case.inputs) == 2 and case.expected_lc is not None:
         return True
     if algorithm_name.startswith("lc_css") and len(case.inputs) == 1 and case.expected_lc is not None:
+        if algorithm_name == "lc_css_orbit_small_k":
+            return case.inputs[0].k < 2
         return True
     return False
 
