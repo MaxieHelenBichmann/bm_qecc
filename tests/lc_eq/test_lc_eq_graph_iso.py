@@ -29,7 +29,7 @@ def test_graph_from_trivial_code() -> None:
 
     assert graph.number_of_vertices == 10
     assert graph.directed is False
-    assert graph.vertex_coloring == [{0, 1, 2, 3, 4, 5, 6, 7, 8}, {9}]
+    assert graph.vertex_coloring == [{0, 1, 2}, {3, 4, 5}, {6, 7, 8}, {9}]
     assert _adjacency_as_sets(graph) == {}
 
 
@@ -38,7 +38,7 @@ def test_graph_from_code_splits_pauli_vertices() -> None:
 
     assert graph.number_of_vertices == 8
     assert graph.directed is False
-    assert graph.vertex_coloring == [{0, 1, 2, 3, 4, 5}, {6, 7}]
+    assert graph.vertex_coloring == [{0, 1, 2}, {3, 4, 5}, {6, 7}]
     assert _adjacency_as_sets(graph) == {
         0: {7},
         4: {7},
@@ -60,6 +60,12 @@ def test_graph_from_code_splits_pauli_vertices() -> None:
             StabilizerCode(["XI", "IX"]),
             True,
             id="two-product-bases",
+        ),
+        pytest.param(
+            StabilizerCode(["ZI"], z_logicals=["IZ"], x_logicals=["IX"]),
+            StabilizerCode(["IZ"], z_logicals=["ZI"], x_logicals=["XI"]),
+            False,
+            id="no-qubit-permutation",
         ),
         pytest.param(
             StabilizerCode(["ZI", "IZ"]),

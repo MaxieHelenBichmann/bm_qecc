@@ -1,4 +1,4 @@
-"""Graph-isomorphism based permutation equivalence checking.
+"""Graph-isomorphism based local-Clifford equivalence checking.
 
 References for this algorithm:
 - Andrew Cross, Drew Vandeth: Small Binary Stabilizer Subsystem Codes
@@ -41,9 +41,12 @@ def _graph_from_code(code: StabilizerCode) -> Graph:
                 adj_dict[3 * q + 2].append(group_element_vertex)
                 adj_dict[group_element_vertex].append(3 * q + 2)
 
+    pauli_vertex_colors = [set(range(3 * q, 3 * q + 3)) for q in range(code.n)]
+    stabilizer_group_vertices = set(range(3 * code.n, 3 * code.n + 2 ** r))
+
     return Graph(number_of_vertices=code.n * 3 + 2 ** r,
                  directed=False,
-                 vertex_coloring=[set(range(3 * code.n)), set(range(3 * code.n, 3 * code.n + 2 ** r))],
+                 vertex_coloring=[*pauli_vertex_colors, stabilizer_group_vertices],
                  adjacency_dict=adj_dict)
 
 def are_lceq_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool:
@@ -55,6 +58,8 @@ def are_lceq_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     E = { {S_i, a_j} ) | S_i has a on qubit j with a in {x, j, z} } union { {x_i, y_i}, {x_i, z_i}, {y_i, z_i} | i = 1, ..., n }
 
     2.) Check if the resulting graphs are isomorphic.
+
+    The Pauli vertices for each physical qubit form their own color class, so graph isomorphism may rotate X/Y/Z locally but may not permute qubits.
 
     By creating a node for each element of the stabilizer group, this being independent from the generator basis, and by splitting the X, Y and Z contributions with the possibility of rotating the Paulis, we create a graph of an exponential size, which is not efficient.
     """
