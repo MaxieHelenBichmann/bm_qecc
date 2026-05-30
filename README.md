@@ -125,7 +125,7 @@ pip3 install py-spy
 py-spy record \
   --format flamegraph \
   --output results/pm_css_matroid_flame.svg \
-  -- python -m benchmarks.run --algorithm pm_css_matroid --output results/pm_css_matroid_profile.csv
+  -- python -m benchmarks.run --algorithm pm_css_matroid --output results/pm_css_matroid_profile.csv --random
 ```
 
 ### Tests
