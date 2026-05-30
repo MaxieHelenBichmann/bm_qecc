@@ -51,14 +51,19 @@ from .utils import (
 
 N_STATS = 7
 MEAS_STATS = [
-    (3,1),
-    (5,2),
-    (7,2),
-    (10,4),
-    (13,3),
-    (15,2),
-    (17,5),
-    (20,2)
+    3,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    17,
+    17,
+    20
 ]
 
 bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
@@ -340,9 +345,10 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
     seeds = rng.integers(0, 1000, size=N_STATS)
     measurements_pos : list[tuple[str, list[Case]]] = []
     measurements_neg : list[tuple[str, list[Case]]] = []
+    sizes = [(n, i) for n in MEAS_STATS for i in range(1, n, 1 if n < 7 else 2)]
 
     if random:
-        for n, k in MEAS_STATS:
+        for n, k in sizes:
             if algorithm.startswith("pm_css"):
                 non_permuted_css = [random_non_permuted_css_case(n, k, s, False) for s in seeds]
                 permuted_css = [random_permuted_css_case(n, k, s+69, False) for s in seeds]
@@ -370,7 +376,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
                                 ("hamming_15", hamming_15), # n = 15 , k = 7
                                 ("golay", golay),  # n = 23 , k = 1
-                                ("rotated_surface_d5", rotated_surface_d5)
+                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
                 measurements_neg.append((name + "_non_permuted", [known_non_permuted_css_case(code, s) for s in seeds]))
                 measurements_pos.append((name + "_permuted", [known_permuted_css_case(code, s) for s in seeds]))
@@ -379,8 +385,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
             for name, code in [
                                 ("bell_pair", bell_pair), # n = 2 , k = 0
                                 ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1
-                                ("steane", steane), # n = 7 , k = 1
                                 ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("steane", steane), # n = 7 , k = 1
                                 ("shor", shor),  # n = 9 , k = 1
                                 ("carbon", carbon), # n = 12 , k = 2
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
@@ -394,8 +400,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
               for name, code in [
                                 ("bell_pair", bell_pair), # n = 2 , k = 0
                                 ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1 
-                                ("steane", steane), # n = 7 , k = 1
                                 ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("steane", steane), # n = 7 , k = 1
                                 ("shor", shor),  # n = 9 , k = 1
                                 ("carbon", carbon), # n = 12 , k = 2
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
@@ -408,8 +414,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
               for name, code in [
                                 ("bell_pair", bell_pair),  # n = 2 , k = 0
                                 ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1
-                                ("steane", steane), # n = 7 , k = 1
                                 ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("steane", steane), # n = 7 , k = 1
                                 ("shor", shor),  # n = 9 , k = 1
                                 ("carbon", carbon), # n = 12 , k = 2
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
