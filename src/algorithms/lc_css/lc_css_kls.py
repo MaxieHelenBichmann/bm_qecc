@@ -768,8 +768,6 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
     graph bipartide -> code LC to CSS (so if the graph is not bipartite, i cant make a statement...)
 
     probably need LC-orbit traversal...
-
-    TODO: generation of a state via choi still not right
     """
     graph = _code_to_graph(code)
 
