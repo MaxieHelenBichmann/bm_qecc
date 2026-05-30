@@ -340,6 +340,100 @@ def lc_equivalent_code_and_log_ops(
 # ------------------------------------------------------------------------------------------------------------------------------------------------
 # ------------------------------------------------------------------------------------------------------------------------------------------------
 
+def random_density_stabilizer_code(
+        n: int,
+        k: int,
+        ones_fraction: float = 0.1,
+        seed: int | None = None,
+) -> StabilizerCode:
+    """Return a seeded random ``[[n, k]]`` code with controlled tableau density.
+
+    Rows are sampled directly as random symplectic vectors and accepted only
+    when they commute with the rows already chosen and increase the row rank.
+    The total number of ones is targeted from ``ones_fraction`` up to rounding,
+    so the resulting generators mix X/Z/Y positions without using a special
+    structured construction.
+    """
+    if n < 1:
+        msg = "n must be at least 1."
+        raise ValueError(msg)
+    if not 0 <= k <= n:
+        msg = f"k must satisfy 0 <= k <= n, got n={n}, k={k}."
+        raise ValueError(msg)
+    if not 0 <= ones_fraction <= 1:
+        msg = f"ones_fraction must satisfy 0 <= ones_fraction <= 1, got {ones_fraction}."
+        raise ValueError(msg)
+
+    num_stabilizers = n - k
+    if num_stabilizers == 0:
+        return StabilizerCode(StabilizerTableau.empty(n))
+
+    num_entries = num_stabilizers * 2 * n
+    min_ones = num_stabilizers
+    target_ones = max(min_ones, int(np.ceil(ones_fraction * num_entries)))
+
+    rng = np.random.default_rng(seed)
+    tableau = _random_commuting_full_rank_tableau_with_weight(
+        num_stabilizers=num_stabilizers,
+        n=n,
+        target_ones=target_ones,
+        rng=rng,
+    )
+    return StabilizerCode(StabilizerTableau(tableau))
+
+def random_symmetry_stabilizer_code(
+        n: int,
+        k: int,
+        symmetry_fraction: float = 0.1,
+        seed: int | None = None,
+) -> StabilizerCode:
+    """Return a seeded random ``[[n, k]]`` code with controlled tableau symmetry.
+
+    At least ``ceil(symmetry_fraction * n)`` physical qubits are made symmetric
+    by giving them identical X and Z columns in the stabilizer tableau. Rows are
+    otherwise sampled randomly under this column-equality constraint and are
+    accepted only when they commute and increase the stabilizer rank.
+    """
+    if n < 1:
+        msg = "n must be at least 1."
+        raise ValueError(msg)
+    if not 0 <= k <= n:
+        msg = f"k must satisfy 0 <= k <= n, got n={n}, k={k}."
+        raise ValueError(msg)
+    if not 0 <= symmetry_fraction <= 1:
+        msg = f"symmetry_fraction must satisfy 0 <= symmetry_fraction <= 1, got {symmetry_fraction}."
+        raise ValueError(msg)
+
+    num_stabilizers = n - k
+    if num_stabilizers == 0:
+        return StabilizerCode(StabilizerTableau.empty(n))
+
+    num_symmetric_qubits = int(np.ceil(symmetry_fraction * n))
+    if num_symmetric_qubits <= 1:
+        return random_stabilizer_code(n, k, seed=seed)
+
+    max_rank = _max_rank_with_same_column_block(n, num_symmetric_qubits)
+    if num_stabilizers > max_rank:
+        msg = (
+            f"Cannot construct a [[{n}, {k}]] code with {num_symmetric_qubits} "
+            f"same-column symmetric qubits; maximum stabilizer rank is {max_rank}."
+        )
+        raise RandomizeError(msg)
+
+    rng = np.random.default_rng(seed)
+    symmetric_qubits = tuple(int(q) for q in rng.choice(n, size=num_symmetric_qubits, replace=False))
+    tableau = _random_symmetric_full_rank_tableau(
+        num_stabilizers=num_stabilizers,
+        n=n,
+        symmetric_qubits=symmetric_qubits,
+        rng=rng,
+    )
+    return StabilizerCode(StabilizerTableau(tableau))
+
+# ------------------------------------------------------------------------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 _LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
 
@@ -355,6 +449,172 @@ def _random_permutation(n: int, *, seed: int | None = None) -> tuple[int, ...]:
 def _rank_binary(matrix: np.ndarray) -> int:
     matrix = np.asarray(matrix, dtype=np.int8) % 2
     return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
+
+def _random_commuting_full_rank_tableau_with_weight(
+    *,
+    num_stabilizers: int,
+    n: int,
+    target_ones: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Return a random full-rank commuting tableau with exactly ``target_ones`` ones."""
+    row_width = 2 * n
+    for _ in range(200):
+        rows = np.zeros((0, row_width), dtype=np.int8)
+        remaining_ones = target_ones
+
+        for row_idx in range(num_stabilizers):
+            remaining_rows = num_stabilizers - row_idx
+            min_weight = max(1, remaining_ones - (remaining_rows - 1) * row_width)
+            max_weight = min(row_width, remaining_ones - (remaining_rows - 1))
+            if min_weight > max_weight:
+                break
+
+            row = _sample_commuting_independent_row(
+                rows,
+                n=n,
+                min_weight=min_weight,
+                max_weight=max_weight,
+                target_fraction=target_ones / (num_stabilizers * row_width),
+                rng=rng,
+            )
+            if row is None:
+                break
+
+            rows = np.vstack((rows, row))
+            remaining_ones -= int(np.count_nonzero(row))
+        else:
+            if remaining_ones == 0 and _rank_binary(rows) == num_stabilizers:
+                return rows
+
+    msg = (
+        f"Could not construct a random commuting full-rank tableau with "
+        f"{target_ones} ones."
+    )
+    raise RandomizeError(msg)
+
+def _sample_commuting_independent_row(
+    rows: np.ndarray,
+    *,
+    n: int,
+    min_weight: int,
+    max_weight: int,
+    target_fraction: float,
+    rng: np.random.Generator,
+) -> np.ndarray | None:
+    """Sample one row that commutes with ``rows`` and increases their rank."""
+    row_width = 2 * n
+    for _ in range(10_000):
+        weight = int(rng.binomial(row_width, target_fraction))
+        weight = min(max(weight, min_weight), max_weight)
+        candidate = np.zeros(row_width, dtype=np.int8)
+        candidate[rng.choice(row_width, size=weight, replace=False)] = 1
+
+        if rows.shape[0] == 0:
+            return candidate
+        commutations = (rows[:, :n] @ candidate[n:] + rows[:, n:] @ candidate[:n]) % 2
+        if np.any(commutations):
+            continue
+        if _rank_binary(np.vstack((rows, candidate))) == rows.shape[0] + 1:
+            return candidate
+
+    return None
+
+def _max_rank_with_same_column_block(n: int, block_size: int) -> int:
+    """Return the largest commuting row rank possible with one identical-column block."""
+    if block_size <= 1:
+        return n
+    if block_size % 2 == 1:
+        return n - block_size + 1
+    return n - block_size + 2
+
+def _random_symmetric_full_rank_tableau(
+    *,
+    num_stabilizers: int,
+    n: int,
+    symmetric_qubits: Sequence[int],
+    rng: np.random.Generator,
+) -> np.ndarray:
+    """Return a random full-rank commuting tableau with identical columns on a qubit block."""
+    symmetric_qubits = tuple(int(q) for q in symmetric_qubits)
+    symmetric_set = set(symmetric_qubits)
+    ordinary_qubits = tuple(q for q in range(n) if q not in symmetric_set)
+    effective_n = len(ordinary_qubits) + 1
+
+    for _ in range(200):
+        rows = np.zeros((0, 2 * n), dtype=np.int8)
+
+        for _row_idx in range(num_stabilizers):
+            row = _sample_symmetric_commuting_independent_row(
+                rows,
+                n=n,
+                effective_n=effective_n,
+                symmetric_qubits=symmetric_qubits,
+                ordinary_qubits=ordinary_qubits,
+                rng=rng,
+            )
+            if row is None:
+                break
+
+            rows = np.vstack((rows, row))
+        else:
+            if _rank_binary(rows) == num_stabilizers:
+                return rows
+
+    msg = "Could not construct a random commuting full-rank tableau with the requested symmetry."
+    raise RandomizeError(msg)
+
+def _sample_symmetric_commuting_independent_row(
+    rows: np.ndarray,
+    *,
+    n: int,
+    effective_n: int,
+    symmetric_qubits: Sequence[int],
+    ordinary_qubits: Sequence[int],
+    rng: np.random.Generator,
+) -> np.ndarray | None:
+    """Sample one constrained row that commutes with ``rows`` and increases rank."""
+    for _ in range(10_000):
+        effective_row = rng.integers(0, 2, size=2 * effective_n, dtype=np.int8)
+        if not np.any(effective_row):
+            continue
+
+        candidate = _expand_symmetric_effective_row(
+            effective_row,
+            n=n,
+            symmetric_qubits=symmetric_qubits,
+            ordinary_qubits=ordinary_qubits,
+        )
+        commutations = (rows[:, :n] @ candidate[n:] + rows[:, n:] @ candidate[:n]) % 2
+        if np.any(commutations):
+            continue
+        if _rank_binary(np.vstack((rows, candidate))) == rows.shape[0] + 1:
+            return candidate
+
+    return None
+
+def _expand_symmetric_effective_row(
+    effective_row: np.ndarray,
+    *,
+    n: int,
+    symmetric_qubits: Sequence[int],
+    ordinary_qubits: Sequence[int],
+) -> np.ndarray:
+    """Expand one effective row, copying one column pair onto the symmetric block."""
+    effective_n = len(ordinary_qubits) + 1
+    row = np.zeros(2 * n, dtype=np.int8)
+
+    block_x = effective_row[0]
+    block_z = effective_row[effective_n]
+    for qubit in symmetric_qubits:
+        row[qubit] = block_x
+        row[qubit + n] = block_z
+
+    for effective_idx, qubit in enumerate(ordinary_qubits, start=1):
+        row[qubit] = effective_row[effective_idx]
+        row[qubit + n] = effective_row[effective_idx + effective_n]
+
+    return row
 
 def _projection_rank_invariant(code: StabilizerCode) -> tuple[int, int, int]:
     """Return permutation-invariant ranks of X, Z, and X+Z projections."""
