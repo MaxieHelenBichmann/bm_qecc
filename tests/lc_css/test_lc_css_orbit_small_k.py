@@ -175,14 +175,14 @@ def test_traverse_lc_orbit() -> None:
 # ----------------------------------------------------------------------------------------------------
 
 
-def test_is_lceq_css_orbit_random_smoke() -> None:
+def test_is_lceq_css_orbit_small_k_random_smoke() -> None:
     for n in range(1, 4):
         for k in [0, 1]:
             code = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
             assert isinstance(is_lceq_css_orbit_small_k(code), bool)
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
-def test_is_lceq_css_orbit_random_log_ops_restricted(seed: int) -> None:
+def test_is_lceq_css_orbit_small_k_random_log_ops_restricted(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)
 
@@ -192,7 +192,7 @@ def test_is_lceq_css_orbit_random_log_ops_restricted(seed: int) -> None:
     assert is_lceq_css_orbit_small_k(code) is True
 
 @pytest.mark.parametrize("n", [pytest.param(n, id=f"n-{n}") for n in range(1, 5)])
-def test_is_lceq_css_orbit_random_positive(n: int) -> None:
+def test_is_lceq_css_orbit_small_k_random_positive(n: int) -> None:
     seed = 69 + n
 
     css_state = random_css_code(n, 0, seed=1000 + seed)
