@@ -129,7 +129,6 @@ python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose
 
 Run more detailed analysis, optionally:
 ```bash
-pip3 install py-spy
 py-spy record \
   --format flamegraph \
   --output results/pm_css_matroid_flame.svg \
@@ -142,7 +141,6 @@ The script `results/visualize.py` can create some small visualizations of the ra
 
 Create plots:
 ```bash
-pip3 install matplotlib
 python3 results/visualize.py results/statistics.csv --x n --k 1 --algorithm pm_css_sat --output results/statistics_plot.png
 ```
 

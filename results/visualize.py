@@ -6,8 +6,13 @@ import argparse
 import csv
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from math import factorial
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal
+
+import numpy as np
+from scipy.optimize import curve_fit
+from scipy.special import gammaln
 
 
 Axis = Literal["n", "k", "r", "d", "s"]
@@ -19,6 +24,125 @@ AXIS_LABELS: dict[Axis, str] = {
     "d": "d [density]",
     "s": "s [symmetry]",
 }
+
+def expected_functions(algorithm: str) -> Callable:
+    """Return the expected theoretical function for a given algorithm."""
+    # TODO
+    def _pm_css_bruteforce(n, a, b):
+        return a * factorial(n) + b
+    
+    def _pm_css_classical(n, a, b):
+        return a * factorial(n) + b
+    
+    def _pm_css_graph_iso(n, a, b):
+        return a * factorial(n) + b
+    
+    def _pm_css_matroid(n, a, b):
+        return a * factorial(n) + b
+    
+    def _pm_css_sat(n, a, b):
+        return n
+    
+    def _pm_stb_aut(n, a, b):
+        return n
+    
+    def _pm_stb_bruteforce(n, a, b):
+        return n
+    
+    def _pm_stb_classical(n, a, b):
+        return n
+    
+    def _pm_stb_graph_iso(n, a, b):
+        return n
+    
+    def _pm_stb_sat(n, a, b):
+        return n
+    
+    def _lc_equ_bruteforce(n, a, b):
+        return n
+    
+    def _lc_equ_graph_state(n, a, b):
+        return n
+    
+    def _lc_equ_graph_state_small_k(n, a, b):
+        return n
+    
+    def _lc_equ_graph_iso(n, a, b):
+        return n
+    
+    def _lc_equ_sat(n, a, b):
+        return n
+    
+    def _lc_css_bruteforce(n, a, b):
+        return n
+    
+    def _lc_css_kls(n, a, b):
+        return n
+    
+    def _lc_css_orbit(n, a, b):
+        return n
+    
+    def _lc_css_orbit_small_k(n, a, b):
+        return n
+    
+    def _lc_css_sat(n, a, b):
+        return n
+    
+    if algorithm == "pm_css_bruteforce":
+        return _pm_css_bruteforce
+    if algorithm == "pm_css_classical":
+        return _pm_css_classical
+    if algorithm == "pm_css_graph_iso":
+        return _pm_css_graph_iso
+    if algorithm == "pm_css_matroid":
+        return _pm_css_matroid
+    if algorithm == "pm_css_sat":
+        return _pm_css_sat
+    if algorithm == "pm_stb_aut":
+        return _pm_stb_aut
+    if algorithm == "pm_stb_bruteforce":
+        return _pm_stb_bruteforce
+    if algorithm == "pm_stb_classical":
+        return _pm_stb_classical
+    if algorithm == "pm_stb_graph_iso":
+        return _pm_stb_graph_iso
+    if algorithm == "pm_stb_sat":
+        return _pm_stb_sat
+    if algorithm == "lc_equ_graph_state":
+        return _lc_equ_graph_state
+    if algorithm == "lc_equ_graph_state_small_k":
+        return _lc_equ_graph_state_small_k
+    if algorithm == "lc_equ_bruteforce":
+        return _lc_equ_bruteforce
+    if algorithm == "lc_equ_graph_iso":
+        return _lc_equ_graph_iso
+    if algorithm == "lc_equ_sat":
+        return _lc_equ_sat
+    if algorithm == "lc_css_bruteforce":
+        return _lc_css_bruteforce
+    if algorithm == "lc_css_kls":
+        return _lc_css_kls
+    if algorithm == "lc_css_orbit":
+        return _lc_css_orbit
+    if algorithm == "lc_css_orbit_small_k":
+        return _lc_css_orbit_small_k
+    if algorithm == "lc_css_sat":
+        return _lc_css_sat
+    
+def boundary_functions(algorithm: str) -> Callable | None:
+    def _permutation(n, a, b):
+        return a * np.exp(gammaln(np.asarray(n, dtype=float) + 1.0)) + b
+    
+    def _lc(n, a, b):
+        return a * np.power(6.0, np.asarray(n, dtype=float)) + b
+    
+    if algorithm.startswith("pm_"):
+        return _permutation
+    
+    if algorithm.startswith("lc_"):
+        return _lc
+
+    return None
 
 
 @dataclass(frozen=True)
@@ -350,6 +474,72 @@ def clustered_point_labels(labels: Sequence[PointLabel], xlim: tuple[float, floa
     return clusters
 
 
+def initial_fit_guess(
+    boundary_function: Callable,
+    x,
+    y,
+) -> tuple[float, float]:
+    """Estimate stable starting parameters for a two-parameter boundary fit."""
+    import numpy as np
+
+    baseline = float(np.min(y))
+    boundary_at_x = boundary_function(x, 1.0, 0.0)
+    boundary_span = float(np.max(boundary_at_x) - np.min(boundary_at_x))
+    y_span = float(np.max(y) - np.min(y))
+    scale = y_span / boundary_span if boundary_span > 0 else 1.0
+    return scale, baseline
+
+
+def plot_boundary_fits(series: Sequence[PlotSeries], axis: Axis, ax) -> None:
+    """Draw one faint fitted theoretical boundary curve per algorithm."""
+    if axis not in {"n", "k", "r"}:
+        return
+
+    rows_by_algorithm: dict[str, list[StatRow]] = {}
+    colors_by_algorithm: dict[str, PlotColors] = {}
+    for color_index, item in enumerate(series):
+        if not item.rows:
+            continue
+        algorithm = item.rows[0].algorithm
+        rows_by_algorithm.setdefault(algorithm, []).extend(item.rows)
+        colors_by_algorithm.setdefault(algorithm, COLOR_FAMILIES[color_index % len(COLOR_FAMILIES)])
+
+    for algorithm, rows in rows_by_algorithm.items():
+        boundary_function = boundary_functions(algorithm)
+        if boundary_function is None or len(rows) < 2:
+            continue
+
+        x = np.asarray([row.axis_value(axis) for row in rows], dtype=float)
+        y = np.asarray([row.mean_seconds for row in rows], dtype=float)
+        if len(set(x)) < 2:
+            continue
+
+        try:
+            params, _ = curve_fit(
+                boundary_function,
+                x,
+                y,
+                p0=initial_fit_guess(boundary_function, x, y),
+                maxfev=10_000,
+            )
+        except (RuntimeError, ValueError, FloatingPointError, OverflowError):
+            continue
+
+        colors = colors_by_algorithm[algorithm]
+        x_fit = np.linspace(float(np.min(x)), float(np.max(x)), 200)
+        y_fit = np.maximum(boundary_function(x_fit, *params), 0)
+        ax.plot(
+            x_fit,
+            y_fit,
+            color=colors.line,
+            alpha=0.2,
+            linewidth=1.1,
+            linestyle="--",
+            label="_nolegend_",
+            zorder=1,
+        )
+
+
 def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str | None) -> None:
     """Render the selected series with mean/stddev and maximum markers."""
     try:
@@ -361,6 +551,7 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
 
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     point_labels: list[PointLabel] = []
+    plot_boundary_fits(series, axis, ax)
 
     for color_index, item in enumerate(series):
         colors = COLOR_FAMILIES[color_index % len(COLOR_FAMILIES)]
@@ -385,8 +576,9 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
             linewidth=1.6,
             markersize=4.5,
             label="_nolegend_" if has_named_rows else item.label,
+            zorder=3,
         )
-        ax.scatter(x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x")
+        ax.scatter(x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
         if has_named_rows:
             for row, label_x in zip(item.rows, x):
                 if row.name is None:

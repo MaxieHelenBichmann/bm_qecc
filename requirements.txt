@@ -1,4 +1,5 @@
 numpy
+matplotlib
 ldpc
 stim
 
@@ -6,3 +7,6 @@ pynauty
 z3-solver
 pyzx
 pytest
+py-spy
+
+scipy
