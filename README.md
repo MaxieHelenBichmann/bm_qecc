@@ -136,6 +136,17 @@ py-spy record \
   -- python -m benchmarks.run --algorithm pm_css_matroid --output results/pm_css_matroid_profile.csv --random
 ```
 
+### Evaluation
+
+The script `results/visualize.py` can create some small visualizations of the randomized benchmark data, showing dependencies of different code parameters like n, k, or number of stabilizer generators  and the runtime. They are mainly meant for getting a quick overview of the performance and bottlenecks of the algorithm, not as a finalized analysis.
+
+Create plots:
+```bash
+pip3 install matplotlib
+python3 results/visualize.py results/statistics.csv --x n --k 1 --algorithm pm_css_sat --output results/statistics_plot.png
+```
+
+
 ### Tests
 
 [![Tests](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml/badge.svg)](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml)
