@@ -10,10 +10,6 @@ from math import factorial
 from pathlib import Path
 from typing import Callable, Literal
 
-import numpy as np
-from scipy.optimize import curve_fit
-from scipy.special import gammaln
-
 
 Axis = Literal["n", "k", "r", "d", "s"]
 
@@ -540,7 +536,13 @@ def plot_boundary_fits(series: Sequence[PlotSeries], axis: Axis, ax) -> None:
         )
 
 
-def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str | None) -> None:
+def plot_series(
+    series: Sequence[PlotSeries],
+    axis: Axis,
+    output: Path | None,
+    title: str | None,
+    show_theory: bool,
+) -> None:
     """Render the selected series with mean/stddev and maximum markers."""
     try:
         import matplotlib.pyplot as plt
@@ -551,7 +553,8 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
 
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     point_labels: list[PointLabel] = []
-    plot_boundary_fits(series, axis, ax)
+    if show_theory:
+        plot_boundary_fits(series, axis, ax)
 
     for color_index, item in enumerate(series):
         colors = COLOR_FAMILIES[color_index % len(COLOR_FAMILIES)]
@@ -637,6 +640,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--title", help="Optional diagram title.")
+    parser.add_argument("--theory", action="store_true", help="Draw a faint fitted theoretical boundary function.")
 
     parser.add_argument("--algorithm", action="append", help="Algorithm to include. Can be passed multiple times.")
     parser.add_argument("--name", help="Case name to include.")
@@ -662,7 +666,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("No rows matched the selected filters.")
 
     series = build_series(rows, axis=args.x, include_positive=args.positive == "all")
-    plot_series(series, axis=args.x, output=args.output, title=fixed_parameter_title(args, rows))
+    plot_series(
+        series,
+        axis=args.x,
+        output=args.output,
+        title=fixed_parameter_title(args, rows),
+        show_theory=args.theory,
+    )
     return 0
 
 
