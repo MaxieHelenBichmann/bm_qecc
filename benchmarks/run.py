@@ -65,7 +65,7 @@ MEAS_STATS = [
     11,
     12,
     13,
-    17,
+    15,
     17,
     20
 ]
@@ -1006,9 +1006,9 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
     print()
     print(f"Benchmark statistics:\n")
 
-    for stat in statistics:
+    for stat in [s for s in statistics if s.meta.positive] + [s for s in statistics if not s.meta.positive]:
         print(
-            f"{stat.meta.algorithm:24} {"--" if stat.meta.name is None else stat.meta.name:42} n={stat.meta.n:<2} k={stat.meta.k:<2} {"POS" if stat.meta.positive else "NEG"} "
+            f"{stat.meta.algorithm:26} {"--" if stat.meta.name is None else stat.meta.name:18} n={stat.meta.n:<2} k={stat.meta.k:<2}   {"POS" if stat.meta.positive else "NEG"} "
             f"mean={stat.mean:.6f}s stddev={stat.stddev:.6f}s max={stat.maximum:.6f}s"
         )
 
@@ -1023,7 +1023,7 @@ def print_results(results: Sequence[Result]) -> None:
     for result in results:
         status = "ok" if result.success else "failed"
         print(
-            f"{status:6} {result.algorithm:24} {result.case:42} "
+            f"{status:6} {result.algorithm:26} {result.case:42} "
             f"n={result.n:<2} k={result.k:<2} t={result.seconds:.6f}s"
         )
         if result.error:
