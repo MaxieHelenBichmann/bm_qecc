@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import random_stabilizer_code, lc_equivalent_code, lc_equivalent_code_and_log_ops
+from benchmarks.utils import non_lc_equivalent_code, random_stabilizer_code, lc_equivalent_code, lc_equivalent_code_and_log_ops
 from src.algorithms.lc_eq.lc_eq_graph_state_small_k import (
     _stab_state_to_graph_state,
     _stab_code_to_stab_state,
@@ -385,3 +385,15 @@ def test_are_lceq_graph_state_small_k_random_positive(n: int) -> None:
 
     assert are_lceq_graph_state_small_k(code_state, state) is True
     assert are_lceq_graph_state_small_k(code_small, small) is True
+
+@pytest.mark.parametrize("n", [pytest.param(n, id=f"n-{n}") for n in range(2, 5)])
+def test_are_lceq_graph_state_small_k_random_negative(n: int) -> None:
+    seed = 69 + n
+
+    code_state = random_stabilizer_code(n, 0, seed=15000 + seed)
+    code_small = random_stabilizer_code(n, 1, seed=45000 + seed)
+    state = non_lc_equivalent_code(code_state, seed=25000 + seed)
+    small = non_lc_equivalent_code(code_small, seed=35000 + seed)
+
+    assert are_lceq_graph_state_small_k(code_state, state) is False
+    assert are_lceq_graph_state_small_k(code_small, small) is False

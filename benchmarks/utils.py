@@ -312,6 +312,43 @@ def lc_equivalent_code(
     base_changed_tableau = _random_tableau_row_space_base_change(tableau, rng=rng, steps=row_steps)
     return StabilizerCode(base_changed_tableau, distance=code.distance)
 
+def non_lc_equivalent_code(
+    code: StabilizerCode,
+    seed: int | None = None,
+    *,
+    row_steps: int | None = None,
+    max_attempts: int = 10_000,
+) -> StabilizerCode:
+    """Return a random same-``[[n, k]]`` code certified non-LC-equivalent.
+
+    The certificate is the ordered support-projection rank profile. A local
+    Clifford applies an invertible 2x2 transform to each qubit's X/Z column
+    pair, so these ranks cannot change under LC-equivalence.
+    """
+    if max_attempts < 1:
+        msg = "max_attempts must be positive."
+        raise ValueError(msg)
+    if code.k == code.n:
+        raise RandomizeError("No non-LC-equivalent stabilizer code exists for the trivial code.")
+    if code.n == 1:
+        raise RandomizeError("No non-LC-equivalent one-qubit stabilizer code exists.")
+
+    rng = np.random.default_rng(seed)
+    invariant = _lc_projection_rank_invariant(code)
+
+    for _ in range(max_attempts):
+        candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        candidate = random_stabilizer_code(code.n, code.k, seed=candidate_seed)
+
+        if _lc_projection_rank_invariant(candidate) != invariant:
+            if row_steps is None:
+                return candidate
+            return StabilizerCode(
+                _random_tableau_row_space_base_change(candidate.generators, rng=rng, steps=row_steps)
+            )
+
+    raise RandomizeError("Could not find a candidate with a different LC support-rank invariant.")
+
 def lc_equivalent_code_and_log_ops(
     code: StabilizerCode,
     seed: int | None = None,
@@ -762,6 +799,19 @@ def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
         ))
 
     return tuple(profile)
+
+def _lc_projection_rank_invariant(code: StabilizerCode, max_w: int = 3) -> tuple[tuple[int, ...], ...]:
+    """Return ordered subset projection ranks preserved by local Cliffords."""
+    M = np.asarray(code.symplectic, dtype=np.uint8) & 1
+    n = code.n
+
+    return tuple(
+        tuple(
+            _rank_binary(M[:, [c for q in qubits for c in (q, q + n)]])
+            for qubits in combinations(range(n), w)
+        )
+        for w in range(1, min(max_w, n) + 1)
+    )
 
 def _cheap_invariant(code: StabilizerCode) -> tuple[int, int, int, int, Any]:
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1

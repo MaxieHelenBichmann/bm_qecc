@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pynauty import Graph
 
-from benchmarks.utils import lc_equivalent_code, random_stabilizer_code
+from benchmarks.utils import lc_equivalent_code, non_lc_equivalent_code, random_stabilizer_code
 from src.algorithms.lc_eq.lc_eq_graph_iso import (
     _graph_from_code,
     are_lceq_graph_iso,
@@ -112,3 +112,12 @@ def test_are_lceq_graph_iso_random_positive(seed: int) -> None:
     code2 = lc_equivalent_code(code1, seed=2000 + seed)
 
     assert are_lceq_graph_iso(code1, code2) is True
+
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(2, 6)])
+def test_are_lceq_graph_iso_random_negative(seed: int) -> None:
+    n = 2 + (3 * seed + 1) % 4
+    k = (2 * seed + 1) % n
+    code1 = random_stabilizer_code(n, k, seed=1000 + seed)
+    code2 = non_lc_equivalent_code(code1, seed=2000 + seed)
+
+    assert are_lceq_graph_iso(code1, code2) is False
