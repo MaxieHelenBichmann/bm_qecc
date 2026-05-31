@@ -105,11 +105,20 @@ class Result:
     error: str = ""
 
 @dataclass(frozen=True)
+class Measurement:
+    """All meta-data for a seeded measurement. Later usable for statistics."""
+    algorithm: str
+    name: str | None
+    n: int
+    k: int
+    positive: bool
+    density: float | None
+    symmetry: float | None
+
+@dataclass(frozen=True)
 class Statistic:
     """One statistic result."""
-
-    algorithm: str
-    measurement: str
+    meta: Measurement
     times: list[float]
     mean: float
     stddev: float
@@ -379,35 +388,98 @@ def non_lcc_eq_case(seed: int, dim: tuple[int, int] | None = None, code: Stabili
         expected_lc=False,
     )
 
-def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[str, list[Case]]]:
+def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[Measurement, list[Case]]]:
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1000, size=N_STATS)
-    measurements_pos : list[tuple[str, list[Case]]] = []
-    measurements_neg : list[tuple[str, list[Case]]] = []
+    measurements : list[tuple[Measurement, list[Case]]] = []
     sizes = [(n, i) for n in MEAS_STATS for i in range(0, n, 1 if n < 7 else 2)]
 
     if random:
         for n, k in sizes:
             if algorithm.startswith("pm_css"):
-                non_permuted_css = [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
-                permuted_css = [permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
-                measurements_neg.append((f"non_permuted_css_{n}_{k}", non_permuted_css))
-                measurements_pos.append((f"permuted_css_{n}_{k}", permuted_css))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
             elif algorithm.startswith("pm_stb"):
-                non_permuted_stabilizer = [non_permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
-                permuted_stabilizer = [permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
-                measurements_neg.append((f"non_permuted_stab_{n}_{k}", non_permuted_stabilizer))
-                measurements_pos.append((f"permuted_stab_{n}_{k}", permuted_stabilizer))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [non_permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
             elif algorithm.startswith("lc_equ"):
-                lc_eq = [lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]
-                non_lc_eq = [non_lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]
-                measurements_pos.append((f"lc_eq_{n}_{k}", lc_eq))
-                measurements_neg.append((f"non_lc_eq_{n}_{k}", non_lc_eq))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [non_lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]))
             elif algorithm.startswith("lc_css"):
-                lc_cases = [lcc_css_case(seed=s, dim=(n, k)) for s in seeds]
-                non_lc_eq = [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds]
-                measurements_pos.append((f"lc_css_{n}_{k}", lc_cases))
-                measurements_neg.append((f"non_lc_css_{n}_{k}", non_lc_eq))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                    [lcc_css_case(seed=s, dim=(n, k)) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=None, 
+                                        n=n, 
+                                        k=k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                    [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds]))
     else:
         if algorithm.startswith("pm_css"):
             for name, code in [
@@ -421,8 +493,26 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_neg.append((name + "_non_permuted", [non_permuted_css_case(seed=s, code=code) for s in seeds]))
-                measurements_pos.append((name + "_permuted", [permuted_css_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [permuted_css_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [non_permuted_css_case(seed=s, code=code) for s in seeds]))
 
         elif algorithm.startswith("pm_stb"):
             for name, code in [
@@ -437,10 +527,28 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_neg.append((name + "_non_permuted", [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
-                measurements_pos.append((name + "_permuted", [permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
         elif algorithm.startswith("lc_equ"):
-              for name, code in [
+            for name, code in [
                                 ("bell_pair", bell_pair), # n = 2 , k = 0
                                 ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1 
                                 ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
@@ -452,8 +560,26 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_pos.append((name + "_lc_eq", [lcc_eq_case(seed=s, code=code) for s in seeds]))
-                measurements_neg.append((name + "_non_lc_eq", [non_lcc_eq_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [lcc_eq_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [non_lcc_eq_case(seed=s, code=code) for s in seeds]))
         elif algorithm.startswith("lc_css"):
               for name, code in [
                                 ("bell_pair", bell_pair),  # n = 2 , k = 0
@@ -467,10 +593,28 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_pos.append((name + "_lc_css", [lcc_css_case(seed=s, code=code) for s in seeds]))
-                measurements_neg.append((name + "_non_lc_css", [non_lcc_css_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=True, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [lcc_css_case(seed=s, code=code) for s in seeds]))
+                measurements.append((Measurement(
+                                        algorithm=algorithm, 
+                                        name=name, 
+                                        n=code.n, 
+                                        k=code.k, 
+                                        positive=False, 
+                                        density=None, 
+                                        symmetry=None
+                                    ), 
+                                    [non_lcc_css_case(seed=s, code=code) for s in seeds]))
 
-    return measurements_pos + measurements_neg
+    return measurements
     
 def default_cases(seed: int, random: bool = False) -> list[Case]:
     """Return test cases."""
@@ -718,18 +862,18 @@ def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int,
         if verbose:
             print(f"Running benchmark for algorithm: {algorithm_name}")
         stats_algorithm = []
-        for measurement_name, measurement in seeded_measurements(seed=seed, algorithm=algorithm_name, random=random):
+        for measurement, measurement_cases in seeded_measurements(seed=seed, algorithm=algorithm_name, random=random):
             if verbose:
-                print(f"    Running measurement: {measurement_name}")
+                print(f"    Running measurement for n={measurement.n} k={measurement.k}:")
             results: list[Result] = []
-            for case in measurement:
+            for case in measurement_cases:
                 if not case_supports_algorithm(case, algorithm_name):
                     continue
                 if verbose:
                     print(f"        Running case: {case.name}...")
                 results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
 
-            stat = compute_statistics(results, algorithm_name, measurement_name)
+            stat = compute_statistics(results, measurement)
 
             if stat is not None:
                 stats_algorithm.append(stat)
@@ -741,15 +885,16 @@ def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int,
     
     return statistics
 
-def compute_statistics(results: Sequence[Result], algorithm_name: str, measurement_name: str) -> Statistic | None:
+def compute_statistics(results: Sequence[Result], measurement: Measurement) -> Statistic | None:
     """Compute mean and standard deviation of runtimes for each algorithm and case."""
     times = []
 
     for result in results:
-        if not result.success:
-            print(f"Warning: Skipping failed case {result.case} for algorithm {algorithm_name} in statistics.")
+        if result.algorithm != measurement.algorithm:
             continue
-        if result.algorithm != algorithm_name:
+
+        if not result.success:
+            print(f"Warning: Skipping failed case {result.case} for algorithm {result.algorithm} in statistics.")
             continue
 
         times.append(result.seconds)
@@ -761,8 +906,7 @@ def compute_statistics(results: Sequence[Result], algorithm_name: str, measureme
     stddev = np.std(times, ddof=1) if len(times) > 1 else 0.0
 
     return Statistic(
-        algorithm=algorithm_name,
-        measurement=measurement_name,
+        meta=measurement,
         times=times,
         mean=mean,
         stddev=stddev,
@@ -774,8 +918,13 @@ def write_stats(stats: Sequence[Statistic], seed: int, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     rows_short = [
         {
-            "algorithm": stat.algorithm,
-            "measurement": stat.measurement,
+            "algorithm": stat.meta.algorithm,
+            "name": stat.meta.name,
+            "n": stat.meta.n,
+            "k": stat.meta.k,
+            "positive": stat.meta.positive,
+            "density": stat.meta.density,
+            "symmetry": stat.meta.symmetry,
             "mean_seconds": f"{stat.mean:.9f}",
             "stddev_seconds": f"{stat.stddev:.9f}",
             "maximum_seconds": f"{stat.maximum:.9f}",
@@ -798,8 +947,13 @@ def write_stats(stats: Sequence[Statistic], seed: int, output: Path) -> None:
     rows_raw = [
         {
             "seed": seed,
-            "algorithm": stat.algorithm,
-            "measurement": stat.measurement,
+            "algorithm": stat.meta.algorithm,
+            "name": stat.meta.name,
+            "n": stat.meta.n,
+            "k": stat.meta.k,
+            "positive": stat.meta.positive,
+            "density": stat.meta.density,
+            "symmetry": stat.meta.symmetry,
             "sample": i,
             "time_seconds": f"{time:.9f}",
         }
@@ -854,7 +1008,7 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
 
     for stat in statistics:
         print(
-            f"{stat.algorithm:24} {stat.measurement:42} "
+            f"{stat.meta.algorithm:24} {"--" if stat.meta.name is None else stat.meta.name:42} n={stat.meta.n:<2} k={stat.meta.k:<2} {"POS" if stat.meta.positive else "NEG"} "
             f"mean={stat.mean:.6f}s stddev={stat.stddev:.6f}s max={stat.maximum:.6f}s"
         )
 
