@@ -22,6 +22,68 @@ AXIS_LABELS: dict[Axis, str] = {
 
 
 @dataclass(frozen=True)
+class PlotColors:
+    """Colors for the visual elements of one plotted series."""
+
+    line: str
+    point: str
+    error: str
+    maximum: str
+
+
+COLOR_FAMILIES: tuple[PlotColors, ...] = (
+    PlotColors(
+        line="cornflowerblue",
+        point="royalblue",
+        error="lightsteelblue",
+        maximum="lightskyblue",
+    ),
+    PlotColors(
+        line="orange",
+        point="darkorange",
+        error="moccasin",
+        maximum="peru",
+    ),
+    PlotColors(
+        line="forestgreen",
+        point="darkgreen",
+        error="palegreen",
+        maximum="mediumseagreen",
+    ),
+    PlotColors(
+        line="mediumpurple",
+        point="indigo",
+        error="thistle",
+        maximum="plum",
+    ),
+    PlotColors(
+        line="indianred",
+        point="darkred",
+        error="mistyrose",
+        maximum="salmon",
+    ),
+    PlotColors(
+        line="lightseagreen",
+        point="darkcyan",
+        error="paleturquoise",
+        maximum="mediumturquoise",
+    ),
+    PlotColors(
+        line="peru",
+        point="saddlebrown",
+        error="tan",
+        maximum="burlywood",
+    ),
+    PlotColors(
+        line="hotpink",
+        point="mediumvioletred",
+        error="pink",
+        maximum="palevioletred",
+    ),
+)
+
+
+@dataclass(frozen=True)
 class StatRow:
     """One row emitted by benchmarks.run.write_stats."""
 
@@ -161,7 +223,10 @@ def build_series(rows: Iterable[StatRow], axis: Axis, include_positive: bool) ->
         grouped.setdefault(series_label(row, include_positive), []).append(row)
 
     return [
-        PlotSeries(label=label, rows=tuple(sorted(group, key=lambda row: row.axis_value(axis))))
+        PlotSeries(
+            label=label,
+            rows=tuple(sorted(group, key=lambda row: row.axis_value(axis))),
+        )
         for label, group in sorted(grouped.items())
     ]
 
@@ -213,25 +278,29 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
 
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
 
-    for item in series:
+    for color_index, item in enumerate(series):
+        colors = COLOR_FAMILIES[color_index % len(COLOR_FAMILIES)]
         x = [row.axis_value(axis) for row in item.rows]
         mean = [row.mean_seconds for row in item.rows]
         lower_error = [min(row.stddev_seconds, row.mean_seconds) for row in item.rows]
         upper_error = [row.stddev_seconds for row in item.rows]
         maximum = [row.maximum_seconds for row in item.rows]
 
-        line = ax.errorbar(
+        ax.errorbar(
             x,
             mean,
             yerr=[lower_error, upper_error],
             marker="o",
             capsize=3,
+            color=colors.line,
+            ecolor=colors.error,
+            markerfacecolor=colors.point,
+            markeredgecolor=colors.point,
             linewidth=1.6,
             markersize=4.5,
             label=item.label,
         )
-        color = line.lines[0].get_color()
-        ax.scatter(x, maximum, s=18, alpha=0.35, color=color, marker="x")
+        ax.scatter(x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x")
 
     ax.set_xlabel(AXIS_LABELS[axis])
     ax.set_ylabel("runtime [s]")
