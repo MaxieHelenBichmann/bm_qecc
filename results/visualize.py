@@ -126,6 +126,44 @@ class PlotSeries:
     rows: tuple[StatRow, ...]
 
 
+@dataclass(frozen=True)
+class PointLabel:
+    """A direct label for one named benchmark point."""
+
+    text: str
+    x: float
+    y: float
+    color: str
+
+
+def jittered_axis_values(rows: Sequence[StatRow], axis: Axis) -> list[float]:
+    """Spread rows with identical x-values just enough to keep points visible."""
+    axis_values = [row.axis_value(axis) for row in rows]
+    unique_values = sorted(set(axis_values))
+    if len(unique_values) > 1:
+        min_gap = min(
+            right - left
+            for left, right in zip(unique_values, unique_values[1:])
+            if right > left
+        )
+        jitter_step = min_gap * 0.12
+    else:
+        jitter_step = max(abs(unique_values[0]) * 0.02, 0.1)
+
+    duplicates: dict[float, list[int]] = {}
+    for index, value in enumerate(axis_values):
+        duplicates.setdefault(value, []).append(index)
+
+    jittered_values = list(axis_values)
+    for value, indices in duplicates.items():
+        if len(indices) == 1:
+            continue
+        midpoint = (len(indices) - 1) / 2
+        for duplicate_index, row_index in enumerate(indices):
+            jittered_values[row_index] = value + (duplicate_index - midpoint) * jitter_step
+    return jittered_values
+
+
 def parse_optional_float(value: str | None) -> float | None:
     """Parse an optional CSV float field."""
     if value is None or value == "":
@@ -195,6 +233,8 @@ def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
         return False
     if args.positive != "all" and row.positive != (args.positive == "true"):
         return False
+    if row.name is not None:
+        return True
     if args.n is not None and row.n != args.n:
         return False
     if args.k is not None and row.k != args.k:
@@ -243,8 +283,11 @@ def configure_axis_constraints(args: argparse.Namespace, parser: argparse.Argume
         parser.error(f"--x {args.x} requires both --n and --k.")
 
 
-def fixed_parameter_title(args: argparse.Namespace) -> str:
+def fixed_parameter_title(args: argparse.Namespace, rows: Sequence[StatRow]) -> str:
     """Build a title line that describes fixed dimension parameters."""
+    if any(row.name is not None for row in rows):
+        return args.title or "Benchmark runtimes"
+
     fixed_parts = []
     if args.n is not None and args.x != "n":
         fixed_parts.append(f"n = {args.n}")
@@ -267,6 +310,46 @@ def fixed_parameter_title(args: argparse.Namespace) -> str:
     return "Benchmark runtimes"
 
 
+def label_position(
+    label: PointLabel,
+    xlim: tuple[float, float],
+    ylim: tuple[float, float],
+    cluster_index: int,
+) -> tuple[tuple[int, int], str, str]:
+    """Choose a readable offset for a label near its data point."""
+    x_span = xlim[1] - xlim[0]
+    y_span = ylim[1] - ylim[0]
+    x_fraction = 0.5 if x_span == 0 else (label.x - xlim[0]) / x_span
+    y_fraction = 0.5 if y_span == 0 else (label.y - ylim[0]) / y_span
+
+    place_left = x_fraction > 0.68
+    place_below = y_fraction > 0.72
+    horizontal_offsets = (-5, -16) if place_left else (5, 16)
+    vertical_offsets = (-5, -14, -23) if place_below else (5, 14, 23)
+
+    x_offset = horizontal_offsets[(cluster_index // len(vertical_offsets)) % len(horizontal_offsets)]
+    y_offset = vertical_offsets[cluster_index % len(vertical_offsets)]
+    horizontal_alignment = "right" if place_left else "left"
+    vertical_alignment = "top" if place_below else "bottom"
+    return (x_offset, y_offset), horizontal_alignment, vertical_alignment
+
+
+def clustered_point_labels(labels: Sequence[PointLabel], xlim: tuple[float, float]) -> list[list[PointLabel]]:
+    """Group labels whose x-positions are close enough that text may overlap."""
+    if not labels:
+        return []
+
+    x_span = xlim[1] - xlim[0]
+    threshold = max(x_span * 0.08, 1e-12)
+    clusters: list[list[PointLabel]] = []
+    for label in sorted(labels, key=lambda point_label: (point_label.x, point_label.y)):
+        if not clusters or abs(label.x - clusters[-1][-1].x) > threshold:
+            clusters.append([label])
+        else:
+            clusters[-1].append(label)
+    return clusters
+
+
 def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str | None) -> None:
     """Render the selected series with mean/stddev and maximum markers."""
     try:
@@ -277,10 +360,12 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
         raise
 
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
+    point_labels: list[PointLabel] = []
 
     for color_index, item in enumerate(series):
         colors = COLOR_FAMILIES[color_index % len(COLOR_FAMILIES)]
-        x = [row.axis_value(axis) for row in item.rows]
+        has_named_rows = any(row.name is not None for row in item.rows)
+        x = jittered_axis_values(item.rows, axis) if has_named_rows else [row.axis_value(axis) for row in item.rows]
         mean = [row.mean_seconds for row in item.rows]
         lower_error = [min(row.stddev_seconds, row.mean_seconds) for row in item.rows]
         upper_error = [row.stddev_seconds for row in item.rows]
@@ -296,17 +381,51 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
             ecolor=colors.error,
             markerfacecolor=colors.point,
             markeredgecolor=colors.point,
+            linestyle="none" if has_named_rows else "-",
             linewidth=1.6,
             markersize=4.5,
-            label=item.label,
+            label="_nolegend_" if has_named_rows else item.label,
         )
         ax.scatter(x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x")
+        if has_named_rows:
+            for row, label_x in zip(item.rows, x):
+                if row.name is None:
+                    continue
+                point_labels.append(
+                    PointLabel(
+                        text=row.name,
+                        x=label_x,
+                        y=row.mean_seconds,
+                        color=colors.point,
+                    )
+                )
 
     ax.set_xlabel(AXIS_LABELS[axis])
     ax.set_ylabel("runtime [s]")
+    ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    for cluster in clustered_point_labels(point_labels, xlim):
+        for cluster_index, label in enumerate(sorted(cluster, key=lambda point_label: point_label.y, reverse=True)):
+            offset, horizontal_alignment, vertical_alignment = label_position(label, xlim, ylim, cluster_index)
+            ax.annotate(
+                label.text,
+                (label.x, label.y),
+                xytext=offset,
+                textcoords="offset points",
+                fontsize=8,
+                color=label.color,
+                ha=horizontal_alignment,
+                va=vertical_alignment,
+                annotation_clip=False,
+                bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "none", "alpha": 0.78},
+                arrowprops={"arrowstyle": "-", "color": label.color, "alpha": 0.45, "lw": 0.6},
+            )
     ax.grid(True, which="major", alpha=0.25)
-    ax.legend()
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(handles, labels)
     if title:
         ax.set_title(title)
 
@@ -351,7 +470,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("No rows matched the selected filters.")
 
     series = build_series(rows, axis=args.x, include_positive=args.positive == "all")
-    plot_series(series, axis=args.x, output=args.output, title=fixed_parameter_title(args))
+    plot_series(series, axis=args.x, output=args.output, title=fixed_parameter_title(args, rows))
     return 0
 
 
