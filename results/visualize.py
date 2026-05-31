@@ -10,7 +10,15 @@ from pathlib import Path
 from typing import Literal
 
 
-Axis = Literal["n", "k", "r"]
+Axis = Literal["n", "k", "r", "d", "s"]
+
+AXIS_LABELS: dict[Axis, str] = {
+    "n": "n [physical qubits]",
+    "k": "k [logical qubits]",
+    "r": "r = n - k [number of stabilizer generators]",
+    "d": "d [density]",
+    "s": "s [symmetry]",
+}
 
 
 @dataclass(frozen=True)
@@ -32,12 +40,20 @@ class StatRow:
     def r(self) -> int:
         return self.n - self.k
 
-    def axis_value(self, axis: Axis) -> int:
+    def axis_value(self, axis: Axis) -> float:
         if axis == "n":
             return self.n
         if axis == "k":
             return self.k
-        return self.r
+        if axis == "r":
+            return self.r
+        if axis == "d":
+            if self.density is None:
+                raise ValueError("Cannot use density as x-axis for rows without density.")
+            return self.density
+        if self.symmetry is None:
+            raise ValueError("Cannot use symmetry as x-axis for rows without symmetry.")
+        return self.symmetry
 
 
 @dataclass(frozen=True)
@@ -107,6 +123,10 @@ def read_stats_csv(path: Path) -> list[StatRow]:
 
 def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
     """Return whether a statistics row should be included."""
+    if args.x == "d" and row.density is None:
+        return False
+    if args.x == "s" and row.symmetry is None:
+        return False
     if args.algorithm and row.algorithm not in args.algorithm:
         return False
     if args.name is not None and row.name != args.name:
@@ -154,6 +174,32 @@ def configure_axis_constraints(args: argparse.Namespace, parser: argparse.Argume
         parser.error("--x k requires --n so only one block length is plotted.")
     if args.x == "r" and (args.n is None) == (args.k is None):
         parser.error("--x r requires exactly one of --n or --k.")
+    if args.x in {"d", "s"} and (args.n is None or args.k is None):
+        parser.error(f"--x {args.x} requires both --n and --k.")
+
+
+def fixed_parameter_title(args: argparse.Namespace) -> str:
+    """Build a title line that describes fixed dimension parameters."""
+    fixed_parts = []
+    if args.n is not None and args.x != "n":
+        fixed_parts.append(f"n = {args.n}")
+    if args.k is not None and args.x != "k":
+        fixed_parts.append(f"k = {args.k}")
+    if args.r is not None and args.x != "r":
+        fixed_parts.append(f"r = {args.r}")
+    if args.density is not None and args.x != "d":
+        fixed_parts.append(f"d = {args.density:g}")
+    if args.symmetry is not None and args.x != "s":
+        fixed_parts.append(f"s = {args.symmetry:g}")
+
+    context = ", ".join(fixed_parts)
+    if args.title and context:
+        return f"{args.title}\n{context}"
+    if args.title:
+        return args.title
+    if context:
+        return f"Benchmark runtimes\n{context}"
+    return "Benchmark runtimes"
 
 
 def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str | None) -> None:
@@ -170,13 +216,14 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
     for item in series:
         x = [row.axis_value(axis) for row in item.rows]
         mean = [row.mean_seconds for row in item.rows]
-        stddev = [row.stddev_seconds for row in item.rows]
+        lower_error = [min(row.stddev_seconds, row.mean_seconds) for row in item.rows]
+        upper_error = [row.stddev_seconds for row in item.rows]
         maximum = [row.maximum_seconds for row in item.rows]
 
         line = ax.errorbar(
             x,
             mean,
-            yerr=stddev,
+            yerr=[lower_error, upper_error],
             marker="o",
             capsize=3,
             linewidth=1.6,
@@ -186,8 +233,9 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
         color = line.lines[0].get_color()
         ax.scatter(x, maximum, s=18, alpha=0.35, color=color, marker="x")
 
-    ax.set_xlabel(axis if axis != "r" else "r = n - k")
+    ax.set_xlabel(AXIS_LABELS[axis])
     ax.set_ylabel("runtime [s]")
+    ax.set_ylim(bottom=0)
     ax.grid(True, which="major", alpha=0.25)
     ax.legend()
     if title:
@@ -199,13 +247,14 @@ def plot_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, t
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output, dpi=200)
+    print(f"Saved diagram to {output}.")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
-    parser.add_argument("--x", choices=("n", "k", "r"), required=True, help="Dimension used for the x-axis.")
+    parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--title", help="Optional diagram title.")
 
@@ -233,7 +282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("No rows matched the selected filters.")
 
     series = build_series(rows, axis=args.x, include_positive=args.positive == "all")
-    plot_series(series, axis=args.x, output=args.output, title=args.title)
+    plot_series(series, axis=args.x, output=args.output, title=fixed_parameter_title(args))
     return 0
 
 
