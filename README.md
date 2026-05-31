@@ -94,8 +94,11 @@ benchmarks/
   utils.py         # randomization utilities
 
 data/              # non-randomized case inputs
+  convert.py
+  generate.py
 
 results/           # generated CSV output, ignored by git
+  visualize.py
 ```
 
 ## How to run the benchmarks?
@@ -147,6 +150,6 @@ python3 -m pytest
 For the Automorphism-based algorithm, I use [GAP / Guava](https://docs.gap-system.org/pkg/guava/doc/manual.pdf), thus the GAP executable and Guava's dependencies are needed.
 Before running a benchmark with this algorithm, Guava's dependencies should be in `bm_qecc/.gap` AND the following command has to be executed:
 ```bash
-export GAP_EXECUTABLE=/Users/maxie/miniforge3/envs/bm-qecc/bin/gap
+export GAP_EXECUTABLE=/path/to/gap
 ```
 But as I would estimate that this Automorphism-based algorithm will NOT be efficient at all, it will probably not be used in the MQT and thus I will not deal with this dependency apart from getting some measurements in this Repo.
