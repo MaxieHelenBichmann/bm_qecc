@@ -40,7 +40,9 @@ from src.core.stabilizer_code import StabilizerCode
 from src.core.css_code import CSSCode
 
 from .utils import (
+    RandomizeError,
     lc_equivalent_code,
+    non_lc_equivalent_code,
     non_permutation_equivalent_css_code,
     non_permutation_equivalent_stabilizer_code,
     permutation_equivalent_code,
@@ -50,6 +52,7 @@ from .utils import (
     random_non_permuted_stabilizer_pair,
     random_non_permuted_css_pair,
     random_css_code,
+    random_stabilizer_code,
 )
 
 N_STATS = 7
@@ -168,7 +171,6 @@ def generated_css_pair(n: int, k: int, suffix: str) -> tuple[CSSCode, CSSCode] |
     code1_path, code2_path = paths
     return CSSCode.from_file(code1_path), CSSCode.from_file(code2_path)
 
-
 def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
     """Return whether a case has an expectation and compatible inputs for an algorithm."""
     if algorithm_name.startswith("pm_css") and all(isinstance(code, CSSCode) for code in case.inputs)and len(case.inputs) == 2 and case.expected_p is not None:
@@ -226,129 +228,159 @@ def resolve_algorithm_names(selectors: Sequence[str] | None) -> list[str]:
 
     return sorted(selected_names)
 
-def random_non_permuted_css_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
+def non_permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None, use_cached: bool = True) -> Case:
+    if dim is not None:
+        n, k = dim
         if use_cached:
             pair = generated_css_pair(n, k, "non_peq")
-            code1, code2 = pair or random_non_permuted_css_pair(n, k, seed=case_seed)
+            code1, code2 = pair or random_non_permuted_css_pair(n, k, seed=seed)
         else:
-            code1, code2 = random_non_permuted_css_pair(n, k, seed=case_seed)
-        return Case(
-            name=f"random_non_permuted_css_{n}_{case_seed}",
-            inputs=(code1, code2),
-            expected_p=False,
-            expected_lc=None,
-        )
-
-def random_permuted_css_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
-    if use_cached:
-        pair = generated_css_pair(n, k, "peq")
-        code1, code2 = pair or random_permuted_css_pair(n, k, seed=case_seed)
+            code1, code2 = random_non_permuted_css_pair(n, k, seed=seed)
     else:
-        code1, code2 = random_permuted_css_pair(n, k, seed=case_seed)
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+        code1 = code
+        code2 = non_permutation_equivalent_css_code(code1, seed=seed)
+
     return Case(
-        name=f"random_permuted_css_{n}_{k}_{case_seed}",
+        name=f"non_permuted_css_{n}_{k}_{seed}",
+        inputs=(code1, code2),
+        expected_p=False,
+        expected_lc=None,
+    )
+
+def permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None, use_cached: bool = True) -> Case:
+    if dim is not None:
+        n, k = dim
+        if use_cached:
+            pair = generated_css_pair(n, k, "peq")
+            code1, code2 = pair or random_permuted_css_pair(n, k, seed=seed)
+        else:
+            code1, code2 = random_permuted_css_pair(n, k, seed=seed)
+    else:
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+        code1 = code
+        code2 = permutation_equivalent_css_code(code1, seed=seed)
+
+    return Case(
+        name=f"permuted_css_{n}_{k}_{seed}",
         inputs=(code1, code2),
         expected_p=True,
         expected_lc=None,
     )
 
-def random_non_permuted_stabilizer_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
-    if use_cached:
-        pair = generated_stabilizer_pair(n, k, "non_peq")
-        code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
+def non_permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None, use_cached: bool = True) -> Case:
+    if dim is not None:
+        n, k = dim
+        if use_cached:
+            pair = generated_stabilizer_pair(n, k, "non_peq")
+            code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=seed)
+        else:
+            code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=seed)
     else:
-        code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=case_seed)
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+        code1 = code
+        code2 = non_permutation_equivalent_stabilizer_code(code1, seed=seed)
+
     return Case(
-        name=f"random_non_permuted_stb_{n}_{k}_{case_seed}",
+        name=f"non_permuted_stb_{n}_{k}_{seed}",
         inputs=(code1, code2),
         expected_p=False,
         expected_lc=None,
     )
     
-def random_permuted_stabilizer_case(n: int, k: int, case_seed: int, use_cached: bool = True) -> Case:
-    if use_cached:
-        pair = generated_stabilizer_pair(n, k, "peq")
-        code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=case_seed)
+def permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None, use_cached: bool = True) -> Case:
+    if dim is not None:
+        n, k = dim
+        if use_cached:
+            pair = generated_stabilizer_pair(n, k, "peq")
+            code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=seed)
+        else:
+            code1, code2 = random_permuted_stabilizer_pair(n, k, seed=seed)
     else:
-        code1, code2 = random_permuted_stabilizer_pair(n, k, seed=case_seed)
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+        code1 = code
+        code2 = permutation_equivalent_code(code1, seed=seed)
+
     return Case(
-        name=f"random_permuted_stb_{n}_{k}_{case_seed}",
+        name=f"permuted_stb_{n}_{k}_{seed}",
         inputs=(code1, code2),
         expected_p=True,
         expected_lc=None,
     )
 
-def random_lcc_css_case(n: int, k: int, case_seed: int) -> Case:
-    code = random_css_code(n, k, seed=case_seed)
+def lcc_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None) -> Case:
+    if dim is not None:
+        n, k = dim
+        code = random_css_code(n, k, seed=seed)
+    else:
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+        
     return Case(
-        name=f"random_lcc_css_{n}_{k}_{case_seed}",
-        inputs=(lc_equivalent_code(code, seed=case_seed + 420),),
+        name=f"lcc_css_{n}_{k}_{seed}",
+        inputs=(lc_equivalent_code(code, seed=seed + 420),),
         expected_p=None,
         expected_lc=True,
     )
 
-def random_lcc_eq_case(n: int, k: int, case_seed: int) -> Case:
-    code1 = random_css_code(n, k, seed=case_seed)
+def non_lcc_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None) -> Case:
+    if dim is not None:
+        n, k = dim
+        code = random_css_code(n, k, seed=seed)
+    else:
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+
     return Case(
-        name=f"random_lcc_eq_{n}_{k}_{case_seed}",
-        inputs=(code1, lc_equivalent_code(code1, seed=case_seed + 420)),
+        name=f"non_lcc_css_{n}_{k}_{seed}",
+        inputs=(non_lc_equivalent_code(code, seed=seed + 69),),
+        expected_p=None,
+        expected_lc=False,
+    )
+
+def lcc_eq_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None) -> Case:
+    if dim is not None:
+        n, k = dim
+        code1 = random_stabilizer_code(n, k, seed=seed)
+    else:
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+        code1 = code
+
+    return Case(
+        name=f"lcc_eq_{n}_{k}_{seed}",
+        inputs=(code1, lc_equivalent_code(code1, seed=seed + 1337)),
         expected_p=None,
         expected_lc=True,
     )
 
-def known_non_permuted_css_case(code1: CSSCode, case_seed: int) -> Case:
-        code2 = non_permutation_equivalent_css_code(code1, seed=case_seed)
-        return Case(
-            name=f"known_non_permuted_css_{case_seed}",
-            inputs=(code1, code2),
-            expected_p=False,
-            expected_lc=None,
-        )
+def non_lcc_eq_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None) -> Case:
+    if dim is not None:
+        n, k = dim
+        code1 = random_stabilizer_code(n, k, seed=seed)
+    else:
+        if code is None:
+            raise ValueError("Either dim or code must be provided")
+        n, k = code.n, code.k
+        code1 = code
 
-def known_permuted_css_case(code1: CSSCode, case_seed: int) -> Case:
-    code2 = permutation_equivalent_css_code(code1, seed=case_seed)
     return Case(
-        name=f"known_permuted_css_{case_seed}",
-        inputs=(code1, code2),
-        expected_p=True,
-        expected_lc=None,
-    ) 
-
-def known_non_permuted_stabilizer_case(code1: StabilizerCode, case_seed: int) -> Case:
-    code2 = non_permutation_equivalent_stabilizer_code(code1, seed=case_seed)
-    return Case(
-        name=f"known_non_permuted_stb_{case_seed}",
-        inputs=(code1, code2),
-        expected_p=False,
-        expected_lc=None,
-    )
-    
-def known_permuted_stabilizer_case(code1: StabilizerCode, case_seed: int) -> Case:
-    code2 = permutation_equivalent_code(code1, seed=case_seed)
-    return Case(
-        name=f"known_permuted_stb_{case_seed}",
-        inputs=(code1, code2),
-        expected_p=True,
-        expected_lc=None,
-    )
-
-def known_lcc_css_case(code: StabilizerCode, case_seed: int) -> Case:
-    return Case(
-        name=f"known_lcc_css_{case_seed}",
-        inputs=(lc_equivalent_code(code, seed=case_seed),),
+        name=f"non_lcc_eq_{n}_{k}_{seed}",
+        inputs=(code1, non_lc_equivalent_code(code1, seed=seed + 69)),
         expected_p=None,
-        expected_lc=True,
+        expected_lc=False,
     )
-
-def known_lcc_eq_case(code: StabilizerCode, case_seed: int) -> Case:
-    code2 = lc_equivalent_code(code, seed=case_seed + 420)
-    return Case(
-        name=f"known_lcc_eq_{case_seed}",
-        inputs=(code, code2),
-        expected_p=None,
-        expected_lc=True,
-    )
-
 
 def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[str, list[Case]]]:
     rng = np.random.default_rng(seed)
@@ -360,21 +392,25 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
     if random:
         for n, k in sizes:
             if algorithm.startswith("pm_css"):
-                non_permuted_css = [random_non_permuted_css_case(n, k, s, False) for s in seeds]
-                permuted_css = [random_permuted_css_case(n, k, s+69, False) for s in seeds]
+                non_permuted_css = [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
+                permuted_css = [permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
                 measurements_neg.append((f"non_permuted_css_{n}_{k}", non_permuted_css))
                 measurements_pos.append((f"permuted_css_{n}_{k}", permuted_css))
             elif algorithm.startswith("pm_stb"):
-                non_permuted_stabilizer = [random_non_permuted_stabilizer_case(n, k, s+1337, False) for s in seeds]
-                permuted_stabilizer = [random_permuted_stabilizer_case(n, k, s+420, False) for s in seeds]
+                non_permuted_stabilizer = [non_permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
+                permuted_stabilizer = [permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
                 measurements_neg.append((f"non_permuted_stab_{n}_{k}", non_permuted_stabilizer))
                 measurements_pos.append((f"permuted_stab_{n}_{k}", permuted_stabilizer))
             elif algorithm.startswith("lc_equ"):
-                lc_eq = [random_lcc_eq_case(n, k, s) for s in seeds]
+                lc_eq = [lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]
+                non_lc_eq = [non_lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]
                 measurements_pos.append((f"lc_eq_{n}_{k}", lc_eq))
+                measurements_neg.append((f"non_lc_eq_{n}_{k}", non_lc_eq))
             elif algorithm.startswith("lc_css"):
-                lc_cases = [random_lcc_css_case(n, k, s+13) for s in seeds]
+                lc_cases = [lcc_css_case(seed=s, dim=(n, k)) for s in seeds]
+                non_lc_eq = [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds]
                 measurements_pos.append((f"lc_css_{n}_{k}", lc_cases))
+                measurements_neg.append((f"non_lc_css_{n}_{k}", non_lc_eq))
     else:
         if algorithm.startswith("pm_css"):
             for name, code in [
@@ -388,8 +424,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_neg.append((name + "_non_permuted", [known_non_permuted_css_case(code, s) for s in seeds]))
-                measurements_pos.append((name + "_permuted", [known_permuted_css_case(code, s) for s in seeds]))
+                measurements_neg.append((name + "_non_permuted", [non_permuted_css_case(seed=s, code=code) for s in seeds]))
+                measurements_pos.append((name + "_permuted", [permuted_css_case(seed=s, code=code) for s in seeds]))
 
         elif algorithm.startswith("pm_stb"):
             for name, code in [
@@ -404,8 +440,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_neg.append((name + "_non_permuted", [known_non_permuted_stabilizer_case(code, s) for s in seeds]))
-                measurements_pos.append((name + "_permuted", [known_permuted_stabilizer_case(code, s) for s in seeds]))
+                measurements_neg.append((name + "_non_permuted", [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
+                measurements_pos.append((name + "_permuted", [permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
         elif algorithm.startswith("lc_equ"):
               for name, code in [
                                 ("bell_pair", bell_pair), # n = 2 , k = 0
@@ -419,7 +455,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_pos.append((name + "_lc_eq", [known_lcc_eq_case(code, s) for s in seeds]))
+                measurements_pos.append((name + "_lc_eq", [lcc_eq_case(seed=s, code=code) for s in seeds]))
+                measurements_neg.append((name + "_non_lc_eq", [non_lcc_eq_case(seed=s, code=code) for s in seeds]))
         elif algorithm.startswith("lc_css"):
               for name, code in [
                                 ("bell_pair", bell_pair),  # n = 2 , k = 0
@@ -433,7 +470,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[s
                                 ("golay", golay),  # n = 23 , k = 1
                                 ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
-                measurements_pos.append((name + "_lc_css", [known_lcc_css_case(code, s) for s in seeds]))
+                measurements_pos.append((name + "_lc_css", [lcc_css_case(seed=s, code=code) for s in seeds]))
+                measurements_neg.append((name + "_non_lc_css", [non_lcc_css_case(seed=s, code=code) for s in seeds]))
 
     return measurements_pos + measurements_neg
     
@@ -550,21 +588,51 @@ def default_cases(seed: int, random: bool = False) -> list[Case]:
     ]
 
     random_permuted_css = [
-        random_permuted_css_case(3, 1, seed + 1),
-        random_permuted_css_case(4, 2, seed + 1),
-        random_permuted_css_case(5, 2, seed + 2),
-        random_permuted_css_case(6, 3, seed + 3),
-        random_permuted_css_case(7, 2, seed + 7),
-        random_permuted_css_case(8, 3, seed + 69), 
-        random_permuted_css_case(9, 5, seed + 420),
-        random_permuted_css_case(10, 4, seed), 
+        permuted_css_case(seed=seed + 1, dim=(3, 1)),
+        permuted_css_case(seed=seed + 1, dim=(4, 2)),
+        permuted_css_case(seed=seed + 2, dim=(5, 2)),
+        permuted_css_case(seed=seed + 3, dim=(6, 3)),
+        permuted_css_case(seed=seed + 7, dim=(7, 2)),
+        permuted_css_case(seed=seed + 69, dim=(8, 3)), 
+        permuted_css_case(seed=seed + 420, dim=(9, 5)),
+        permuted_css_case(seed=seed, dim=(10, 4)),
+    ]
+
+    random_permuted_stb = [
+        permuted_stabilizer_case(seed=seed + 1, dim=(3, 1)),
+        permuted_stabilizer_case(seed=seed + 1, dim=(4, 2)),
+        permuted_stabilizer_case(seed=seed + 2, dim=(5, 2)),
+        permuted_stabilizer_case(seed=seed + 3, dim=(6, 3)),
+        permuted_stabilizer_case(seed=seed + 7, dim=(7, 2)),
+        permuted_stabilizer_case(seed=seed + 69, dim=(8, 3)), 
+        permuted_stabilizer_case(seed=seed + 420, dim=(9, 5)),
+        permuted_stabilizer_case(seed=seed, dim=(10, 4)),
+        permuted_stabilizer_case(seed=seed + 12, dim=(10, 4)),
+        permuted_stabilizer_case(seed=seed + 55, dim=(10, 4)),
+        permuted_stabilizer_case(seed=seed + 4, dim=(13, 4)),
+        permuted_stabilizer_case(seed=seed + 6, dim=(13, 4)),
+        permuted_stabilizer_case(seed=seed + 9, dim=(15, 4)),
+
+
     ]
 
     random_non_permuted_css = [
-        random_non_permuted_css_case(3, 1, seed + 1),
-        random_non_permuted_css_case(5, 2, seed + 20), 
-        random_non_permuted_css_case(7, 2, seed + 42),
-        random_non_permuted_css_case(9, 5, seed + 1337),
+        non_permuted_css_case(seed=seed + 3, dim=(3, 1)),
+        non_permuted_css_case(seed=seed + 20, dim=(5, 2)),
+        non_permuted_css_case(seed=seed + 42, dim=(7, 2)),
+        non_permuted_css_case(seed=seed + 1337, dim=(9, 5)),
+    ]
+
+    random_non_permuted_stb = [
+        non_permuted_stabilizer_case(seed=seed + 1, dim=(3, 1)),
+        non_permuted_stabilizer_case(seed=seed + 20, dim=(5, 2)),
+        non_permuted_stabilizer_case(seed=seed + 42, dim=(7, 2)),
+        non_permuted_stabilizer_case(seed=seed + 1337, dim=(9, 5)),
+        non_permuted_stabilizer_case(seed=seed + 69, dim=(10, 4)),
+        non_permuted_stabilizer_case(seed=seed + 420, dim=(10, 4)),
+        non_permuted_stabilizer_case(seed=seed + 4, dim=(13, 4)),
+        non_permuted_stabilizer_case(seed=seed + 6, dim=(13, 4)),
+        non_permuted_stabilizer_case(seed=seed + 9, dim=(15, 4))
     ]
 
     known_lc = [
@@ -579,10 +647,10 @@ def default_cases(seed: int, random: bool = False) -> list[Case]:
     ]
 
     random_lc_css = [
-        random_lcc_css_case(10, 4, seed + 69),
+        lcc_css_case(seed=seed + 69, dim=(10, 4)),
     ]
 
-    return random_permuted_css + random_non_permuted_css + random_lc_css if random else known_permuted + known_lc + known_lc_css
+    return random_permuted_stb + random_non_permuted_stb if random else known_permuted + known_lc + known_lc_css
 
 
 def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
