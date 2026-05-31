@@ -10,6 +10,9 @@ from math import factorial
 from pathlib import Path
 from typing import Callable, Literal
 
+import numpy as np
+from scipy.optimize import curve_fit
+from scipy.special import gammaln
 
 Axis = Literal["n", "k", "r", "d", "s"]
 
