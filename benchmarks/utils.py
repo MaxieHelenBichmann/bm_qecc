@@ -243,38 +243,53 @@ def random_non_permuted_stabilizer_pair(
     *,
     seed: int | None = None,
     clifford_steps: int | None = None,
+    max_attempts: int = 10_000,
 ) -> tuple[StabilizerCode, StabilizerCode]:
     """Return a seeded random stabilizer code together with another random stabilizer code that is guaranteed to be non-permuted."""
-    rng = np.random.default_rng(seed)
-    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-    other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be positive.")
 
-    code = random_stabilizer_code(n, k, seed=code_seed, clifford_steps=clifford_steps)
-    return code, non_permutation_equivalent_stabilizer_code(
-        code,
-        seed=other_seed,
-        clifford_steps=clifford_steps,
-    )
+    rng = np.random.default_rng(seed)
+
+    for _ in range(max_attempts):
+        code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        code = random_stabilizer_code(n, k, seed=code_seed, clifford_steps=clifford_steps)
+        try:
+            return code, non_permutation_equivalent_stabilizer_code(
+                code,
+                seed=other_seed,
+                clifford_steps=clifford_steps,
+            )
+        except RandomizeError:
+            continue
+
+    raise RandomizeError(f"Could not generate non-permuted stabilizer pair after {max_attempts} attempts.")
 
 def random_non_permuted_css_pair(    
     n: int,
     k: int,
     *,
     seed: int | None = None,
+    max_attempts: int = 10_000,
 ) -> tuple[CSSCode, CSSCode]:
     """Return a seeded random css code together with another random css code that is guaranteed to be non-permuted."""
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be positive.")
+
     rng = np.random.default_rng(seed)
-    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-    other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
 
-    rx = int(rng.integers(0, n - k + 1))
+    for _ in range(max_attempts):
+        code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        rx = int(rng.integers(0, n - k + 1))
+        code = random_css_code(n, k, rx, seed=code_seed)
+        try:
+            return code, non_permutation_equivalent_css_code(code, seed=other_seed)
+        except RandomizeError:
+            continue
 
-    code = random_css_code(n, k, rx, seed=code_seed)
-    try:
-        return code, non_permutation_equivalent_css_code(code, seed=other_seed)
-    except RandomizeError:
-        code = random_css_code(n, k, rx, seed=code_seed+42)
-        return code, non_permutation_equivalent_css_code(code, seed=other_seed+69)
+    raise RandomizeError(f"Could not generate non-permuted CSS pair after {max_attempts} attempts.")
 
 def random_permuted_css_pair(
     n: int,

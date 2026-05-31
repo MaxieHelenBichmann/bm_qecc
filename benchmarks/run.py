@@ -40,7 +40,6 @@ from src.core.stabilizer_code import StabilizerCode
 from src.core.css_code import CSSCode
 
 from .utils import (
-    RandomizeError,
     lc_equivalent_code,
     non_lc_equivalent_code,
     non_permutation_equivalent_css_code,
