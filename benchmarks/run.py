@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import csv
 import fnmatch
+import multiprocessing as mp
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from queue import Empty
 from time import perf_counter
-from unittest import case
 
 import numpy as np
 
@@ -151,6 +152,14 @@ ALGORITHMS: dict[str, Algorithm] = {
 }
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+
+
+def _algorithm_worker(algorithm: Algorithm, inputs: tuple[StabilizerCode, ...], queue: mp.Queue) -> None:
+    """Run one benchmark repeat in a child process."""
+    try:
+        queue.put(("result", algorithm(*inputs)))
+    except Exception as exc:  # noqa: BLE001
+        queue.put(("error", f"{type(exc).__name__}: {exc}"))
 
 
 def generated_stabilizer_pair(n: int, k: int, suffix: str) -> tuple[StabilizerCode, StabilizerCode] | None:
@@ -797,18 +806,61 @@ def default_cases(seed: int, random: bool = False) -> list[Case]:
     return random_permuted_stb + random_non_permuted_stb if random else known_permuted + known_lc + known_lc_css
 
 
-def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int) -> Result:
+def _run_algorithm_once(
+    algorithm: Algorithm,
+    inputs: tuple[StabilizerCode, ...],
+    timeout: float | None,
+) -> tuple[float, bool | None, str]:
+    """Run one benchmark repeat, optionally killing it after timeout seconds."""
+    if timeout is None:
+        start = perf_counter()
+        result = algorithm(*inputs)
+        return perf_counter() - start, result, ""
+
+    context = mp.get_context("fork") if "fork" in mp.get_all_start_methods() else mp.get_context()
+    queue: mp.Queue = context.Queue()
+    process = context.Process(target=_algorithm_worker, args=(algorithm, inputs, queue))
+
+    start = perf_counter()
+    process.start()
+    process.join(timeout)
+
+    if process.is_alive():
+        process.terminate()
+        process.join()
+        queue.close()
+        return timeout, None, f"TimeoutError: exceeded {timeout:.6g}s"
+
+    elapsed = perf_counter() - start
+    try:
+        kind, payload = queue.get_nowait()
+    except Empty:
+        return elapsed, None, f"RuntimeError: child process exited with code {process.exitcode}"
+    finally:
+        queue.close()
+
+    if kind == "error":
+        return elapsed, None, payload
+
+    return elapsed, payload, ""
+
+
+def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int, timeout: float | None = None) -> Result:
     """Run one algorithm on one case and return the average runtime."""
     total_seconds = 0.0
     last_result: bool | None = None
+    errors: list[str] = []
     expected = case.expected_p if algorithm_name.startswith("pm") else (case.expected_lc if algorithm_name.startswith("lc") else None)
 
     try:
         for _ in range(repeats):
-            start = perf_counter()
-            last_result = algorithm(*case.inputs)
-            total_seconds += perf_counter() - start
-        success = expected is not None and last_result == expected
+            seconds, result, error = _run_algorithm_once(algorithm, case.inputs, timeout)
+            total_seconds += seconds
+            if error:
+                errors.append(error)
+            else:
+                last_result = result
+        success = not errors and expected is not None and last_result == expected
         return Result(
             algorithm=algorithm_name,
             case=case.name,
@@ -818,6 +870,7 @@ def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int
             result=last_result,
             expected=expected,
             success=success,
+            error="; ".join(errors),
         )
     except Exception as exc:  # noqa: BLE001
         return Result(
@@ -833,7 +886,13 @@ def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int
         )
 
 
-def run_raw_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], repeats: int, verbose: bool = True) -> list[Result]:
+def run_raw_benchmarks(
+    cases: Sequence[Case],
+    algorithm_names: Sequence[str],
+    repeats: int,
+    timeout: float | None = None,
+    verbose: bool = True,
+) -> list[Result]:
     """Run selected algorithms on cases with the matching problem type."""
     results: list[Result] = []
     selected_names = set(algorithm_names)
@@ -847,7 +906,7 @@ def run_raw_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], re
                 continue
             if verbose:
                 print(f"    Running case: {case.name}...")
-            result_algorithm.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
+            result_algorithm.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats, timeout))
 
         if verbose:
             print_results(result_algorithm)
@@ -856,7 +915,15 @@ def run_raw_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], re
 
     return results
 
-def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int, output: Path, verbose: bool = True, random: bool = False) -> None:
+def run_stat_benchmarks(
+    algorithm_names: Sequence[str],
+    repeats: int,
+    seed: int,
+    output: Path,
+    timeout: float | None = None,
+    verbose: bool = True,
+    random: bool = False,
+) -> None:
     """Run selected algorithms on cases with the matching problem type."""
     selected_names = set(algorithm_names)
 
@@ -873,7 +940,7 @@ def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int,
                     continue
                 if verbose:
                     print(f"        Running case: {case.name}...")
-                results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats))
+                results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats, timeout))
 
             stat = compute_statistics(results, measurement)
 
@@ -1020,6 +1087,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--stats", action="store_true", default=False, help="Execute the algorithm on the cases with different seeds and print the statistics of the runtime.")
     parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
     parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
+    parser.add_argument("--timeout", type=float, default=None, help="Maximum seconds allowed for each repeat before it is stopped.")
     args = parser.parse_args(argv)
     try:
         args.algorithm = resolve_algorithm_names(args.algorithm)
@@ -1033,16 +1101,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     if args.repeats < 1:
         raise ValueError("--repeats must be at least 1.")
+    if args.timeout is not None and args.timeout <= 0:
+        raise ValueError("--timeout must be greater than 0.")
 
     if args.stats:
         if args.output.exists():
             args.output.unlink()
             
-        run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.verbose, args.random)
+        run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.timeout, args.verbose, args.random)
         return 0
                                       
     else:
-        results = run_raw_benchmarks(default_cases(seed=args.seed, random=args.random), args.algorithm, args.repeats, verbose=args.verbose)
+        results = run_raw_benchmarks(
+            default_cases(seed=args.seed, random=args.random),
+            args.algorithm,
+            args.repeats,
+            timeout=args.timeout,
+            verbose=args.verbose,
+        )
         write_bms(results, args.seed, args.output)
         return 0
 
