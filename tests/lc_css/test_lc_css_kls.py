@@ -556,6 +556,8 @@ def test_is_bipartite_graph_cases(graph: GSLC, expected: bool) -> None:
 # is_lceq_css_kls
 # ----------------------------------------------------------------------------------------------------
 
+def test_is_lceq_css_kls_failing() -> None:
+    assert is_lceq_css_kls(StabilizerCode(["YX"])) is True
 
 def test_is_lceq_css_kls_accepts_k_zero_state() -> None:
     assert is_lceq_css_kls(StabilizerCode(["XII", "IZI", "IZY"])) is True
