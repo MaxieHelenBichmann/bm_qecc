@@ -1034,6 +1034,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ValueError("--repeats must be at least 1.")
 
     if args.stats:
+        if args.output.exists():
+            args.output.unlink()
+            
         run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.verbose, args.random)
         return 0
                                       
