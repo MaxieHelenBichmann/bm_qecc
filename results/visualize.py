@@ -384,19 +384,28 @@ def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
     return True
 
 
-def series_label(row: StatRow, include_positive: bool) -> str:
+def series_label(row: StatRow, include_positive: bool, include_algorithm: bool) -> str:
     """Build a compact legend label for a row group."""
     if include_positive:
-        sign = "pos" if row.positive else "neg"
+        sign = "positive" if row.positive else "negative"
+        if not include_algorithm:
+            return sign
         return f"{row.algorithm} ({sign})"
+    if not include_algorithm:
+        return "_nolegend_"
     return row.algorithm
 
 
-def build_series(rows: Iterable[StatRow], axis: Axis, include_positive: bool) -> list[PlotSeries]:
+def build_series(
+    rows: Iterable[StatRow],
+    axis: Axis,
+    include_positive: bool,
+    include_algorithm: bool,
+) -> list[PlotSeries]:
     """Group rows into plot series."""
     grouped: dict[str, list[StatRow]] = {}
     for row in rows:
-        grouped.setdefault(series_label(row, include_positive), []).append(row)
+        grouped.setdefault(series_label(row, include_positive, include_algorithm), []).append(row)
 
     return [
         PlotSeries(
@@ -431,8 +440,14 @@ def configure_axis_constraints(args: argparse.Namespace, parser: argparse.Argume
 
 def fixed_parameter_title(args: argparse.Namespace, rows: Sequence[StatRow]) -> str:
     """Build a title line that describes fixed dimension parameters."""
+    algorithms = sorted({row.algorithm for row in rows})
+    single_algorithm = algorithms[0] if len(algorithms) == 1 else None
+    title = args.title or "Benchmark runtimes"
+    if single_algorithm is not None:
+        title = f"{title}: {single_algorithm}"
+
     if any(row.name is not None for row in rows):
-        return args.title or "Benchmark runtimes"
+        return title
 
     fixed_parts = []
     if args.n is not None and args.x != "n":
@@ -447,13 +462,10 @@ def fixed_parameter_title(args: argparse.Namespace, rows: Sequence[StatRow]) -> 
         fixed_parts.append(f"s = {args.symmetry:g}")
 
     context = ", ".join(fixed_parts)
-    if args.title and context:
-        return f"{args.title}\n{context}"
-    if args.title:
-        return args.title
+    title_parts = [title]
     if context:
-        return f"Benchmark runtimes\n{context}"
-    return "Benchmark runtimes"
+        title_parts.append(context)
+    return "\n".join(title_parts)
 
 
 def label_position(
@@ -632,7 +644,7 @@ def plot_series(
             linestyle="none" if has_named_rows else "-",
             linewidth=1.6,
             markersize=4.5,
-            label="_nolegend_" if has_named_rows else item.label,
+            label=item.label,
             zorder=3,
         )
         ax.scatter(x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
@@ -730,7 +742,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not rows:
         raise SystemExit("No rows matched the selected filters.")
 
-    series = build_series(rows, axis=args.x, include_positive=args.positive == "all")
+    series = build_series(
+        rows,
+        axis=args.x,
+        include_positive=args.positive == "all",
+        include_algorithm=len({row.algorithm for row in rows}) > 1,
+    )
     plot_series(
         series,
         axis=args.x,
