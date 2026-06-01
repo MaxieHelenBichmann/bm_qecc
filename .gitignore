@@ -6,7 +6,10 @@ __pycache__/
 
 results/*
 !results/.gitkeep
+!results/*.py
 
 .vscode/
 
 *sandbox*
+
+data/random*.txt
