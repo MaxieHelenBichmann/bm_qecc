@@ -137,7 +137,7 @@ py-spy record \
 
 ### Evaluation
 
-The script `results/visualize.py` can create some small visualizations of the randomized benchmark data, showing dependencies of different code parameters like n, k, or number of stabilizer generators  and the runtime. They are mainly meant for getting a quick overview of the performance and bottlenecks of the algorithm, not as a finalized analysis.
+The script `results/visualize.py` can create some small visualizations of the randomized benchmark data, showing dependencies of different code parameters like n, k, or number of stabilizer generators and the runtime. They are mainly meant for getting a quick overview of the performance and bottlenecks of the algorithm, not as a finalized analysis.
 
 Create plots:
 ```bash

@@ -15,6 +15,7 @@ from scipy.optimize import curve_fit
 from scipy.special import gammaln
 
 Axis = Literal["n", "k", "r", "d", "s"]
+StatFileKind = Literal["randomized", "named", "mixed"]
 
 AXIS_LABELS: dict[Axis, str] = {
     "n": "n [physical qubits]",
@@ -344,6 +345,17 @@ def read_stats_csv(path: Path) -> list[StatRow]:
         ]
 
 
+def stat_file_kind(rows: Sequence[StatRow]) -> StatFileKind:
+    """Classify statistics rows by whether they come from generated or named cases."""
+    has_named_rows = any(row.name is not None for row in rows)
+    has_randomized_rows = any(row.name is None for row in rows)
+    if has_named_rows and has_randomized_rows:
+        return "mixed"
+    if has_named_rows:
+        return "named"
+    return "randomized"
+
+
 def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
     """Return whether a statistics row should be included."""
     if args.x == "d" and row.density is None:
@@ -394,8 +406,18 @@ def build_series(rows: Iterable[StatRow], axis: Axis, include_positive: bool) ->
     ]
 
 
-def configure_axis_constraints(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+def configure_axis_constraints(args: argparse.Namespace, parser: argparse.ArgumentParser, kind: StatFileKind) -> None:
     """Validate fixed dimension filters for the selected x-axis."""
+    if kind == "named":
+        if args.x in {"d", "s"}:
+            parser.error(f"--x {args.x} cannot be used for named benchmark cases because they have no generated-code metadata.")
+        if args.theory:
+            parser.error("--theory cannot be used for named benchmark cases because those plots are scatter-only.")
+        return
+
+    if kind == "mixed":
+        parser.error("Cannot infer one plotting mode from a CSV containing both named and randomized rows.")
+
     if args.x == "n" and args.k is None:
         parser.error("--x n requires --k so only one code rate family is plotted.")
     if args.x == "k" and args.n is None:
@@ -636,8 +658,8 @@ def plot_series(
     print(f"Saved diagram to {output}.")
 
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    """Parse command-line arguments."""
+def build_parser() -> argparse.ArgumentParser:
+    """Create the command-line parser."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
     parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
@@ -655,16 +677,26 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--density", type=float, help="Fix generated-code density.")
     parser.add_argument("--symmetry", type=float, help="Fix generated-code symmetry.")
 
-    args = parser.parse_args(argv)
-    configure_axis_constraints(args, parser)
-    return args
+    return parser
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments."""
+    return build_parser().parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the visualization CLI."""
     args = parse_args(argv)
 
-    rows = [row for row in read_stats_csv(args.csv) if matches_filter(row, args)]
+    all_rows = read_stats_csv(args.csv)
+    if not all_rows:
+        raise SystemExit("No rows found in the statistics CSV.")
+
+    parser = build_parser()
+    configure_axis_constraints(args, parser, stat_file_kind(all_rows))
+
+    rows = [row for row in all_rows if matches_filter(row, args)]
     if not rows:
         raise SystemExit("No rows matched the selected filters.")
 

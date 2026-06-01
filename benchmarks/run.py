@@ -53,7 +53,7 @@ from .utils import (
     random_stabilizer_code,
 )
 
-N_STATS = 7
+N_STATS = 10
 MEAS_STATS = [
     3,
     5,
@@ -483,8 +483,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
     else:
         if algorithm.startswith("pm_css"):
             for name, code in [
-                                ("bell_pair", bell_pair), # n = 2 , k = 0
-                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1 
+                                ("bell", bell_pair), # n = 2 , k = 0
+                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1 
                                 ("steane", steane), # n = 7 , k = 1
                                 ("shor", shor),  # n = 9 , k = 1
                                 ("carbon", carbon), # n = 12 , k = 2
@@ -501,8 +501,9 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         positive=True, 
                                         density=None, 
                                         symmetry=None
-                                    ), 
-                                    [permuted_css_case(seed=s, code=code) for s in seeds]))
+                                    ),
+                                    [permuted_css_case(seed=s, code=code) for s in seeds]
+                                    ))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -511,14 +512,15 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         positive=False, 
                                         density=None, 
                                         symmetry=None
-                                    ), 
-                                    [non_permuted_css_case(seed=s, code=code) for s in seeds]))
+                                    ),
+                                    [non_permuted_css_case(seed=s, code=code) for s in seeds]
+                                    ))
 
         elif algorithm.startswith("pm_stb"):
             for name, code in [
-                                ("bell_pair", bell_pair), # n = 2 , k = 0
-                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1
-                                ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("bell", bell_pair), # n = 2 , k = 0
+                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1
+                                ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
                                 ("steane", steane), # n = 7 , k = 1
                                 ("shor", shor),  # n = 9 , k = 1
                                 ("carbon", carbon), # n = 12 , k = 2
@@ -549,9 +551,9 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
         elif algorithm.startswith("lc_equ"):
             for name, code in [
-                                ("bell_pair", bell_pair), # n = 2 , k = 0
-                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1 
-                                ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("bell", bell_pair), # n = 2 , k = 0
+                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1 
+                                ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
                                 ("steane", steane), # n = 7 , k = 1
                                 ("shor", shor),  # n = 9 , k = 1
                                 ("carbon", carbon), # n = 12 , k = 2
@@ -582,9 +584,9 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     [non_lcc_eq_case(seed=s, code=code) for s in seeds]))
         elif algorithm.startswith("lc_css"):
               for name, code in [
-                                ("bell_pair", bell_pair),  # n = 2 , k = 0
-                                ("3bit_repetition", three_bit_repetition), # n = 3 , k = 1
-                                ("five_qubit_perfect", five_qubit_perfect), # n = 5 , k = 1
+                                ("bell", bell_pair),  # n = 2 , k = 0
+                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1
+                                ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
                                 ("steane", steane), # n = 7 , k = 1
                                 ("shor", shor),  # n = 9 , k = 1
                                 ("carbon", carbon), # n = 12 , k = 2
@@ -1050,7 +1052,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
     parser.add_argument("--stats", action="store_true", default=False, help="Execute the algorithm on the cases with different seeds and print the statistics of the runtime.")
-    parser.add_argument("--stats_output", type=Path, default=Path("results/statistics.csv"), help="CSV output path for statistics.")
     parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
     parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
     args = parser.parse_args(argv)
@@ -1069,7 +1070,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.stats:
         statistics = run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.verbose, args.random)
-        write_stats(statistics, args.seed, args.stats_output)
+        write_stats(statistics, args.seed, args.output)
         return 0
                                       
     else:
