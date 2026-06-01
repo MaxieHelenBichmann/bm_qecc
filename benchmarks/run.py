@@ -878,6 +878,7 @@ def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int,
             stat = compute_statistics(results, measurement)
 
             if stat is not None:
+                stats_algorithm.append(stat)
                 write_stat(stat, seed=seed, output=output)
 
         if verbose:
