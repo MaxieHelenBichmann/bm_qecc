@@ -562,6 +562,30 @@ def plot_boundary_fits(series: Sequence[PlotSeries], axis: Axis, ax) -> None:
         )
 
 
+def draw_minute_guides(ax) -> None:
+    """Draw minute runtime guides without changing the data-driven axes."""
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    first_minute = 60
+    last_minute = int(ylim[1] // 60) * 60
+
+    for seconds in range(first_minute, last_minute + 1, 60):
+        if seconds <= ylim[0]:
+            continue
+        ax.axhline(
+            seconds,
+            color="red",
+            linestyle=":",
+            linewidth=0.5,
+            alpha=0.4,
+            label="_nolegend_",
+            zorder=0,
+        )
+
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+
+
 def plot_series(
     series: Sequence[PlotSeries],
     axis: Axis,
@@ -629,6 +653,7 @@ def plot_series(
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
+    draw_minute_guides(ax)
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     for cluster in clustered_point_labels(point_labels, xlim):
@@ -647,7 +672,7 @@ def plot_series(
                 bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "none", "alpha": 0.78},
                 arrowprops={"arrowstyle": "-", "color": label.color, "alpha": 0.45, "lw": 0.6},
             )
-    ax.grid(True, which="major", alpha=0.25)
+    ax.grid(True, which="major", alpha=0.15)
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(handles, labels)
