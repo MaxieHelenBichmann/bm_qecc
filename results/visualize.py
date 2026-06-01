@@ -598,6 +598,17 @@ def draw_minute_guides(ax) -> None:
     ax.set_ylim(ylim)
 
 
+def configure_xaxis_ticks(axis: Axis, ax) -> None:
+    """Keep discrete dimension axes labeled as integers."""
+    if axis not in {"n", "k"}:
+        return
+
+    from matplotlib.ticker import MaxNLocator, StrMethodFormatter
+
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
+
+
 def plot_series(
     series: Sequence[PlotSeries],
     axis: Axis,
@@ -665,6 +676,7 @@ def plot_series(
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
+    configure_xaxis_ticks(axis, ax)
     draw_minute_guides(ax)
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
