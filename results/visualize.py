@@ -155,18 +155,12 @@ class PlotColors:
     maximum: str
 
 
-COLOR_FAMILIES: tuple[PlotColors, ...] = (
+COLOR_FAMILIES_POS: tuple[PlotColors, ...] = (
     PlotColors(
         line="cornflowerblue",
         point="royalblue",
         error="lightsteelblue",
         maximum="lightskyblue",
-    ),
-    PlotColors(
-        line="orange",
-        point="darkorange",
-        error="moccasin",
-        maximum="peru",
     ),
     PlotColors(
         line="forestgreen",
@@ -181,16 +175,24 @@ COLOR_FAMILIES: tuple[PlotColors, ...] = (
         maximum="plum",
     ),
     PlotColors(
-        line="indianred",
-        point="darkred",
-        error="mistyrose",
-        maximum="salmon",
-    ),
-    PlotColors(
         line="lightseagreen",
         point="darkcyan",
         error="paleturquoise",
         maximum="mediumturquoise",
+    ),
+)
+COLOR_FAMILIES_NEG: tuple[PlotColors, ...] = (
+    PlotColors(
+        line="orange",
+        point="darkorange",
+        error="moccasin",
+        maximum="peru",
+    ),
+    PlotColors(
+        line="indianred",
+        point="darkred",
+        error="mistyrose",
+        maximum="salmon",
     ),
     PlotColors(
         line="peru",
@@ -205,7 +207,6 @@ COLOR_FAMILIES: tuple[PlotColors, ...] = (
         maximum="palevioletred",
     ),
 )
-
 
 @dataclass(frozen=True)
 class StatRow:
@@ -523,7 +524,7 @@ def plot_boundary_fits(series: Sequence[PlotSeries], axis: Axis, ax) -> None:
             continue
         algorithm = item.rows[0].algorithm
         rows_by_algorithm.setdefault(algorithm, []).extend(item.rows)
-        colors_by_algorithm.setdefault(algorithm, COLOR_FAMILIES[color_index % len(COLOR_FAMILIES)])
+        colors_by_algorithm.setdefault(algorithm, COLOR_FAMILIES_POS[color_index % len(COLOR_FAMILIES_POS)])
 
     for algorithm, rows in rows_by_algorithm.items():
         boundary_function = boundary_functions(algorithm)
@@ -582,7 +583,11 @@ def plot_series(
         plot_boundary_fits(series, axis, ax)
 
     for color_index, item in enumerate(series):
-        colors = COLOR_FAMILIES[color_index % len(COLOR_FAMILIES)]
+        if item.rows and item.rows[0].positive:
+            colors = COLOR_FAMILIES_POS[color_index % len(COLOR_FAMILIES_POS)]
+        else:
+            colors = COLOR_FAMILIES_NEG[color_index % len(COLOR_FAMILIES_NEG)]
+            
         has_named_rows = any(row.name is not None for row in item.rows)
         x = jittered_axis_values(item.rows, axis) if has_named_rows else [row.axis_value(axis) for row in item.rows]
         mean = [row.mean_seconds for row in item.rows]
