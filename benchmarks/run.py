@@ -16,8 +16,8 @@ import numpy as np
 
 from src.algorithms.lc_css.lc_css_bruteforce import is_lceq_css_bruteforce
 from src.algorithms.lc_css.lc_css_kls import is_lceq_css_kls
-from src.algorithms.lc_css.lc_css_orbit import is_lceq_css_orbit
-from src.algorithms.lc_css.lc_css_orbit_small_k import is_lceq_css_orbit_small_k
+from src.algorithms.lc_css.lc_css_cliff_orbit import is_lceq_css_orbit
+from src.algorithms.lc_css.lc_css_lc_orbit import is_lceq_css_orbit_small_k
 from src.algorithms.lc_css.lc_css_sat import is_lceq_css_sat
 from src.algorithms.lc_eq.lc_eq_graph_state import are_lceq_graph_state
 from src.algorithms.lc_eq.lc_eq_graph_state_small_k import are_lceq_graph_state_small_k

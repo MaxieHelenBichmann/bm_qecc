@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from benchmarks.utils import lc_equivalent_code, random_stabilizer_code, random_css_code
-from src.algorithms.lc_css.lc_css_orbit import (
+from src.algorithms.lc_css.lc_css_cliff_orbit import (
     RedStabGraph,
     _stab_code_to_stab_state,
     _stab_state_to_graph_state,
