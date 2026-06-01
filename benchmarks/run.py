@@ -406,7 +406,8 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
+                                    [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
+                                    ))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=None, 
@@ -491,7 +492,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
                                 ("hamming_15", hamming_15), # n = 15 , k = 7
                                 ("golay", golay),  # n = 23 , k = 1
-                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
+                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
@@ -527,7 +528,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
                                 ("hamming_15", hamming_15), # n = 15 , k = 7
                                 ("golay", golay),  # n = 23 , k = 1
-                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
+                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
@@ -560,7 +561,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
                                 ("hamming_15", hamming_15), # n = 15 , k = 7
                                 ("golay", golay),  # n = 23 , k = 1
-                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
+                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
@@ -593,7 +594,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                 ("tetrahedral", tetrahedral), # n = 15 , k = 1
                                 ("hamming_15", hamming_15), # n = 15 , k = 7
                                 ("golay", golay),  # n = 23 , k = 1
-                                ("rotated_surface_d5", rotated_surface_d5) # n = 25 , k = 1
+                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
                                ]:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
@@ -855,9 +856,8 @@ def run_raw_benchmarks(cases: Sequence[Case], algorithm_names: Sequence[str], re
 
     return results
 
-def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int, verbose: bool = True, random: bool = False) -> list[Statistic]:
+def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int, output: Path, verbose: bool = True, random: bool = False) -> None:
     """Run selected algorithms on cases with the matching problem type."""
-    statistics: list[Statistic] = []
     selected_names = set(algorithm_names)
 
     for algorithm_name in sorted(selected_names & ALGORITHMS.keys()):
@@ -878,14 +878,10 @@ def run_stat_benchmarks(algorithm_names: Sequence[str], repeats: int, seed: int,
             stat = compute_statistics(results, measurement)
 
             if stat is not None:
-                stats_algorithm.append(stat)
+                write_stat(stat, seed=seed, output=output)
 
         if verbose:
             print_statistics(stats_algorithm)
-
-        statistics.extend(stats_algorithm)
-    
-    return statistics
 
 def compute_statistics(results: Sequence[Result], measurement: Measurement) -> Statistic | None:
     """Compute mean and standard deviation of runtimes for each algorithm and case."""
@@ -915,61 +911,30 @@ def compute_statistics(results: Sequence[Result], measurement: Measurement) -> S
         maximum=max(times),
     )
     
-def write_stats(stats: Sequence[Statistic], seed: int, output: Path) -> None:
-    """Write benchmark statistics to CSV."""
+def write_stat(stat: Statistic, seed: int, output: Path) -> None:
+    """Append one benchmark statistic to CSV."""
     output.parent.mkdir(parents=True, exist_ok=True)
-    rows_short = [
-        {
-            "algorithm": stat.meta.algorithm,
-            "name": stat.meta.name,
-            "n": stat.meta.n,
-            "k": stat.meta.k,
-            "positive": stat.meta.positive,
-            "density": stat.meta.density,
-            "symmetry": stat.meta.symmetry,
-            "mean_seconds": f"{stat.mean:.9f}",
-            "stddev_seconds": f"{stat.stddev:.9f}",
-            "maximum_seconds": f"{stat.maximum:.9f}",
-        }
-        for stat in stats
-    ]
+    row = {
+        "algorithm": stat.meta.algorithm,
+        "name": stat.meta.name,
+        "n": stat.meta.n,
+        "k": stat.meta.k,
+        "positive": stat.meta.positive,
+        "density": stat.meta.density,
+        "symmetry": stat.meta.symmetry,
+        "mean_seconds": f"{stat.mean:.9f}",
+        "stddev_seconds": f"{stat.stddev:.9f}",
+        "maximum_seconds": f"{stat.maximum:.9f}",
+    }
+    write_header = not output.exists() or output.stat().st_size == 0
 
-    if len(rows_short) == 0:
-        return
-
-    with output.open("w", newline="", encoding="utf-8") as file:
-        csv.writer(file).writerow([seed])
-        writer = csv.DictWriter(file, fieldnames=list(rows_short[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows_short)
-
-    # ---
-    output_raw = output.with_name(output.stem + "_raw" + output.suffix)
-    output_raw.parent.mkdir(parents=True, exist_ok=True)
-    rows_raw = [
-        {
-            "seed": seed,
-            "algorithm": stat.meta.algorithm,
-            "name": stat.meta.name,
-            "n": stat.meta.n,
-            "k": stat.meta.k,
-            "positive": stat.meta.positive,
-            "density": stat.meta.density,
-            "symmetry": stat.meta.symmetry,
-            "sample": i,
-            "time_seconds": f"{time:.9f}",
-        }
-        for stat in stats
-        for i, time in enumerate(stat.times, start=1)
-    ]
-
-    if len(rows_raw) == 0:
-        return
-
-    with output_raw.open("w", newline="", encoding="utf-8") as file:
-        writer = csv.DictWriter(file, fieldnames=list(rows_raw[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows_raw)
+    with output.open("a", newline="", encoding="utf-8") as file:
+        if write_header:
+            csv.writer(file).writerow([seed])
+        writer = csv.DictWriter(file, fieldnames=list(row.keys()))
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
 
 def write_bms(results: Sequence[Result], seed: int, output: Path) -> None:
     """Write benchmark results to CSV."""
@@ -1010,7 +975,7 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
 
     for stat in [s for s in statistics if s.meta.positive] + [s for s in statistics if not s.meta.positive]:
         print(
-            f"{stat.meta.algorithm:26} {"--" if stat.meta.name is None else stat.meta.name:18} n={stat.meta.n:<2} k={stat.meta.k:<2}   {"POS" if stat.meta.positive else "NEG"} "
+            f"{stat.meta.algorithm:26} {'--' if stat.meta.name is None else stat.meta.name:11} n={stat.meta.n:<2} k={stat.meta.k:<2}   {'POS' if stat.meta.positive else 'NEG'} "
             f"mean={stat.mean:.6f}s stddev={stat.stddev:.6f}s max={stat.maximum:.6f}s"
         )
 
@@ -1069,8 +1034,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ValueError("--repeats must be at least 1.")
 
     if args.stats:
-        statistics = run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.verbose, args.random)
-        write_stats(statistics, args.seed, args.output)
+        run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.verbose, args.random)
         return 0
                                       
     else:
