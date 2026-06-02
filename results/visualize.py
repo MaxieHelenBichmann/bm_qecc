@@ -575,7 +575,7 @@ def plot_boundary_fits(series: Sequence[PlotSeries], axis: Axis, ax) -> None:
 
 
 def draw_minute_guides(ax) -> None:
-    """Draw minute runtime guides without changing the data-driven axes."""
+    """Draw minute and hour runtime guides without changing the data-driven axes."""
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     first_minute = 60
@@ -584,12 +584,13 @@ def draw_minute_guides(ax) -> None:
     for seconds in range(first_minute, last_minute + 1, 60):
         if seconds <= ylim[0]:
             continue
+        is_hour = seconds % 3600 == 0
         ax.axhline(
             seconds,
             color="red",
             linestyle=":",
-            linewidth=0.5,
-            alpha=0.4,
+            linewidth=1.4 if is_hour else 0.5,
+            alpha=0.7 if is_hour else 0.4,
             label="_nolegend_",
             zorder=0,
         )
