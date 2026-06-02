@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from itertools import permutations
 
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
@@ -10,18 +11,28 @@ import ldpc.mod2.mod2_numpy as mod2
 from ..core.stabilizer_code import StabilizerCode
 
 def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> bool:
-    invariants = (
+    cheap_invariants = (
         preserved_n,
         preserved_k,
         preserved_rank,
         preserved_number_zero_columns,
         preserved_number_duplicate_columns,
-        preserved_linear_dependencies,
     )
 
-    if not all(invariant(c1, c2) for invariant in invariants):
+    if not all(invariant(c1, c2) for invariant in cheap_invariants):
         return False
     
+    if c1.n <= 5: # TODO: better threshold with benchmarks?
+        return _bruteforce(c1, c2)
+
+    
+    more_expensive_invariants = (
+            preserved_linear_dependencies,
+    )
+
+    if not all(invariant(c1, c2) for invariant in more_expensive_invariants):
+        return False
+
     return True
 
 # ----------------------------------------------------------------------------------------------------
@@ -38,11 +49,6 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
 def preserved_rank(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the rank of the stabilizer tableau is preserved, which is a necessary condition for P-equivalence."""
-    def _rank(matrix: np.ndarray) -> int:
-        if matrix.shape[0] == 0:
-            return 0
-        return mod2.rank(matrix)
-    
     return _rank(c1.symplectic) == _rank(c2.symplectic)
 
 def preserved_number_zero_columns(c1: StabilizerCode, c2: StabilizerCode) -> bool:
@@ -61,11 +67,6 @@ def preserved_number_duplicate_columns(c1: StabilizerCode, c2: StabilizerCode) -
 def preserved_linear_dependencies(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the linear dependencies between columns are preserved, which is a necessary condition for P-equivalence."""
     def _linear_dependencies(M: np.ndarray) -> tuple[list[int], list[int], list[int]]:
-        def _rank(matrix: np.ndarray) -> int:
-            if matrix.shape[0] == 0:
-                return 0
-            return mod2.rank(matrix)
-        
         n = M.shape[1] // 2
         
         one_columns = [ _rank(np.column_stack([M[:, q], M[:, q + n]])) for q in range(n) ]
@@ -80,3 +81,25 @@ def preserved_linear_dependencies(c1: StabilizerCode, c2: StabilizerCode) -> boo
 # ----------------------------------------------------------------------------------------------------
 # algorithms
 # ----------------------------------------------------------------------------------------------------
+
+def _bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+    """p_stab_bruteforce.py"""
+    c1_rank = _rank(c1.symplectic)
+
+    for perm in permutations(range(c1.n)):
+        perm_symplectic = perm + tuple(q + c1.n for q in perm)
+
+        if c1_rank == _rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]])):
+            return True
+
+    return False
+
+
+# ----------------------------------------------------------------------------------------------------
+# small helpers
+# ----------------------------------------------------------------------------------------------------
+
+def _rank(matrix: np.ndarray) -> int:
+    if matrix.shape[0] == 0:
+        return 0
+    return mod2.rank(matrix)
