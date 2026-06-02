@@ -951,6 +951,12 @@ def run_stat_benchmarks(
         if verbose:
             print_statistics(stats_algorithm)
 
+
+def result_timed_out(result: Result) -> bool:
+    """Return whether a result failed because at least one repeat timed out."""
+    return "TimeoutError:" in result.error
+
+
 def compute_statistics(results: Sequence[Result], measurement: Measurement) -> Statistic | None:
     """Compute mean and standard deviation of runtimes for each algorithm and case."""
     times = []
@@ -959,7 +965,7 @@ def compute_statistics(results: Sequence[Result], measurement: Measurement) -> S
         if result.algorithm != measurement.algorithm:
             continue
 
-        if not result.success:
+        if not result.success and not result_timed_out(result):
             print(f"Warning: Skipping failed case {result.case} for algorithm {result.algorithm} in statistics.")
             continue
 
