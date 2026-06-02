@@ -221,7 +221,7 @@ class StatRow:
     symmetry: float | None
     mean_seconds: float
     stddev_seconds: float
-    maximum_seconds: float
+    maximum_seconds: float | None
 
     @property
     def r(self) -> int:
@@ -291,7 +291,7 @@ def jittered_axis_values(rows: Sequence[StatRow], axis: Axis) -> list[float]:
 
 def parse_optional_float(value: str | None) -> float | None:
     """Parse an optional CSV float field."""
-    if value is None or value == "":
+    if value is None or value == "" or value.strip().lower() == "none":
         return None
     return float(value)
 
@@ -340,7 +340,7 @@ def read_stats_csv(path: Path) -> list[StatRow]:
                 symmetry=parse_optional_float(row.get("symmetry")),
                 mean_seconds=float(row["mean_seconds"]),
                 stddev_seconds=float(row["stddev_seconds"]),
-                maximum_seconds=float(row["maximum_seconds"]),
+                maximum_seconds=parse_optional_float(row.get("maximum_seconds")),
             )
             for row in reader
         ]
@@ -641,7 +641,11 @@ def plot_series(
         mean = [row.mean_seconds for row in item.rows]
         lower_error = [min(row.stddev_seconds, row.mean_seconds) for row in item.rows]
         upper_error = [row.stddev_seconds for row in item.rows]
-        maximum = [row.maximum_seconds for row in item.rows]
+        maximum_points = [
+            (label_x, row.maximum_seconds)
+            for row, label_x in zip(item.rows, x)
+            if row.maximum_seconds is not None
+        ]
 
         ax.errorbar(
             x,
@@ -659,7 +663,9 @@ def plot_series(
             label=item.label,
             zorder=3,
         )
-        ax.scatter(x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
+        if maximum_points:
+            maximum_x, maximum = zip(*maximum_points)
+            ax.scatter(maximum_x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
         if has_named_rows:
             for row, label_x in zip(item.rows, x):
                 if row.name is None:
