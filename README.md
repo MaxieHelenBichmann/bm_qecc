@@ -44,7 +44,7 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableau}(C_{CSS}) = \begin{pmatrix} H_x 
 #### $C \thicksim_{LC} \ C'$
 - [x] Brute Force
 - [x] Graph State Machinery **(ONLY VALID FOR _k < 2_ OR _RESTRICTIONS ON LOGICAL OPERATORS_)**
-- [ ] KLS Normal Form + LC Orbit
+- [x] KLS Normal Form + LC Orbit
 - [x] Graph Isomorphism
 - [x] SAT
 
