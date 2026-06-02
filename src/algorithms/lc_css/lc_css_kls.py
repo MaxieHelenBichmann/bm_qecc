@@ -765,19 +765,16 @@ def _traverse_lc_orbit(graph: GSLC) -> bool:
     return False
 
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
-    """Check if a stabilizer code is LC-equivalent to a CSS code by converting it into KLS normal form and checking if the resulting graph state is bipartite.
+    """Check if a stabilizer code is LC-equivalent to a CSS code by traversing the LC-orbit of its Choi-State and checking if the result is bipartite, converting it into KLS normal form at each step to quotient out the freedom of logical operators.
 
-    1.) Convert the stabilizer code into a graph-like state, aka a graph with local Clifford decorations on the vertices.
-    2.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
-    3.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
-    4.) Check if the resulting graph state is bipartite, which means that the code is LC-equivalent to a CSS code.
+    1.) Convert the stabilizer code into a graph-like state, aka a graph with local Clifford decorations on the vertices, using Choi.
 
-    Check in the intermediate steps, if the graph is already bipartite, which means that the code is already LC-equivalent to a CSS code, and we can stop early.
+    2.) Traverse the LC orbit of the physical qubits in the graph state, and at each step:
+    2a.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
+    2b.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
+    2c.) Check if the resulting graph state is bipartite, which means that the code is LC-equivalent to a CSS code.
 
-    TODO: ! BEWARE ! My assumption was wrong, the implication only goes into one direction:
-    graph bipartide -> code LC to CSS (so if the graph is not bipartite, i cant make a statement...)
-
-    probably need LC-orbit traversal...
+    Even tough we need to check the entire LC Orbit, with the KLS we at least remove the degrees of freedom that the logical basis choice adds for k > 1 - which would add the ARBITRARY Clifford orbit on input/reference qubits.
     """
     graph = _code_to_graph(code)
     return _traverse_lc_orbit(graph)
