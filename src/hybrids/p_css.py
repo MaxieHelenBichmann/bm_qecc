@@ -3,28 +3,43 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-
 import hashlib
+from itertools import permutations
+
 import numpy as np
+import numpy.typing as npt
+
 import ldpc.mod2.mod2_numpy as mod2
+
+import z3
+from pynauty import Graph, certificate
 
 from ..core.css_code import CSSCode
 
 def are_peq_css(c1: CSSCode, c2: CSSCode) -> bool:
-    invariants = (
+    cheap_invariants = (
         preserved_n,
         preserved_k,
         preserved_rank,
         preserved_number_zero_columns,
-        preserved_number_duplicate_columns,
+        preserved_number_duplicate_columns
+    )
+
+    if not all(invariant(c1, c2) for invariant in cheap_invariants):
+        return False
+    
+    if c1.n <= 7: # TODO: better threshold with benchmarks?
+        return _bruteforce(c1, c2)
+
+    more_expensive_invariants = (
         preserved_linear_dependencies,
         preserved_punctured_hull_weight_enumerator,
     )
 
-    if not all(invariant(c1, c2) for invariant in invariants):
+    if not all(invariant(c1, c2) for invariant in more_expensive_invariants):
         return False
     
-    return True
+    return _matroid(c1, c2) # TODO: maybe _sat?
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -40,11 +55,6 @@ def preserved_k(c1: CSSCode, c2: CSSCode) -> bool:
 
 def preserved_rank(c1: CSSCode, c2: CSSCode) -> bool:
     """Check whether the rank of the stabilizer tableau is preserved, which is a necessary condition for P-equivalence."""
-    def _rank(matrix: np.ndarray) -> int:
-        if matrix.shape[0] == 0:
-            return 0
-        return mod2.rank(matrix)
-    
     return _rank(c1.Hx) == _rank(c2.Hx) and _rank(c1.Hz) == _rank(c2.Hz)
 
 def preserved_number_zero_columns(c1: CSSCode, c2: CSSCode) -> bool:
@@ -61,13 +71,9 @@ def preserved_number_duplicate_columns(c1: CSSCode, c2: CSSCode) -> bool:
     return _duplicate_column(c1.symplectic) == _duplicate_column(c2.symplectic)
 
 def preserved_linear_dependencies(c1: CSSCode, c2: CSSCode) -> bool:
-    """Check whether the linear dependencies between columns are preserved, which is a necessary condition for P-equivalence."""
+    """Check whether the linear dependencies between columns are preserved, which is a necessary condition for P-equivalence.
+    Similar to pm_css_matroid.py"""
     def _linear_dependencies(M: np.ndarray) -> tuple[list[int], list[int], list[int]]:
-        def _rank(matrix: np.ndarray) -> int:
-            if matrix.shape[0] == 0:
-                return 0
-            return mod2.rank(matrix)
-        
         n = M.shape[1] // 2
         
         one_columns = [ _rank(np.column_stack([M[:, q], M[:, q + n]])) for q in range(n) ]
@@ -81,36 +87,6 @@ def preserved_linear_dependencies(c1: CSSCode, c2: CSSCode) -> bool:
 
 def preserved_punctured_hull_weight_enumerator(c1: CSSCode, c2: CSSCode) -> bool:
     """SENDRIER - p_css_classical.py"""
-    def _kernel_basis(A: np.ndarray) -> np.ndarray:
-        A = (np.asarray(A) & 1).astype(np.uint8)
-        K = mod2.nullspace(A)
-        if hasattr(K, "toarray"):
-            K = K.toarray()
-        K = (np.asarray(K) & 1).astype(np.uint8)
-        if K.size == 0:
-            return np.zeros((0, A.shape[1]), dtype=np.uint8)
-        if K.ndim == 1:
-            K = K.reshape(1, -1)
-        if K.shape[1] != A.shape[1]:
-            raise ValueError(
-                "Kernel basis must have the same number of columns as the input matrix."
-            )
-        return K
-
-    def _row_basis(M: np.ndarray) -> np.ndarray:
-        M = (np.asarray(M) & 1).astype(np.uint8)
-        if M.size == 0:
-            return np.zeros((0, M.shape[1]), dtype=np.uint8)
-        B = mod2.row_basis(M)
-        if hasattr(B, "toarray"):
-            B = B.toarray()
-        B = (np.asarray(B) & 1).astype(np.uint8)
-        if B.size == 0:
-            return np.zeros((0, M.shape[1]), dtype=np.uint8)
-        if B.ndim == 1:
-            B = B.reshape(1, -1)
-        return B
-    
     def _generator_matrix_from_parity_check(H: np.ndarray, n: int) -> np.ndarray:
         if H.size == 0 or H.shape[0] == 0:
             return np.eye(n, dtype=np.uint8)
@@ -204,3 +180,217 @@ def preserved_punctured_hull_weight_enumerator(c1: CSSCode, c2: CSSCode) -> bool
 # ----------------------------------------------------------------------------------------------------
 # algorithms
 # ----------------------------------------------------------------------------------------------------
+
+def _bruteforce(c1: CSSCode, c2: CSSCode) -> bool:
+    """p_css_bruteforce.py"""
+    hx_rank = _rank(c1.Hx)
+    hz_rank = _rank(c1.Hz)
+
+    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
+        return False
+
+    for perm in permutations(range(c1.n)):
+        if hx_rank and hx_rank != mod2.rank(np.vstack([c1.Hx, c2.Hx[:, perm]])):
+            continue
+        if hz_rank and hz_rank != mod2.rank(np.vstack([c1.Hz, c2.Hz[:, perm]])):
+            continue
+        return True
+
+    return False
+
+def _sat(c1: CSSCode, c2: CSSCode) -> bool:
+    """pm_css_sat.py"""
+    solver = z3.Solver()
+
+    n = c1.n
+    rx = c1.Hx.shape[0]
+    rz = c1.Hz.shape[0]
+    
+
+    # permutations
+    aux_tableau_x = [z3.Bool(f'aux_x_{row}_{col}') for row in range(rx) for col in range(n)]
+    aux_tableau_z = [z3.Bool(f'aux_z_{row}_{col}') for row in range(rz) for col in range(n)]
+
+
+    permutation_variables = [z3.Bool(f'p_{i}_{j}') for i in range(n) for j in range(n)]
+
+    for i in range(n):
+        solver.add(_exactly_one([permutation_variables[i * n + j] for j in range(n)]))
+    for j in range(n):
+        solver.add(_exactly_one([permutation_variables[i * n + j] for i in range(n)]))
+
+    for i in range(n):
+        for j in range(n):
+            x_column_original = c1.Hx[:, i]
+            z_column_original = c1.Hz[:, i]
+
+            x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
+            z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
+
+            solver.add(z3.Implies(permutation_variables[i * n + j], z3.And(_elementwise_map(x_column_original, x_column_permuted), _elementwise_map(z_column_original, z_column_permuted))))
+
+    # row operations
+    row_operation_coefficients_x = [z3.Bool(f'r_x_{i}_{j}') for i in range(rx) for j in range(rx)]
+    row_operation_coefficients_z = [z3.Bool(f'r_z_{i}_{j}') for i in range(rz) for j in range(rz)]
+
+    for row in range(rx):
+        for q in range(n):
+
+            row_contributions = []
+            for contribution in range(rx):
+                if c2.Hx[contribution, q] == 1:
+                    row_contributions.append(row_operation_coefficients_x[row * rx + contribution])
+
+            solver.add(aux_tableau_x[row * n + q] == _xor_list(row_contributions))
+
+    for row in range(rz):
+        for q in range(n):
+
+            row_contributions = []
+            for contribution in range(rz):
+                if c2.Hz[contribution, q] == 1:
+                    row_contributions.append(row_operation_coefficients_z[row * rz + contribution])
+
+            solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
+
+    return solver.check() == z3.sat
+
+def _matroid(c1: CSSCode, c2: CSSCode) -> bool:
+    """pm_css_matroid.py"""
+    def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
+        K = _kernel_basis(A)
+
+        k, _ = K.shape
+        row_supports = [_row_support_as_mask(row) for row in K]
+        candidates_by_size: list[list[int]] = [[] for _ in range(A.shape[1] + 1)]
+
+        support = 0
+        previous_gray = 0
+        for mask in range(1, 1 << k):
+            gray = mask ^ (mask >> 1)
+            changed = gray ^ previous_gray
+            support ^= row_supports[changed.bit_length() - 1]
+            previous_gray = gray
+
+            if support:
+                candidates_by_size[support.bit_count()].append(support)
+
+        circuits: list[int] = []
+
+        for candidates in candidates_by_size:
+            for support in candidates:
+                if not any((circuit & support) == circuit for circuit in circuits):
+                    circuits.append(support)
+
+        return sorted((_mask_as_tuple(circuit) for circuit in circuits), key=lambda circuit: (len(circuit), circuit))
+
+
+    def _graph_from_circuits(n: int, circuits_hx: list[tuple[int, ...]], circuits_hz: list[tuple[int, ...]]) -> Graph:
+        adj = defaultdict(list)
+
+        def _add_edges_from_circuits(circuits: list[tuple[int, ...]], offset: int) -> None:
+            for i, circuit in enumerate(circuits):
+                circuit_vertex = offset + i
+                for q in circuit:
+                    adj[q].append(circuit_vertex)
+                    adj[circuit_vertex].append(q)
+
+        n_hx = len(circuits_hx)
+        n_hz = len(circuits_hz)
+
+        hx_offset = n
+        hz_offset = n + n_hx
+
+        _add_edges_from_circuits(circuits_hx, hx_offset)
+        _add_edges_from_circuits(circuits_hz, hz_offset)
+
+        return Graph(
+            number_of_vertices=n + n_hx + n_hz,
+            directed=False,
+            adjacency_dict=adj,
+            vertex_coloring=[
+                set(range(n)),
+                set(range(hx_offset, hx_offset + n_hx)),
+                set(range(hz_offset, hz_offset + n_hz))
+            ]
+        )
+
+    circuits_c1_hx = _circuits_binary_matroid(c1.Hx)
+    circuits_c1_hz = _circuits_binary_matroid(c1.Hz)
+
+    graph_c1 = _graph_from_circuits(c1.n, circuits_c1_hx, circuits_c1_hz)
+
+    circuits_c2_hx = _circuits_binary_matroid(c2.Hx)
+    circuits_c2_hz = _circuits_binary_matroid(c2.Hz)
+
+    graph_c2 = _graph_from_circuits(c2.n, circuits_c2_hx, circuits_c2_hz)
+
+    return certificate(graph_c1) == certificate(graph_c2)
+
+# ----------------------------------------------------------------------------------------------------
+# small helpers
+# ----------------------------------------------------------------------------------------------------
+
+def _rank(matrix: np.ndarray) -> int:
+    if matrix.shape[0] == 0:
+        return 0
+    return mod2.rank(matrix)
+
+def _kernel_basis(A: np.ndarray) -> np.ndarray:
+    A = (np.asarray(A) & 1).astype(np.uint8)
+    K = mod2.nullspace(A)
+    if hasattr(K, "toarray"):
+        K = K.toarray()
+    K = (np.asarray(K) & 1).astype(np.uint8)
+    if K.size == 0:
+        return np.zeros((0, A.shape[1]), dtype=np.uint8)
+    if K.ndim == 1:
+        K = K.reshape(1, -1)
+    if K.shape[1] != A.shape[1]:
+        raise ValueError(
+            "Kernel basis must have the same number of columns as the input matrix."
+        )
+    return K
+
+def _row_basis(M: np.ndarray) -> np.ndarray:
+    M = (np.asarray(M) & 1).astype(np.uint8)
+    if M.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    B = mod2.row_basis(M)
+    if hasattr(B, "toarray"):
+        B = B.toarray()
+    B = (np.asarray(B) & 1).astype(np.uint8)
+    if B.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    if B.ndim == 1:
+        B = B.reshape(1, -1)
+    return B
+
+def _elementwise_map(normal_bool, variables):
+    return z3.And([
+        v if bit == 1 else z3.Not(v)
+        for bit, v in zip(normal_bool, variables)
+    ])
+
+def _exactly_one(variables):
+    return z3.PbEq([(v, 1) for v in variables], 1)
+
+def _xor_list(variables):
+    acc = z3.BoolVal(False)
+    for v in variables:
+        acc = z3.Xor(acc, v)
+    return acc
+
+def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
+    support = 0
+    for col in np.flatnonzero(row):
+        support |= 1 << int(col)
+    return support
+
+def _mask_as_tuple(mask: int) -> tuple[int, ...]:
+    support: list[int] = []
+    while mask:
+        bit = mask & -mask
+        support.append(bit.bit_length() - 1)
+        mask ^= bit
+    return tuple(support)
