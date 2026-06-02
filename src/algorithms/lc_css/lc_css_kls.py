@@ -730,27 +730,37 @@ def _kls_normal_form(graph: GSLC) -> None | True:
         return True
 
 def _traverse_lc_orbit(graph: GSLC) -> bool:
+    """Traverse LC orbit and re-canonicalize to KLS normal form at each step"""
     def _canonical_key(g: GSLC) -> bytes:
-        return np.asarray(g.get_full_adjacency(), dtype=np.uint8).tobytes()
+        adj_key = np.asarray(g.get_full_adjacency(), dtype=np.uint8).tobytes()
+        vertex_key = tuple((tuple(word), z) for word, z in g.vertices)
+        edge_key = tuple(sorted(g.edges))
+        return (g.n, g.k, adj_key, vertex_key, edge_key)
 
-    n = graph.n + graph.k
     seen = set()
+    seen.add(_canonical_key(graph))
+
     queue = deque([graph.copy()])
 
     while queue:
         current_graph : GSLC = queue.popleft()
+        
         if current_graph.is_bipartite():
             return True
 
-        for q in range(n):
-            new_graph = current_graph.copy()
-            new_graph.local_complementation(q)
+        for q in range(graph.k, graph.n + graph.k):
+            for gate in ["H", "S"]:
+                new_graph = current_graph.copy()
 
-            key = _canonical_key(new_graph)
+                new_graph.vertices[q] = (new_graph.vertices[q][0] + [gate], new_graph.vertices[q][1])
+                _hk_normal_form(new_graph)
+                _kls_normal_form(new_graph)
 
-            if key not in seen:
-                queue.append(new_graph)
-                seen.add(key)
+                key = _canonical_key(new_graph)
+
+                if key not in seen:
+                    queue.append(new_graph)
+                    seen.add(key)
 
     return False
 
@@ -770,18 +780,4 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
     probably need LC-orbit traversal...
     """
     graph = _code_to_graph(code)
-
-    if graph.is_bipartite():
-        return True
-
-    _hk_normal_form(graph)
-
-    if graph.is_bipartite():
-        return True
-
-    _kls_normal_form(graph)
-
-    if graph.is_bipartite():
-        return True
-    
     return _traverse_lc_orbit(graph)
