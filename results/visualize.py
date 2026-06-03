@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from math import factorial
@@ -680,6 +681,50 @@ def configure_xaxis_ticks(axis: Axis, ax) -> None:
     ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
 
 
+def invariant_algorithm_base(algorithm: str) -> str:
+    """Return the base invariant name without a trailing subset-size suffix."""
+    return re.sub(r"_s\d+$", "", algorithm)
+
+
+def invariant_algorithm_variant(algorithm: str) -> int | None:
+    """Return the subset-size suffix of an invariant algorithm, if present."""
+    match = re.search(r"_s(\d+)$", algorithm)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
+def invariant_marker(algorithm: str) -> str:
+    """Return a marker shape that distinguishes full and subset-sized variants."""
+    variant = invariant_algorithm_variant(algorithm)
+    if variant is None:
+        return "o"
+    markers = ("s", "^", "D", "P", "v", "X")
+    return markers[(variant - 1) % len(markers)]
+
+
+def invariant_alpha(algorithm: str) -> float:
+    """Use transparency to keep stacked invariant dots readable."""
+    return 0.5 if invariant_algorithm_variant(algorithm) is None else 0.62
+
+
+def invariant_tone(base_color, algorithm: str):
+    """Return a related but distinct tone for subset-sized invariant variants."""
+    variant = invariant_algorithm_variant(algorithm)
+    if variant is None:
+        return base_color
+
+    import colorsys
+
+    red, green, blue, alpha = base_color
+    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
+    direction = -1 if variant % 2 == 0 else 1
+    amount = min(0.1 + 0.06 * ((variant - 1) // 2), 0.28)
+    lightness = max(0.18, min(0.82, lightness + direction * amount))
+    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+    return (red, green, blue, alpha)
+
+
 def plot_invariant_rows(
     rows: Sequence[InvariantRow],
     axis: Axis,
@@ -697,9 +742,14 @@ def plot_invariant_rows(
     ordered_rows = tuple(sorted(rows, key=lambda row: (row.axis_value(axis), row.algorithm, row.case)))
     x_values = [row.axis_value(axis) for row in ordered_rows]
     algorithms = sorted({row.algorithm for row in ordered_rows})
+    algorithm_bases = sorted({invariant_algorithm_base(algorithm) for algorithm in algorithms})
 
-    cmap = plt.get_cmap("tab10" if len(algorithms) <= 10 else "tab20")
-    colors = {algorithm: cmap(index % cmap.N) for index, algorithm in enumerate(algorithms)}
+    cmap = plt.get_cmap("tab10" if len(algorithm_bases) <= 10 else "tab20")
+    base_colors = {base: cmap(index % cmap.N) for index, base in enumerate(algorithm_bases)}
+    colors = {
+        algorithm: invariant_tone(base_colors[invariant_algorithm_base(algorithm)], algorithm)
+        for algorithm in algorithms
+    }
 
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     for algorithm in algorithms:
@@ -716,8 +766,8 @@ def plot_invariant_rows(
             y,
             s=42,
             color=colors[algorithm],
-            alpha=0.45,
-            marker="o",
+            alpha=invariant_alpha(algorithm),
+            marker=invariant_marker(algorithm),
             edgecolors="none",
             label=algorithm,
             zorder=3,
