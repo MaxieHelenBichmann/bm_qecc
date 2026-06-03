@@ -676,6 +676,9 @@ def pm_invariant_cases(seed: int) -> list[Case]:
         permuted_css_case(seed=seed + 8, code=carbon),
         permuted_css_case(seed=seed + 9, code=hamming_15),
         permuted_stabilizer_case(seed=seed + 10, dim=(10, 4)),
+        permuted_css_case(seed=seed + 16, code=tetrahedral),
+        permuted_stabilizer_case(seed=seed + 18, dim=(12, 6)),
+        permuted_stabilizer_case(seed=seed + 19, dim=(15, 8)),
         non_permuted_css_case(seed=seed + 1, dim=(3, 1), use_cached=False),
         non_permuted_css_case(seed=seed + 2, dim=(4, 2), use_cached=False),
         non_permuted_stabilizer_case(seed=seed + 3, dim=(3, 1), use_cached=False),
@@ -686,6 +689,10 @@ def pm_invariant_cases(seed: int) -> list[Case]:
         non_permuted_css_case(seed=seed + 12, dim=(10, 4), use_cached=False),
         non_permuted_stabilizer_case(seed=seed + 13, dim=(7, 3), use_cached=False),
         non_permuted_stabilizer_case(seed=seed + 15, dim=(10, 4), use_cached=False),
+        non_permuted_css_case(seed=seed + 20, dim=(12, 6), use_cached=False),
+        non_permuted_css_case(seed=seed + 21, dim=(15, 7), use_cached=False),
+        non_permuted_stabilizer_case(seed=seed + 22, dim=(12, 6), use_cached=False),
+        non_permuted_stabilizer_case(seed=seed + 23, dim=(15, 8), use_cached=False),
     ]
 
 def lc_invariant_cases(seed: int) -> list[Case]:
@@ -701,6 +708,7 @@ def lc_invariant_cases(seed: int) -> list[Case]:
         lcc_eq_case(seed=seed + 4, dim=(4, 2)),
         lcc_eq_case(seed=seed + 10, dim=(5, 1)),
         lcc_eq_case(seed=seed + 11, dim=(5, 2)),
+        lcc_eq_case(seed=seed + 16, dim=(6, 5)),
         non_lcc_eq_case(seed=seed + 1, dim=(3, 0)),
         non_lcc_eq_case(seed=seed + 2, dim=(3, 1)),
         non_lcc_eq_case(seed=seed + 3, dim=(4, 1)),
@@ -709,6 +717,9 @@ def lc_invariant_cases(seed: int) -> list[Case]:
         non_lcc_eq_case(seed=seed + 10, dim=(5, 1)),
         non_lcc_eq_case(seed=seed + 11, dim=(5, 2)),
         non_lcc_eq_case(seed=seed + 12, dim=(6, 3)),
+        non_lcc_eq_case(seed=seed + 18, dim=(7, 3)),
+        non_lcc_eq_case(seed=seed + 19, dim=(8, 4)),
+        non_lcc_eq_case(seed=seed + 20, dim=(9, 5)),
     ]
 
 
