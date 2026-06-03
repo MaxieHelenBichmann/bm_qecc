@@ -147,17 +147,24 @@ py-spy record \
 
 ### Evaluation
 
-The visualization scripts in `results/` can create some small plots for getting a quick overview of performance and bottlenecks, not as a finalized analysis. Use `visualize_named.py` for named benchmark cases, `visualize_random.py` for randomized benchmark statistics, and `visualize_invariants.py` for invariant timings.
+The visualization scripts in `results/` can create some small plots for getting a quick overview of performance and bottlenecks, not as a finalized analysis. Use `visualize_named.py` for known/structured benchmark cases, `visualize_random.py` for randomized benchmark statistics, and `visualize_invariants.py` for invariant timings.
 
-Create plots:
+Create plots, optionally:
 ```bash
-python3 results/visualize_named.py results/statistics.csv --x r --n 17 --algorithm pm_css_matroid --output results/matroid_plot_n17.png
+python3 results/visualize_named.py results/statistics.csv --x r --n 17 \
+ --algorithm pm_css_matroid \
+ --output results/matroid_plot_n17.png
 
-python3 results/visualize_random.py results/statistics.csv --x n --k 1 --algorithm pm_css_sat --output results/sat_plot_k1.png
+python3 results/visualize_random.py results/statistics.csv --x n --k 1 \
+  --algorithm pm_css_sat \
+  --output results/sat_plot_k1.png
 
-python3 results/visualize_random.py results/statistics.csv --x n --k 2 --algorithm pm_stb_bruteforce --algorithm pm_stb_classical --output results/compare.png
+python3 results/visualize_random.py results/statistics.csv --x n --k 2 \
+  --algorithm pm_stb_bruteforce --algorithm pm_stb_classical \
+  --output results/compare.png
 
-python3 results/visualize_invariants.py results/invariants_lc.csv --x n --output results/invariants_lc_plot.png
+python3 results/visualize_invariants.py results/invariants_lc.csv --x n \
+  --output results/invariants_lc_plot.png
 ```
 
 
