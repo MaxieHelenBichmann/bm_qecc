@@ -50,9 +50,9 @@ $$\exists C_{CSS} \ \text{with} \ \text{tableau}(C_{CSS}) = \begin{pmatrix} H_x 
 
 #### $C \thicksim_{LC} \ C_{CSS}$
 - [x] Brute Force
+- [x] Simple Choi + LC Orbit **(ONLY VALID FOR _k < 2_ OR _RESTRICTIONS ON LOGICAL OPERATORS_)**
+- [x] Simple Choi + Clifford Orbit
 - [x] KLS Normal Form + LC Orbit
-- [x] Graph State Machinery with LC Orbit **(ONLY VALID FOR _k < 2_ OR _RESTRICTIONS ON LOGICAL OPERATORS_)**
-- [x] Graph State Machinery with Clifford Orbit
 - [x] SAT
 
 
