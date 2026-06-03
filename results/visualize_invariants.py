@@ -7,13 +7,14 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+
 from visual_utils import (
     AXIS_LABELS,
     Axis,
     InvariantRow,
     configure_xaxis_ticks,
     draw_minute_guides,
-    load_matplotlib_pyplot,
     read_invariant_csv,
 )
 
@@ -74,8 +75,6 @@ def plot_invariant_rows(
     title: str | None,
 ) -> None:
     """Render invariant benchmark rows as a scatter plot."""
-    plt = load_matplotlib_pyplot()
-
     ordered_rows = tuple(sorted(rows, key=lambda row: (row.axis_value(axis), row.algorithm, row.case)))
     x_values = [row.axis_value(axis) for row in ordered_rows]
     algorithms = sorted({row.algorithm for row in ordered_rows})

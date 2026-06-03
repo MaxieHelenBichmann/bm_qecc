@@ -7,6 +7,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+
 from visual_utils import (
     AXIS_LABELS,
     COLOR_FAMILIES_NEG,
@@ -16,7 +18,6 @@ from visual_utils import (
     add_common_stat_filters,
     configure_xaxis_ticks,
     draw_minute_guides,
-    load_matplotlib_pyplot,
     positive_filter,
     read_stats_csv,
 )
@@ -149,8 +150,6 @@ def build_series(
 
 def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str | None) -> None:
     """Render named cases with mean/stddev, maximum markers, and direct labels."""
-    plt = load_matplotlib_pyplot()
-
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     point_labels: list[PointLabel] = []
     for color_index, item in enumerate(series):

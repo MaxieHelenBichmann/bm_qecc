@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+import matplotlib.pyplot as plt
+
 from visual_utils import (
     AXIS_LABELS,
     COLOR_FAMILIES_NEG,
@@ -18,7 +20,6 @@ from visual_utils import (
     add_common_stat_filters,
     configure_xaxis_ticks,
     draw_minute_guides,
-    load_matplotlib_pyplot,
     positive_filter,
     read_stats_csv,
     stat_file_kind,
@@ -225,8 +226,6 @@ def plot_random_series(
     show_theory: bool,
 ) -> None:
     """Render randomized-code curves with mean/stddev and maximum markers."""
-    plt = load_matplotlib_pyplot()
-
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     if show_theory:
         plot_boundary_fits(series, axis, ax)

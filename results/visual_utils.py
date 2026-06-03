@@ -261,15 +261,3 @@ def add_common_stat_filters(parser: argparse.ArgumentParser) -> None:
     """Add filters shared by named and randomized statistics plots."""
     parser.add_argument("--algorithm", action="append", help="Algorithm to include. Can be passed multiple times.")
     parser.add_argument("--positive", choices=("true", "false", "all"), default="all", help="Filter positive/negative cases.")
-
-
-def load_matplotlib_pyplot():
-    """Import matplotlib lazily and give a helpful install hint."""
-    try:
-        import matplotlib.pyplot as plt
-    except ModuleNotFoundError as exc:
-        if exc.name == "matplotlib":
-            msg = "matplotlib is required. Install it with `python3 -m pip install -r requirements.txt`."
-            raise SystemExit(msg) from exc
-        raise
-    return plt
