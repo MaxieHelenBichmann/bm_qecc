@@ -672,7 +672,7 @@ def draw_minute_guides(ax) -> None:
 
 def configure_xaxis_ticks(axis: Axis, ax) -> None:
     """Keep discrete dimension axes labeled as integers."""
-    if axis not in {"n", "k"}:
+    if axis not in {"n", "k", "r"}:
         return
 
     from matplotlib.ticker import MaxNLocator, StrMethodFormatter
@@ -751,28 +751,43 @@ def plot_invariant_rows(
         for algorithm in algorithms
     }
 
-    fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
+    from matplotlib.lines import Line2D
+
+    fig, ax = plt.subplots(figsize=(10.5, 4.8), constrained_layout=True)
     for algorithm in algorithms:
         points = [
-            (x, row.seconds, row.success)
+            (x, row.seconds, row.success, row.expected)
             for x, row in zip(x_values, ordered_rows)
             if row.algorithm == algorithm
         ]
         if not points:
             continue
-        x, y, success = zip(*points)
-        ax.scatter(
-            x,
-            y,
-            s=42,
-            color=colors[algorithm],
-            alpha=invariant_alpha(algorithm),
-            marker=invariant_marker(algorithm),
-            edgecolors="none",
-            label=algorithm,
-            zorder=3,
-        )
-        failed_points = [(px, py) for px, py, ok in points if not ok]
+
+        label_algorithm = True
+        for expected, facecolors, edgecolors, linewidths, alpha in (
+            (True, colors[algorithm], "none", 0.0, invariant_alpha(algorithm)),
+            (False, "none", colors[algorithm], 1.35, 0.9),
+            (None, colors[algorithm], "black", 0.7, invariant_alpha(algorithm)),
+        ):
+            sign_points = [(px, py) for px, py, _, sign in points if sign is expected]
+            if not sign_points:
+                continue
+            x, y = zip(*sign_points)
+            ax.scatter(
+                x,
+                y,
+                s=46,
+                facecolors=facecolors,
+                edgecolors=edgecolors,
+                linewidths=linewidths,
+                alpha=alpha,
+                marker=invariant_marker(algorithm),
+                label=algorithm if label_algorithm else "_nolegend_",
+                zorder=3,
+            )
+            label_algorithm = False
+
+        failed_points = [(px, py) for px, py, ok, _ in points if not ok]
         if failed_points:
             failed_x, failed_y = zip(*failed_points)
             ax.scatter(
@@ -793,7 +808,45 @@ def plot_invariant_rows(
     configure_xaxis_ticks(axis, ax)
     draw_minute_guides(ax)
     ax.grid(True, which="major", alpha=0.15)
-    ax.legend()
+    algorithm_legend = ax.legend(
+        title="Invariant",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        borderaxespad=0.0,
+    )
+    ax.add_artist(algorithm_legend)
+    sign_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="black",
+            markerfacecolor="black",
+            markeredgecolor="black",
+            linestyle="none",
+            markersize=6,
+            label="positive",
+            alpha=0.65,
+        ),
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="black",
+            markerfacecolor="none",
+            markeredgecolor="black",
+            linestyle="none",
+            markersize=6,
+            label="negative",
+        ),
+    ]
+    ax.legend(
+        handles=sign_handles,
+        title="Case",
+        loc="upper left",
+        bbox_to_anchor=(1.02, 0.38),
+        borderaxespad=0.0,
+    )
     ax.set_title(title or "Invariant benchmark runtimes")
 
     if output is None:

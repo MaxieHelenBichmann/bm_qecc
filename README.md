@@ -131,8 +131,8 @@ python3 -m benchmarks.run --seed 69
 python3 -m benchmarks.run --verbose
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 python3 -m benchmarks.run --algorithm 'pm_css*'
-python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose
-python3 -m benchmarks.run --inv --verbose
+python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose --timeout 200
+python3 -m benchmarks.run --inv --verbose --output results/invariants.csv --timeout 20
 ```
 
 Run more detailed analysis, optionally:
