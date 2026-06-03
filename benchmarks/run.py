@@ -174,14 +174,14 @@ ALGORITHMS: dict[str, Algorithm] = {
 }
 
 LC_INVARIANTS: dict[str, Algorithm] = {
-    "local_weight_distribution": preserved_local_weight_distribution,
-    "low_degree_local_invariant": preserved_low_degree_local_invariant,
+    "lc_local_weight_distribution": preserved_local_weight_distribution,
+    "lc_low_degree_local_invariant": preserved_low_degree_local_invariant,
 }
 
-PM_INVARIANTS: dict[str, Invariant] = {
-    "weight_enumerator": preserved_weight_enumerator,
-    "pauli_weight_enumerator": preserved_pauli_weight_enumerator,
-    "linear_dependencies": preserved_linear_dependencies,
+PM_INVARIANTS: dict[str, Algorithm] = {
+    "pm_weight_enumerator": preserved_weight_enumerator,
+    "pm_pauli_weight_enumerator": preserved_pauli_weight_enumerator,
+    "pm_linear_dependencies": preserved_linear_dependencies,
 }
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -662,10 +662,54 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
     return measurements
     
 def pm_invariant_cases(seed: int) -> list[Case]:
-    return []
+    return [
+        Case(
+            name="pm_inv_bell_same",
+            inputs=(bell_pair, bell_pair),
+            expected_p=True,
+        ),
+        permuted_css_case(seed=seed + 1, code=three_bit_repetition),
+        permuted_css_case(seed=seed + 2, code=steane),
+        permuted_stabilizer_case(seed=seed + 3, code=five_qubit_perfect),
+        permuted_stabilizer_case(seed=seed + 4, dim=(5, 2)),
+        permuted_css_case(seed=seed + 7, code=shor),
+        permuted_css_case(seed=seed + 8, code=carbon),
+        permuted_css_case(seed=seed + 9, code=hamming_15),
+        permuted_stabilizer_case(seed=seed + 10, dim=(10, 4)),
+        non_permuted_css_case(seed=seed + 1, dim=(3, 1), use_cached=False),
+        non_permuted_css_case(seed=seed + 2, dim=(4, 2), use_cached=False),
+        non_permuted_stabilizer_case(seed=seed + 3, dim=(3, 1), use_cached=False),
+        non_permuted_stabilizer_case(seed=seed + 5, dim=(5, 2), use_cached=False),
+        non_permuted_stabilizer_case(seed=seed + 6, dim=(4, 1), use_cached=False),
+        non_permuted_css_case(seed=seed + 10, dim=(7, 2), use_cached=False),
+        non_permuted_css_case(seed=seed + 11, dim=(9, 5), use_cached=False),
+        non_permuted_css_case(seed=seed + 12, dim=(10, 4), use_cached=False),
+        non_permuted_stabilizer_case(seed=seed + 13, dim=(7, 3), use_cached=False),
+        non_permuted_stabilizer_case(seed=seed + 15, dim=(10, 4), use_cached=False),
+    ]
 
 def lc_invariant_cases(seed: int) -> list[Case]:
-    return []
+    return [
+        Case(
+            name="lc_inv_bell_same",
+            inputs=(bell_pair, bell_pair),
+            expected_lc=True,
+        ),
+        lcc_eq_case(seed=seed + 1, code=three_bit_repetition),
+        lcc_eq_case(seed=seed + 2, dim=(3, 0)),
+        lcc_eq_case(seed=seed + 3, dim=(3, 1)),
+        lcc_eq_case(seed=seed + 4, dim=(4, 2)),
+        lcc_eq_case(seed=seed + 10, dim=(5, 1)),
+        lcc_eq_case(seed=seed + 11, dim=(5, 2)),
+        non_lcc_eq_case(seed=seed + 1, dim=(3, 0)),
+        non_lcc_eq_case(seed=seed + 2, dim=(3, 1)),
+        non_lcc_eq_case(seed=seed + 3, dim=(4, 1)),
+        non_lcc_eq_case(seed=seed + 4, dim=(4, 2)),
+        non_lcc_eq_case(seed=seed + 5, dim=(4, 2)),
+        non_lcc_eq_case(seed=seed + 10, dim=(5, 1)),
+        non_lcc_eq_case(seed=seed + 11, dim=(5, 2)),
+        non_lcc_eq_case(seed=seed + 12, dim=(6, 3)),
+    ]
 
 
 def default_cases(seed: int, random: bool = False) -> list[Case]:
@@ -997,7 +1041,7 @@ def run_inv_benchmarks(
     seed: int,
     timeout: float | None = None,
     verbose: bool = True,
-) -> None:
+) -> list[Result]:
     """Run invariants on cases with the matching problem type."""
     if pm:
         INVS = PM_INVARIANTS
@@ -1006,18 +1050,30 @@ def run_inv_benchmarks(
         INVS = LC_INVARIANTS
         cases =  lc_invariant_cases(seed=seed)
         
+    family = "pm" if pm else "lc"
+    results = []
     for inv_name in sorted(INVS.keys()):
         if verbose:
             print(f"Running benchmark for invariant: {inv_name}")
         result_inv = []
         for case in cases:
-            if verbose:
-                print(f"    Running case: {case.name}...")
-            result_inv.append(run_case(inv_name, INVS[inv_name], case, repeats, timeout))
+            algorithm_name = inv_name if inv_name.startswith(f"{family}_") else f"{family}_{inv_name}"
+            result_inv.append(run_case(algorithm_name, INVS[inv_name], case, repeats, timeout))
 
         if verbose:
             print_results(result_inv)
+            print()
 
+        results.extend(result_inv)
+
+    return results
+
+
+def prefixed_output_path(output: Path, prefix: str) -> Path:
+    """Return output with a benchmark-family prefix on the filename."""
+    if output.name.startswith(f"{prefix}_"):
+        return output
+    return output.with_name(f"{prefix}_{output.name}")
 
 def result_timed_out(result: Result) -> bool:
     """Return whether a result failed because at least one repeat timed out."""
@@ -1186,8 +1242,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     
     if args.inv:
-        run_inv_benchmarks(True, args.repeats, args.seed, args.timeout, args.verbose)
-        run_inv_benchmarks(False, args.repeats, args.seed, args.timeout, args.verbose)
+        result_pm = run_inv_benchmarks(True, args.repeats, args.seed, args.timeout, args.verbose)
+        result_lc = run_inv_benchmarks(False, args.repeats, args.seed, args.timeout, args.verbose)
+        write_bms(result_pm, args.seed, prefixed_output_path(args.output, "pm"))
+        write_bms(result_lc, args.seed, prefixed_output_path(args.output, "lc"))
+        return 0
     else:
         results = run_raw_benchmarks(
             default_cases(seed=args.seed, random=args.random),

@@ -132,6 +132,7 @@ python3 -m benchmarks.run --verbose
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 python3 -m benchmarks.run --algorithm 'pm_css*'
 python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose
+python3 -m benchmarks.run --inv --verbose
 ```
 
 Run more detailed analysis, optionally:
@@ -149,6 +150,7 @@ The script `results/visualize.py` can create some small visualizations of the ra
 Create plots:
 ```bash
 python3 results/visualize.py results/statistics.csv --x n --k 1 --algorithm pm_css_sat --output results/statistics_plot.png
+python3 results/visualize.py --inv results/invariants_lc.csv --x n --output results/invariants_lc_plot.png
 ```
 
 

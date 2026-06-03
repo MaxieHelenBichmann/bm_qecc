@@ -244,6 +244,34 @@ class StatRow:
 
 
 @dataclass(frozen=True)
+class InvariantRow:
+    """One row emitted by benchmarks.run.write_bms for invariant benchmarks."""
+
+    algorithm: str
+    case: str
+    n: int
+    k: int
+    seconds: float
+    result: bool | None
+    expected: bool | None
+    success: bool
+    error: str
+
+    @property
+    def r(self) -> int:
+        return self.n - self.k
+
+    def axis_value(self, axis: Axis) -> float:
+        if axis == "n":
+            return self.n
+        if axis == "k":
+            return self.k
+        if axis == "r":
+            return self.r
+        raise ValueError(f"Invariant plots only support n, k, or r as x-axis, got {axis!r}.")
+
+
+@dataclass(frozen=True)
 class PlotSeries:
     """A single line/scatter series in the diagram."""
 
@@ -306,6 +334,13 @@ def parse_bool(value: str) -> bool:
     raise ValueError(f"Expected boolean field, got {value!r}.")
 
 
+def parse_optional_bool(value: str | None) -> bool | None:
+    """Parse an optional CSV boolean field."""
+    if value is None or value == "" or value.strip().lower() == "none":
+        return None
+    return parse_bool(value)
+
+
 def read_stats_csv(path: Path) -> list[StatRow]:
     """Read a statistics CSV written by benchmarks.run.write_stats.
 
@@ -341,6 +376,41 @@ def read_stats_csv(path: Path) -> list[StatRow]:
                 mean_seconds=float(row["mean_seconds"]),
                 stddev_seconds=float(row["stddev_seconds"]),
                 maximum_seconds=parse_optional_float(row.get("maximum_seconds")),
+            )
+            for row in reader
+        ]
+
+
+def read_invariant_csv(path: Path) -> list[InvariantRow]:
+    """Read an invariant benchmark CSV written by benchmarks.run.write_bms."""
+    with path.open(newline="", encoding="utf-8") as file:
+        first_line = file.readline()
+        if not first_line:
+            return []
+
+        sample = file.readline()
+        if not sample:
+            return []
+
+        header = sample.strip().split(",")
+        if header and header[0] == "algorithm":
+            file.seek(0)
+            next(file)
+        else:
+            file.seek(0)
+
+        reader = csv.DictReader(file)
+        return [
+            InvariantRow(
+                algorithm=row["algorithm"],
+                case=row["case"],
+                n=int(row["n"]),
+                k=int(row["k"]),
+                seconds=float(row["seconds"]),
+                result=parse_optional_bool(row.get("result")),
+                expected=parse_optional_bool(row.get("expected")),
+                success=parse_bool(row["success"]),
+                error=row.get("error", ""),
             )
             for row in reader
         ]
@@ -610,6 +680,109 @@ def configure_xaxis_ticks(axis: Axis, ax) -> None:
     ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
 
 
+def jittered_invariant_axis_values(rows: Sequence[InvariantRow], axis: Axis) -> list[float]:
+    """Spread all invariant rows with identical x-values, across algorithms."""
+    axis_values = [row.axis_value(axis) for row in rows]
+    unique_values = sorted(set(axis_values))
+    if len(unique_values) > 1:
+        min_gap = min(
+            right - left
+            for left, right in zip(unique_values, unique_values[1:])
+            if right > left
+        )
+        jitter_step = min_gap * 0.08
+    else:
+        jitter_step = max(abs(unique_values[0]) * 0.02, 0.1)
+
+    duplicates: dict[float, list[int]] = {}
+    for index, value in enumerate(axis_values):
+        duplicates.setdefault(value, []).append(index)
+
+    jittered_values = list(axis_values)
+    for value, indices in duplicates.items():
+        if len(indices) == 1:
+            continue
+        ordered_indices = sorted(indices, key=lambda index: (rows[index].algorithm, rows[index].case))
+        midpoint = (len(ordered_indices) - 1) / 2
+        for duplicate_index, row_index in enumerate(ordered_indices):
+            jittered_values[row_index] = value + (duplicate_index - midpoint) * jitter_step
+    return jittered_values
+
+
+def plot_invariant_rows(
+    rows: Sequence[InvariantRow],
+    axis: Axis,
+    output: Path | None,
+    title: str | None,
+) -> None:
+    """Render invariant benchmark rows as a scatter plot."""
+    try:
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError as exc:
+        if exc.name == "matplotlib":
+            raise SystemExit("matplotlib is required. Install it with `python3 -m pip install -r requirements.txt`.") from exc
+        raise
+
+    ordered_rows = tuple(sorted(rows, key=lambda row: (row.axis_value(axis), row.algorithm, row.case)))
+    x_values = jittered_invariant_axis_values(ordered_rows, axis)
+    algorithms = sorted({row.algorithm for row in ordered_rows})
+
+    cmap = plt.get_cmap("tab10" if len(algorithms) <= 10 else "tab20")
+    colors = {algorithm: cmap(index % cmap.N) for index, algorithm in enumerate(algorithms)}
+
+    fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
+    for algorithm in algorithms:
+        points = [
+            (x, row.seconds, row.success)
+            for x, row in zip(x_values, ordered_rows)
+            if row.algorithm == algorithm
+        ]
+        if not points:
+            continue
+        x, y, success = zip(*points)
+        ax.scatter(
+            x,
+            y,
+            s=36,
+            color=colors[algorithm],
+            alpha=0.78,
+            marker="o",
+            label=algorithm,
+            zorder=3,
+        )
+        failed_points = [(px, py) for px, py, ok in points if not ok]
+        if failed_points:
+            failed_x, failed_y = zip(*failed_points)
+            ax.scatter(
+                failed_x,
+                failed_y,
+                s=55,
+                color=colors[algorithm],
+                marker="x",
+                linewidths=1.3,
+                label="_nolegend_",
+                zorder=4,
+            )
+
+    ax.set_xlabel(AXIS_LABELS[axis])
+    ax.set_ylabel("runtime [s]")
+    ax.margins(x=0.12, y=0.18)
+    ax.set_ylim(bottom=0)
+    configure_xaxis_ticks(axis, ax)
+    draw_minute_guides(ax)
+    ax.grid(True, which="major", alpha=0.15)
+    ax.legend()
+    ax.set_title(title or "Invariant benchmark runtimes")
+
+    if output is None:
+        plt.show()
+        return
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output, dpi=200)
+    print(f"Saved diagram to {output}.")
+
+
 def plot_series(
     series: Sequence[PlotSeries],
     axis: Axis,
@@ -722,11 +895,12 @@ def plot_series(
 def build_parser() -> argparse.ArgumentParser:
     """Create the command-line parser."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
+    parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats, or invariant CSV from --inv.")
     parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--title", help="Optional diagram title.")
     parser.add_argument("--theory", action="store_true", help="Draw a faint fitted theoretical boundary function.")
+    parser.add_argument("--inv", action="store_true", help="Read invariant benchmark CSVs written by benchmarks/run.py --inv.")
 
     parser.add_argument("--algorithm", action="append", help="Algorithm to include. Can be passed multiple times.")
     parser.add_argument("--name", help="Case name to include.")
@@ -749,12 +923,44 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the visualization CLI."""
     args = parse_args(argv)
+    parser = build_parser()
+
+    if args.inv:
+        if args.x not in {"n", "k", "r"}:
+            parser.error("--inv only supports --x n, --x k, or --x r.")
+        if args.theory:
+            parser.error("--theory cannot be used with --inv because invariant plots are scatter-only.")
+        if args.name is not None:
+            parser.error("--name cannot be used with --inv; invariant plots include all cases.")
+        if args.positive != "all":
+            parser.error("--positive cannot be used with --inv; invariant plots include all cases.")
+        if any(value is not None for value in (args.n, args.k, args.r, args.density, args.symmetry)):
+            parser.error("--inv does not support fixed parameter filters; choose only the x-axis.")
+
+        all_rows = read_invariant_csv(args.csv)
+        if not all_rows:
+            raise SystemExit("No rows found in the invariant CSV.")
+
+        rows = [
+            row
+            for row in all_rows
+            if not args.algorithm or row.algorithm in args.algorithm
+        ]
+        if not rows:
+            raise SystemExit("No invariant rows matched the selected filters.")
+
+        plot_invariant_rows(
+            rows,
+            axis=args.x,
+            output=args.output,
+            title=args.title,
+        )
+        return 0
 
     all_rows = read_stats_csv(args.csv)
     if not all_rows:
         raise SystemExit("No rows found in the statistics CSV.")
 
-    parser = build_parser()
     configure_axis_constraints(args, parser, stat_file_kind(all_rows))
 
     rows = [row for row in all_rows if matches_filter(row, args)]
