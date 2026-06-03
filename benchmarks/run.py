@@ -36,6 +36,23 @@ from src.algorithms.p_stab.p_stab_classical import are_peq_stab_classical
 from src.algorithms.p_stab.p_stab_graph_iso import are_peq_stab_graph_iso
 from src.algorithms.p_stab.p_stab_sat import are_peq_stab_sat
 
+from src.hybrids.p_css import are_peq_css
+from src.hybrids.p_stab import are_peq_stab
+from src.hybrids.lc_eq import are_lceq
+from src.hybrids.lc_css import is_lceq_css
+
+from src.invariants.lc_eq.lc_invariants import (
+    preserved_local_weight_distribution,
+    preserved_low_degree_local_invariant
+)
+
+from src.invariants.p_eq.pm_invariants import (
+    preserved_weight_enumerator,
+    preserved_pauli_weight_enumerator,
+    preserved_linear_dependencies,
+)
+
+
 from src.core.stabilizer_code import StabilizerCode
 from src.core.css_code import CSSCode
 
@@ -149,6 +166,22 @@ ALGORITHMS: dict[str, Algorithm] = {
     "lc_css_cliff_orbit": is_lceq_css_cliff_orbit,
     "lc_css_lc_orbit": is_lceq_css_lc_orbit,
     "lc_css_sat": is_lceq_css_sat,
+
+    "pm_css_hybrid": are_peq_css,
+    "pm_stb_hybrid": are_peq_stab,
+    "lc_eq_hybrid": are_lceq,
+    "lc_css_hybrid": is_lceq_css,
+}
+
+LC_INVARIANTS: dict[str, Algorithm] = {
+    "local_weight_distribution": preserved_local_weight_distribution,
+    "low_degree_local_invariant": preserved_low_degree_local_invariant,
+}
+
+PM_INVARIANTS: dict[str, Invariant] = {
+    "weight_enumerator": preserved_weight_enumerator,
+    "pauli_weight_enumerator": preserved_pauli_weight_enumerator,
+    "linear_dependencies": preserved_linear_dependencies,
 }
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
@@ -628,6 +661,13 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
 
     return measurements
     
+def pm_invariant_cases(seed: int) -> list[Case]:
+    return []
+
+def lc_invariant_cases(seed: int) -> list[Case]:
+    return []
+
+
 def default_cases(seed: int, random: bool = False) -> list[Case]:
     """Return test cases."""
     case_bell_pair_same = Case(
@@ -951,6 +991,33 @@ def run_stat_benchmarks(
         if verbose:
             print_statistics(stats_algorithm)
 
+def run_inv_benchmarks(
+    pm: bool,
+    repeats: int,
+    seed: int,
+    timeout: float | None = None,
+    verbose: bool = True,
+) -> None:
+    """Run invariants on cases with the matching problem type."""
+    if pm:
+        INVS = PM_INVARIANTS
+        cases = pm_invariant_cases(seed=seed)
+    else:        
+        INVS = LC_INVARIANTS
+        cases =  lc_invariant_cases(seed=seed)
+        
+    for inv_name in sorted(INVS.keys()):
+        if verbose:
+            print(f"Running benchmark for invariant: {inv_name}")
+        result_inv = []
+        for case in cases:
+            if verbose:
+                print(f"    Running case: {case.name}...")
+            result_inv.append(run_case(inv_name, INVS[inv_name], case, repeats, timeout))
+
+        if verbose:
+            print_results(result_inv)
+
 
 def result_timed_out(result: Result) -> bool:
     """Return whether a result failed because at least one repeat timed out."""
@@ -1091,6 +1158,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
     parser.add_argument("--stats", action="store_true", default=False, help="Execute the algorithm on the cases with different seeds and print the statistics of the runtime.")
+    parser.add_argument("--inv", action="store_true", default=False, help="Benchmark more complex invariants.")
     parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
     parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
     parser.add_argument("--timeout", type=float, default=None, help="Maximum seconds allowed for each repeat before it is stopped.")
@@ -1116,7 +1184,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             
         run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.timeout, args.verbose, args.random)
         return 0
-                                      
+    
+    if args.inv:
+        run_inv_benchmarks(True, args.repeats, args.seed, args.timeout, args.verbose)
+        run_inv_benchmarks(False, args.repeats, args.seed, args.timeout, args.verbose)
     else:
         results = run_raw_benchmarks(
             default_cases(seed=args.seed, random=args.random),
