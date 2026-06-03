@@ -17,7 +17,7 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the number of logical qubits is preserved, which is a necessary condition for LC-equivalence."""
     return c1.k == c2.k
 
-def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode, max_subset_size: int = None) -> bool:
     """Check whether the r = 2 local weight distribution is preserved, which is a necessary condition for LC-equivalence.
 
     for each w^1, w^2, w^12 ⊆ {1, ..., n}: 
@@ -73,7 +73,9 @@ def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode) 
         for a in range(max_size + 1):
             yield from combinations(range(n), a)
     
-    max_subset_size = c1.n # theoretically O(2^(3n)), but smaller subsets are also valid, only weaker
+    if not max_subset_size:
+        max_subset_size = c1.n # theoretically O(2^(3n)), but smaller subsets are also valid, only weaker
+    
     for w1 in subsets_up_to_size(max_subset_size):
         for w2 in subsets_up_to_size(max_subset_size):
             for w12 in subsets_up_to_size(max_subset_size):
@@ -82,7 +84,7 @@ def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode) 
     
     return True
 
-def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode, max_subset_size: int = None) -> bool:
     """Check whether the r = 2 local invariant is preserved, which is a necessary condition for LC-equivalence.
 
     for each A ⊆ {1, ..., n}: 
@@ -123,7 +125,9 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
         restricted = G[:, cols]
         return rk - _rank(restricted)
     
-    max_subset_size = c1.n # theoretically O(2^n), but smaller subsets are also valid, only weaker
+    if not max_subset_size:
+        max_subset_size = c1.n # theoretically O(2^n), but smaller subsets are also valid, only weaker
+
     for a in range(max_subset_size + 1):
         for subset in combinations(range(c1.n), a):
             if _supp_subcode_dim(c1, subset) != _supp_subcode_dim(c2, subset):
