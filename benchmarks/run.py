@@ -22,7 +22,6 @@ from src.algorithms.lc_css.lc_css_cliff_orbit import is_lceq_css_cliff_orbit
 from src.algorithms.lc_css.lc_css_lc_orbit import is_lceq_css_lc_orbit
 from src.algorithms.lc_css.lc_css_sat import is_lceq_css_sat
 from src.algorithms.lc_eq.lc_eq_graph_state import are_lceq_graph_state
-from src.algorithms.lc_eq.lc_eq_graph_state_small_k import are_lceq_graph_state_small_k
 from src.algorithms.lc_eq.lc_eq_bruteforce import are_lceq_bruteforce
 from src.algorithms.lc_eq.lc_eq_sat import are_lceq_sat
 from src.algorithms.lc_eq.lc_eq_graph_iso import are_lceq_graph_iso
@@ -158,7 +157,6 @@ ALGORITHMS: dict[str, Algorithm] = {
     "pm_stb_graph_iso": are_peq_stab_graph_iso,
     "pm_stb_sat": are_peq_stab_sat,
     "lc_equ_graph_state": are_lceq_graph_state,
-    "lc_equ_graph_state_small_k": are_lceq_graph_state_small_k,
     "lc_equ_bruteforce": are_lceq_bruteforce,
     "lc_equ_graph_iso": are_lceq_graph_iso,
     "lc_equ_sat": are_lceq_sat,
@@ -231,7 +229,7 @@ def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
     if algorithm_name.startswith("pm_stb") and len(case.inputs) == 2 and case.expected_p is not None:
         return True
     if algorithm_name.startswith("lc_equ") and len(case.inputs) == 2 and case.expected_lc is not None:
-        if algorithm_name == "lc_equ_graph_state_small_k":
+        if algorithm_name == "lc_equ_graph_state":
             return all(isinstance(code, StabilizerCode) and code.k < 2 for code in case.inputs)
         return True
     if algorithm_name.startswith("lc_css") and len(case.inputs) == 1 and case.expected_lc is not None:

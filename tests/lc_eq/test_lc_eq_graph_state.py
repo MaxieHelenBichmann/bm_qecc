@@ -5,10 +5,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import random_stabilizer_code, lc_equivalent_code
+from benchmarks.utils import non_lc_equivalent_code, random_stabilizer_code, lc_equivalent_code, lc_equivalent_code_and_log_ops
 from src.algorithms.lc_eq.lc_eq_graph_state import (
     _stab_state_to_graph_state,
-    _code_to_graph,
+    _stab_code_to_stab_state,
     _lc_equiv_graph_states,
     are_lceq_graph_state,
 )
@@ -18,13 +18,80 @@ from src.core.stabilizer_code import StabilizerCode
 def _assert_same_matrix(actual: np.ndarray, expected: np.ndarray) -> None:
     np.testing.assert_array_equal(actual.astype(np.uint8), expected.astype(np.uint8))
 
-# ----------------------------------------------------------------------------------------------------
-# _code_to_encoder_circuit
-# ----------------------------------------------------------------------------------------------------
 
 # ----------------------------------------------------------------------------------------------------
-# _code_to_graph
+# _stab_code_to_stab_state
 # ----------------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        pytest.param(
+            StabilizerCode(["Z"]),
+            np.array([[0, 1]], dtype=np.uint8),
+            id="single-qubit-z-state",
+        ),
+        pytest.param(
+            StabilizerCode(["X"]),
+            np.array([[1, 0]], dtype=np.uint8),
+            id="single-qubit-x-state",
+        ),
+        pytest.param(
+            StabilizerCode.get_trivial_code(1),
+            np.array(
+                [
+                    [1, 1, 0, 0],
+                    [0, 0, 1, 1],
+                ],
+                dtype=np.uint8,
+            ),
+            id="one-qubit-trivial-code",
+        ),
+        pytest.param(
+            StabilizerCode(["ZZ"], z_logicals=["ZI"], x_logicals=["XX"]),
+            np.array(
+                [
+                    [0, 0, 0, 1, 1, 0],
+                    [1, 1, 1, 0, 0, 0],
+                    [0, 0, 0, 1, 0, 1],
+                ],
+                dtype=np.uint8,
+            ),
+            id="two-qubit-repetition-code",
+        ),
+        pytest.param(
+            StabilizerCode(["ZZI", "IZZ"], z_logicals=["ZII"], x_logicals=["XXX"]),
+            np.array(
+                [
+                    [0, 0, 0, 0, 1, 1, 0, 0],
+                    [0, 0, 0, 0, 0, 1, 1, 0],
+                    [1, 1, 1, 1, 0, 0, 0, 0],
+                    [0, 0, 0, 0, 1, 0, 0, 1],
+                ],
+                dtype=np.uint8,
+            ),
+            id="three-qubit-repetition-code",
+        ),
+        pytest.param(
+            StabilizerCode(["XZYI", "IXXY"]),
+            np.array(
+                [
+                    [1, 0, 1, 0, 0, 0,  0, 1, 1, 0, 0, 0],
+                    [0, 1, 1, 1, 0, 0,  0, 0, 0, 1, 0, 0],
+                    [0, 0, 0, 1, 1, 0,  0, 1, 0, 0, 0, 0],
+                    [0, 0, 1, 0, 0, 1,  1, 0, 0, 0, 0, 0],
+                    [0, 1, 1, 0, 0, 0,  0, 0, 0, 0, 1, 0],
+                    [1, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 1],
+                ],
+                dtype=np.uint8,
+            ),
+            id="log-op-generators",
+        ),
+    ],
+)
+def test_stab_code_to_stab_state_small_codes(code: StabilizerCode, expected: np.ndarray) -> None:
+    _assert_same_matrix(_stab_code_to_stab_state(code), expected)
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -83,6 +150,7 @@ def test_stab_state_to_graph_state_small_tableau(
     expected: np.ndarray,
 ) -> None:
     _assert_same_matrix(_stab_state_to_graph_state(tableau.copy()), expected)
+
 
 # ----------------------------------------------------------------------------------------------------
 # _lc_equiv_graph_states
@@ -286,78 +354,46 @@ def test_lc_equiv_graph_states_small_graphs(
 # are_lceq_graph_state
 # ----------------------------------------------------------------------------------------------------
 
-def test_are_lceq_graph_choi_failing() -> None:
-    # No logical operators are supplied here; StabilizerCode computes them.
-    # H on qubits 0 and 3 maps code2's stabilizer row space onto code1's.
-    code1 = StabilizerCode(["ZIYX", "ZIII"])
-    code2 = StabilizerCode(["IIYZ", "XIYZ"])
-
-    assert are_lceq_bruteforce(code1, code2) is True
-    assert _lc_equiv_graph_states(_code_to_graph(code1), _code_to_graph(code2)) is False
-    assert are_lceq_graph_state(code1, code2) is True
-
-
-@pytest.mark.parametrize(
-    ("code1", "code2", "expected"),
-    [
-        pytest.param(StabilizerCode(["Z"]), StabilizerCode(["X"]), True, id="one-qubit-z-vs-x"),
-        pytest.param(StabilizerCode(["Z"]), StabilizerCode(["Y"]), True, id="one-qubit-z-vs-y"),
-        pytest.param(
-            StabilizerCode(["ZI", "IZ"]),
-            StabilizerCode(["XI", "IX"]),
-            True,
-            id="two-product-bases",
-        ),
-        pytest.param(
-            StabilizerCode(["ZI", "IZ"]),
-            StabilizerCode(["XX", "ZZ"]),
-            False,
-            id="product-vs-bell-state",
-        ),
-        pytest.param(
-            StabilizerCode(["ZZ"], z_logicals=["ZI"], x_logicals=["XX"]),
-            StabilizerCode(["XX"], z_logicals=["XI"], x_logicals=["ZZ"]),
-            True,
-            id="repetition-code-under-hadamards",
-        ),
-        pytest.param(
-            StabilizerCode(["ZZ"], z_logicals=["ZI"], x_logicals=["XX"]),
-            StabilizerCode(["ZI"], z_logicals=["IZ"], x_logicals=["IX"]),
-            False,
-            id="weight-two-vs-weight-one-stabilizer",
-        ),
-    ],
-)
-def test_are_lceq_graph_state_small_codes(
-    code1: StabilizerCode,
-    code2: StabilizerCode,
-    expected: bool,
-) -> None:
-    assert are_lceq_graph_state(code1, code2) is expected
-
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [3, 28, 35]])
-def test_are_lceq_graph_state_failing_choi(seed: int) -> None:
+def test_are_lceq_graph_state_small_k_restricted(seed: int) -> None:
     """
     3:  < IZI > | < IXI > 
     28: < IXI > | < IYI >
     35: < XZZ > | < ZXX >
     """
     code1 = random_stabilizer_code(3, 2, seed=1000 + seed)
-    code2 = lc_equivalent_code(code1, seed=2000 + seed)
+    code2 = lc_equivalent_code_and_log_ops(code1, seed=2000 + seed)
     assert are_lceq_graph_state(code1, code2) is True
 
-def test_are_lceq_graph_state_random_smoke() -> None:
+
+def test_are_lceq_graph_state_small_k_random_smoke() -> None:
     for n in range(3, 9):
-        for k in range(n + 1):
+        for k in [0, 1]:
             code1 = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
             code2 = lc_equivalent_code(code1, seed=2000 + 17 * n + k)
 
             assert isinstance(are_lceq_graph_state(code1, code2), bool)
 
-@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
-def test_are_lceq_graph_state_random_positive(seed: int) -> None:
-    n = 2 + (3 * seed + 1) % 5
-    k = 1 + (2 * seed + 1) % (n - 1)
-    code1 = random_stabilizer_code(n, k, seed=1000 + seed)
-    code2 = lc_equivalent_code(code1, seed=2000 + seed)
-    assert are_lceq_graph_state(code1, code2) is True
+@pytest.mark.parametrize("n", [pytest.param(n, id=f"n-{n}") for n in range(1, 9)])
+def test_are_lceq_graph_state_small_k_random_positive(n: int) -> None:
+    seed = 69 + n
+
+    code_state = random_stabilizer_code(n, 0, seed=1000 + seed)
+    code_small = random_stabilizer_code(n, 1, seed=4000 + seed)
+    state = lc_equivalent_code(code_state, seed=2000 + seed)
+    small = lc_equivalent_code(code_small, seed=3000 + seed)
+
+    assert are_lceq_graph_state(code_state, state) is True
+    assert are_lceq_graph_state(code_small, small) is True
+
+@pytest.mark.parametrize("n", [pytest.param(n, id=f"n-{n}") for n in range(2, 5)])
+def test_are_lceq_graph_state_small_k_random_negative(n: int) -> None:
+    seed = 69 + n
+
+    code_state = random_stabilizer_code(n, 0, seed=15000 + seed)
+    code_small = random_stabilizer_code(n, 1, seed=45000 + seed)
+    state = non_lc_equivalent_code(code_state, seed=25000 + seed)
+    small = non_lc_equivalent_code(code_small, seed=35000 + seed)
+
+    assert are_lceq_graph_state(code_state, state) is False
+    assert are_lceq_graph_state(code_small, small) is False
