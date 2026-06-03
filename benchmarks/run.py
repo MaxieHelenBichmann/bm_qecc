@@ -1300,7 +1300,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         write_bms(result_lc, args.seed, prefixed_output_path(args.output, "lc"))
         return 0
  
-    print(f"RAW BENCHMARKS")
+    print(f"RAW BENCHMARKS for {"random" if args.random else "known"} cases")
     results = run_raw_benchmarks(
         default_cases(seed=args.seed, random=args.random),
         args.algorithm,
