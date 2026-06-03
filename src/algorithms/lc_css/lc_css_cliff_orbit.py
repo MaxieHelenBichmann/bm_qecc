@@ -457,7 +457,7 @@ def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
              [Lz_x | 0 | Lz_z | I]
     """
     if code.k == 0:
-        return code.symplectic
+        return code.symplectic.copy()
 
     n = code.n
     r = n - code.k
