@@ -125,15 +125,22 @@ Run benchmarks from the repository root:
 python3 -m benchmarks.run
 ```
 
-Certain parameters can be set as well, e.g. in the following commands
+The benchmark runner has three mutually exclusive modes:
+- `--raw` which is the default when no mode flag is given, runs benchmarks on default known or random cases *(good for flamegraphs/profiling)*
+- `--stats` which runs a suite of multiple codes of certain fixed dimensions, but different random instances, and then calculates statistics out of the different seeded instances *(good for broader algorithm evaluation/edge cases)*
+- `--inv` which runs a fixed suite as input for all invariant-checker algorithms *(good for invariant comparison)*
+
+`--random` and `--algorithm` can only be used with raw and stats mode.
+
+Other parameters are more straightforward, and could be used like this: 
 ```bash
-python3 -m benchmarks.run --repeats 1
-python3 -m benchmarks.run --output results/bm_output.csv
-python3 -m benchmarks.run --seed 69 
-python3 -m benchmarks.run --verbose
+python3 -m benchmarks.run --repeats 4 --seed 69 --output results/bm.csv --verbose --timeout 200
+
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 python3 -m benchmarks.run --algorithm 'pm_css*'
-python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose --timeout 200
+
+python3 -m benchmarks.run --raw --random
+python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose
 python3 -m benchmarks.run --inv --verbose --output results/invariants.csv --timeout 20
 ```
 
@@ -147,7 +154,7 @@ py-spy record \
 
 ### Evaluation
 
-The visualization scripts in `results/` can create some small plots for getting a quick overview of performance and bottlenecks, not as a finalized analysis. Use `visualize_named.py` for known/structured benchmark cases, `visualize_random.py` for randomized benchmark statistics, and `visualize_invariants.py` for invariant timings.
+The visualization scripts in `results/` can create some small plots for getting a quick overview of performance and bottlenecks, not as a finalized analysis. Use `visualize_named.py` for known/structured benchmark cases, `visualize_random.py` for randomized benchmark statistics (`--stats` mode), and `visualize_invariants.py` for invariant timings (`--inv` mode).
 
 Create plots, optionally:
 ```bash

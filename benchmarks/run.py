@@ -908,7 +908,12 @@ def default_cases(seed: int, random: bool = False) -> list[Case]:
         lcc_css_case(seed=seed + 69, dim=(10, 4)),
     ]
 
-    return random_permuted_stb + random_non_permuted_stb if random else known_permuted + known_lc + known_lc_css
+    if random:
+        default_cases = random_permuted_css + random_non_permuted_css +random_permuted_stb + random_non_permuted_stb + random_lc_css
+    else:
+        default_cases = known_permuted + known_lc + known_lc_css
+
+    return default_cases
 
 
 def _run_algorithm_once(
@@ -1232,12 +1237,37 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
-    parser.add_argument("--stats", action="store_true", default=False, help="Execute the algorithm on the cases with different seeds and print the statistics of the runtime.")
-    parser.add_argument("--inv", action="store_true", default=False, help="Benchmark more complex invariants.")
     parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
     parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
     parser.add_argument("--timeout", type=float, default=None, help="Maximum seconds allowed for each repeat before it is stopped.")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
+        "--raw",
+        action="store_const",
+        const="raw",
+        dest="mode",
+        help="Run raw benchmarks on default known or random cases. This is the default mode.",
+    )
+    modes.add_argument(
+        "--stats",
+        action="store_const",
+        const="stats",
+        dest="mode",
+        help="Run statistical benchmarks on seeded fixed or random cases.",
+    )
+    modes.add_argument(
+        "--inv",
+        action="store_const",
+        const="inv",
+        dest="mode",
+        help="Run invariant benchmarks on fixed cases.",
+    )
+    parser.set_defaults(mode="raw")
     args = parser.parse_args(argv)
+    if args.mode == "inv" and args.algorithm:
+        parser.error("--algorithm can only be used with raw or stats benchmarks.")
+    if args.mode == "inv" and args.random:
+        parser.error("--random can only be used with raw or stats benchmarks.")
     try:
         args.algorithm = resolve_algorithm_names(args.algorithm)
     except ValueError as exc:
@@ -1253,29 +1283,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.timeout is not None and args.timeout <= 0:
         raise ValueError("--timeout must be greater than 0.")
 
-    if args.stats:
+    if args.mode == "stats":
+        print(f"STATISTICAL BENCHMARKS for {"random" if args.random else "known"} cases")
         if args.output.exists():
             args.output.unlink()
             
         run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.timeout, args.verbose, args.random)
         return 0
     
-    if args.inv:
+    if args.mode == "inv":
+        print(f"INVARIANT BENCHMARKS")
+            
         result_pm = run_inv_benchmarks(True, args.repeats, args.seed, args.timeout, args.verbose)
         result_lc = run_inv_benchmarks(False, args.repeats, args.seed, args.timeout, args.verbose)
         write_bms(result_pm, args.seed, prefixed_output_path(args.output, "pm"))
         write_bms(result_lc, args.seed, prefixed_output_path(args.output, "lc"))
         return 0
-    else:
-        results = run_raw_benchmarks(
-            default_cases(seed=args.seed, random=args.random),
-            args.algorithm,
-            args.repeats,
-            timeout=args.timeout,
-            verbose=args.verbose,
-        )
-        write_bms(results, args.seed, args.output)
-        return 0
+ 
+    print(f"RAW BENCHMARKS")
+    results = run_raw_benchmarks(
+        default_cases(seed=args.seed, random=args.random),
+        args.algorithm,
+        args.repeats,
+        timeout=args.timeout,
+        verbose=args.verbose,
+    )
+    write_bms(results, args.seed, args.output)
+    return 0
 
 if __name__ == "__main__":
     raise SystemExit(main())
