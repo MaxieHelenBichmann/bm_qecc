@@ -680,35 +680,6 @@ def configure_xaxis_ticks(axis: Axis, ax) -> None:
     ax.xaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
 
 
-def jittered_invariant_axis_values(rows: Sequence[InvariantRow], axis: Axis) -> list[float]:
-    """Spread all invariant rows with identical x-values, across algorithms."""
-    axis_values = [row.axis_value(axis) for row in rows]
-    unique_values = sorted(set(axis_values))
-    if len(unique_values) > 1:
-        min_gap = min(
-            right - left
-            for left, right in zip(unique_values, unique_values[1:])
-            if right > left
-        )
-        jitter_step = min_gap * 0.08
-    else:
-        jitter_step = max(abs(unique_values[0]) * 0.02, 0.1)
-
-    duplicates: dict[float, list[int]] = {}
-    for index, value in enumerate(axis_values):
-        duplicates.setdefault(value, []).append(index)
-
-    jittered_values = list(axis_values)
-    for value, indices in duplicates.items():
-        if len(indices) == 1:
-            continue
-        ordered_indices = sorted(indices, key=lambda index: (rows[index].algorithm, rows[index].case))
-        midpoint = (len(ordered_indices) - 1) / 2
-        for duplicate_index, row_index in enumerate(ordered_indices):
-            jittered_values[row_index] = value + (duplicate_index - midpoint) * jitter_step
-    return jittered_values
-
-
 def plot_invariant_rows(
     rows: Sequence[InvariantRow],
     axis: Axis,
@@ -724,7 +695,7 @@ def plot_invariant_rows(
         raise
 
     ordered_rows = tuple(sorted(rows, key=lambda row: (row.axis_value(axis), row.algorithm, row.case)))
-    x_values = jittered_invariant_axis_values(ordered_rows, axis)
+    x_values = [row.axis_value(axis) for row in ordered_rows]
     algorithms = sorted({row.algorithm for row in ordered_rows})
 
     cmap = plt.get_cmap("tab10" if len(algorithms) <= 10 else "tab20")
@@ -743,10 +714,11 @@ def plot_invariant_rows(
         ax.scatter(
             x,
             y,
-            s=36,
+            s=42,
             color=colors[algorithm],
-            alpha=0.78,
+            alpha=0.45,
             marker="o",
+            edgecolors="none",
             label=algorithm,
             zorder=3,
         )
