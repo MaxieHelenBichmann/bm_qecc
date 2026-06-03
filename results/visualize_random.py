@@ -195,7 +195,7 @@ def fixed_parameter_title(args: argparse.Namespace, rows: Sequence[StatRow]) -> 
     """Build a title line that describes fixed dimension parameters."""
     algorithms = sorted({row.algorithm for row in rows})
     single_algorithm = algorithms[0] if len(algorithms) == 1 else None
-    title = args.title or "Randomized benchmark runtimes"
+    title = "Random codes benchmark"
     if single_algorithm is not None:
         title = f"{title}: {single_algorithm}"
 
@@ -294,7 +294,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
     parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
-    parser.add_argument("--title", help="Optional diagram title.")
     parser.add_argument("--theory", action="store_true", help="Draw a faint fitted theoretical boundary function.")
     add_common_stat_filters(parser)
     parser.add_argument("--n", type=int, help="Fix block length n.")

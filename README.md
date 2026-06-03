@@ -152,7 +152,11 @@ The visualization scripts in `results/` can create some small plots for getting 
 Create plots:
 ```bash
 python3 results/visualize_named.py results/statistics.csv --x r --n 17 --algorithm pm_css_matroid --output results/matroid_plot_n17.png
+
 python3 results/visualize_random.py results/statistics.csv --x n --k 1 --algorithm pm_css_sat --output results/sat_plot_k1.png
+
+python3 results/visualize_random.py results/statistics.csv --x n --k 2 --algorithm pm_stb_bruteforce --algorithm pm_stb_classical --output results/compare.png
+
 python3 results/visualize_invariants.py results/invariants_lc.csv --x n --output results/invariants_lc_plot.png
 ```
 

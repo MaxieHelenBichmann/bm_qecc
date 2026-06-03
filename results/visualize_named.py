@@ -148,7 +148,7 @@ def build_series(
     ]
 
 
-def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str | None) -> None:
+def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None) -> None:
     """Render named cases with mean/stddev, maximum markers, and direct labels."""
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     point_labels: list[PointLabel] = []
@@ -220,8 +220,7 @@ def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | N
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(handles, labels)
-    if title:
-        ax.set_title(title)
+    ax.set_title("Structured codes benchmark")
 
     if output is None:
         plt.show()
@@ -238,7 +237,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
     parser.add_argument("--x", choices=("n", "k", "r"), required=True, help="Parameter used for the x-axis.")
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
-    parser.add_argument("--title", help="Optional diagram title.")
     parser.add_argument("--name", help="Case name to include.")
     add_common_stat_filters(parser)
     return parser
@@ -261,7 +259,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         include_positive=args.positive == "all",
         include_algorithm=len({row.algorithm for row in rows}) > 1,
     )
-    plot_named_series(series, axis=args.x, output=args.output, title=args.title or "Named benchmark runtimes")
+    plot_named_series(series, axis=args.x, output=args.output)
     return 0
 
 

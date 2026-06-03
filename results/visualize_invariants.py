@@ -63,11 +63,6 @@ def invariant_tone(base_color, algorithm: str):
     return (red, green, blue, alpha)
 
 
-def matches_filter(row: InvariantRow, args: argparse.Namespace) -> bool:
-    """Return whether an invariant row should be included."""
-    return not args.algorithm or row.algorithm in args.algorithm
-
-
 def plot_invariant_rows(
     rows: Sequence[InvariantRow],
     axis: Axis,
@@ -201,7 +196,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--x", choices=("n", "k", "r"), required=True, help="Parameter used for the x-axis.")
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--title", help="Optional diagram title.")
-    parser.add_argument("--algorithm", action="append", help="Invariant to include. Can be passed multiple times.")
     return parser
 
 
@@ -212,11 +206,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not all_rows:
         raise SystemExit("No rows found in the invariant CSV.")
 
-    rows = [row for row in all_rows if matches_filter(row, args)]
-    if not rows:
-        raise SystemExit("No invariant rows matched the selected filters.")
-
-    plot_invariant_rows(rows, axis=args.x, output=args.output, title=args.title)
+    plot_invariant_rows(all_rows, axis=args.x, output=args.output, title=args.title)
     return 0
 
 
