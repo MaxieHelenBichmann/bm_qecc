@@ -199,7 +199,7 @@ def _traverse_lc_orbit(graph: np.ndarray) -> bool:
     return False
 
 
-def is_lceq_css_orbit_small_k(code: StabilizerCode) -> bool:
+def is_lceq_css_lc_orbit(code: StabilizerCode) -> bool:
     """Check if a stabilizer code with k < 2 is LC-equivalent to a CSS code by traversing the LC orbit of the corresponding graph state.
 
     1.) Convert the stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.

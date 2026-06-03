@@ -10,7 +10,7 @@ from src.algorithms.lc_css.lc_css_lc_orbit import (
     _stab_code_to_stab_state,
     _stab_state_to_graph_state,
     _traverse_lc_orbit,
-    is_lceq_css_orbit_small_k,
+    is_lceq_css_lc_orbit,
 )
 from src.core.stabilizer_code import StabilizerCode
 
@@ -171,28 +171,28 @@ def test_traverse_lc_orbit() -> None:
     assert _traverse_lc_orbit(triangle) is True
 
 # ----------------------------------------------------------------------------------------------------
-# is_lceq_css_orbit
+# is_lceq_css_lc_orbit
 # ----------------------------------------------------------------------------------------------------
 
 
-def test_is_lceq_css_orbit_small_k_random_smoke() -> None:
+def test_is_lceq_css_lc_orbit_random_smoke() -> None:
     for n in range(1, 4):
         for k in [0, 1]:
             code = random_stabilizer_code(n, k, seed=1000 + 17 * n + k)
-            assert isinstance(is_lceq_css_orbit_small_k(code), bool)
+            assert isinstance(is_lceq_css_lc_orbit(code), bool)
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
-def test_is_lceq_css_orbit_small_k_random_log_ops_restricted(seed: int) -> None:
+def test_is_lceq_css_lc_orbit_random_log_ops_restricted(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
     k = 1 + (2 * seed + 1) % (n - 1)
 
     css_code = random_css_code(n, k, seed=1000 + seed)
     code = lc_equivalent_code_and_log_ops(css_code, seed=2000 + seed)
 
-    assert is_lceq_css_orbit_small_k(code) is True
+    assert is_lceq_css_lc_orbit(code) is True
 
 @pytest.mark.parametrize("n", [pytest.param(n, id=f"n-{n}") for n in range(1, 5)])
-def test_is_lceq_css_orbit_small_k_random_positive(n: int) -> None:
+def test_is_lceq_css_lc_orbit_small_k_random_positive(n: int) -> None:
     seed = 69 + n
 
     css_state = random_css_code(n, 0, seed=1000 + seed)
@@ -200,5 +200,5 @@ def test_is_lceq_css_orbit_small_k_random_positive(n: int) -> None:
     state = lc_equivalent_code(css_state, seed=2000 + seed)
     small = lc_equivalent_code(css_small, seed=3000 + seed)
 
-    assert is_lceq_css_orbit_small_k(state) is True
-    assert is_lceq_css_orbit_small_k(small) is True
+    assert is_lceq_css_lc_orbit(state) is True
+    assert is_lceq_css_lc_orbit(small) is True

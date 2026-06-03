@@ -79,10 +79,10 @@ def expected_functions(algorithm: str) -> Callable:
     def _lc_css_kls(n, a, b):
         return n
     
-    def _lc_css_orbit(n, a, b):
+    def _lc_css_cliff_orbit(n, a, b):
         return n
     
-    def _lc_css_orbit_small_k(n, a, b):
+    def _lc_css_lc_orbit(n, a, b):
         return n
     
     def _lc_css_sat(n, a, b):
@@ -122,10 +122,10 @@ def expected_functions(algorithm: str) -> Callable:
         return _lc_css_bruteforce
     if algorithm == "lc_css_kls":
         return _lc_css_kls
-    if algorithm == "lc_css_orbit":
-        return _lc_css_orbit
-    if algorithm == "lc_css_orbit_small_k":
-        return _lc_css_orbit_small_k
+    if algorithm == "lc_css_cliff_orbit":
+        return _lc_css_cliff_orbit
+    if algorithm == "lc_css_lc_orbit":
+        return _lc_css_lc_orbit
     if algorithm == "lc_css_sat":
         return _lc_css_sat
     
