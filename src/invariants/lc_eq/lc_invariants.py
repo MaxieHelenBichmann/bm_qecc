@@ -75,7 +75,9 @@ def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode, 
     
     if not max_subset_size:
         max_subset_size = c1.n # theoretically O(2^(3n)), but smaller subsets are also valid, only weaker
-    
+    else:
+        max_subset_size = min(max_subset_size, c1.n)
+        
     for w1 in subsets_up_to_size(max_subset_size):
         for w2 in subsets_up_to_size(max_subset_size):
             for w12 in subsets_up_to_size(max_subset_size):
@@ -126,7 +128,9 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode,
         return rk - _rank(restricted)
     
     if not max_subset_size:
-        max_subset_size = c1.n # theoretically O(2^n), but smaller subsets are also valid, only weaker
+        max_subset_size = n # theoretically O(2^n), but smaller subsets are also valid, only weaker
+    else:
+        max_subset_size = min(max_subset_size, n)
 
     for a in range(max_subset_size + 1):
         for subset in combinations(range(c1.n), a):

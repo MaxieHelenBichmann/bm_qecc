@@ -9,6 +9,7 @@ import multiprocessing as mp
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from queue import Empty
 from time import perf_counter
@@ -175,7 +176,11 @@ ALGORITHMS: dict[str, Algorithm] = {
 
 LC_INVARIANTS: dict[str, Algorithm] = {
     "lc_local_weight_distribution": preserved_local_weight_distribution,
+    "lc_local_weight_distribution_s2": partial(preserved_local_weight_distribution, max_subset_size=2),
+    "lc_local_weight_distribution_s4": partial(preserved_local_weight_distribution, max_subset_size=4),
     "lc_low_degree_local_invariant": preserved_low_degree_local_invariant,
+    "lc_low_degree_local_invariant_s2": partial(preserved_low_degree_local_invariant, max_subset_size=2),
+    "lc_low_degree_local_invariant_s4": partial(preserved_low_degree_local_invariant, max_subset_size=4),
 }
 
 PM_INVARIANTS: dict[str, Algorithm] = {
@@ -1061,15 +1066,13 @@ def run_inv_benchmarks(
         INVS = LC_INVARIANTS
         cases =  lc_invariant_cases(seed=seed)
         
-    family = "pm" if pm else "lc"
     results = []
     for inv_name in sorted(INVS.keys()):
         if verbose:
             print(f"Running benchmark for invariant: {inv_name}")
         result_inv = []
         for case in cases:
-            algorithm_name = inv_name if inv_name.startswith(f"{family}_") else f"{family}_{inv_name}"
-            result_inv.append(run_case(algorithm_name, INVS[inv_name], case, repeats, timeout))
+            result_inv.append(run_case(inv_name, INVS[inv_name], case, repeats, timeout))
 
         if verbose:
             print_results(result_inv)
