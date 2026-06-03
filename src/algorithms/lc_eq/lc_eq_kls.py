@@ -728,11 +728,13 @@ def are_lceq_kls(code1: StabilizerCode, code2: StabilizerCode) -> bool:
     """Check if two stabilizer codes are LC-equivalent by traversing the LC orbit of one, renormalizing at each step and checking if the KLS form of the other one is found.
 
     For each code, the following is done:
-    1.) Convert the stabilizer code into a graph-like state, aka a graph with local Clifford decorations on the vertices.
+    1.) Convert the stabilizer code into a graph-like state, aka a graph with local Clifford decorations on the vertices, using the Encoder Circuit and Choi.
     2.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
     3.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
 
     4.) Traverse the LC orbit of one resulting graph, renormalize and check if the other graph is found.
+
+    Even tough we need to check the entire LC Orbit, with the KLS we at least remove the degrees of freedom that the logical basis choice adds for k > 1, which would add the ARBITRARY Clifford orbit on input/reference qubits.
     """
     graph1 = _code_to_graph(code1)
     _hk_normal_form(graph1)

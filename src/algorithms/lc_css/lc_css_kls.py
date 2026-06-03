@@ -767,14 +767,16 @@ def _traverse_lc_orbit(graph: GSLC) -> bool:
 def is_lceq_css_kls(code: StabilizerCode) -> bool:
     """Check if a stabilizer code is LC-equivalent to a CSS code by traversing the LC-orbit of its Choi-State and checking if the result is bipartite, converting it into KLS normal form at each step to quotient out the freedom of logical operators.
 
-    1.) Convert the stabilizer code into a graph-like state, aka a graph with local Clifford decorations on the vertices, using Choi.
+    1.) Convert the stabilizer code into a graph-like state, aka a graph with local Clifford decorations on the vertices, using the Encoder Circuit and Choi.
 
     2.) Traverse the LC orbit of the physical qubits in the graph state, and at each step:
     2a.) Convert the graph-like state into HK normal form, while treating the input vertices as output vertices.
     2b.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
     2c.) Check if the resulting graph state is bipartite, which means that the code is LC-equivalent to a CSS code.
 
-    Even tough we need to check the entire LC Orbit, with the KLS we at least remove the degrees of freedom that the logical basis choice adds for k > 1 - which would add the ARBITRARY Clifford orbit on input/reference qubits.
+    I think I have misinterpreted the Fact 1 in the KLS paper, which I thought states that a code is **LC-equivalent to** a CSS code iff the corresponding KLS normal form is bipartite, but as this can be disproven easily, they probably did not intend their previous definition of "CSS Code = any Code LC-eq to a CSS Code". Thus oen simple bipartite-check of the KLS normal form is not sufficient, but we need to check the entire LC orbit.
+
+    Even tough we need to check the entire LC Orbit, with the KLS we at least remove the degrees of freedom that the logical basis choice adds for k > 1, which would add the ARBITRARY Clifford orbit on input/reference qubits.
     """
     graph = _code_to_graph(code)
     return _traverse_lc_orbit(graph)
