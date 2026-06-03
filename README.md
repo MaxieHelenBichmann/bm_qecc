@@ -105,7 +105,9 @@ data/              # non-randomized case inputs
   generate.py
 
 results/           # generated CSV output, ignored by git
-  visualize.py
+  visualize_named.py
+  visualize_random.py
+  visualize_invariants.py
 ```
 
 ## How to run the benchmarks?
@@ -145,12 +147,13 @@ py-spy record \
 
 ### Evaluation
 
-The script `results/visualize.py` can create some small visualizations of the randomized benchmark data, showing dependencies of different code parameters like n, k, or number of stabilizer generators and the runtime. They are mainly meant for getting a quick overview of the performance and bottlenecks of the algorithm, not as a finalized analysis.
+The visualization scripts in `results/` can create some small plots for getting a quick overview of performance and bottlenecks, not as a finalized analysis. Use `visualize_named.py` for named benchmark cases, `visualize_random.py` for randomized benchmark statistics, and `visualize_invariants.py` for invariant timings.
 
 Create plots:
 ```bash
-python3 results/visualize.py results/statistics.csv --x n --k 1 --algorithm pm_css_sat --output results/statistics_plot.png
-python3 results/visualize.py --inv results/invariants_lc.csv --x n --output results/invariants_lc_plot.png
+python3 results/visualize_named.py results/statistics.csv --x r --n 17 --algorithm pm_css_matroid --output results/matroid_plot_n17.png
+python3 results/visualize_random.py results/statistics.csv --x n --k 1 --algorithm pm_css_sat --output results/sat_plot_k1.png
+python3 results/visualize_invariants.py results/invariants_lc.csv --x n --output results/invariants_lc_plot.png
 ```
 
 
