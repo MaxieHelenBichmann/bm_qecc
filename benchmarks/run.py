@@ -87,6 +87,7 @@ MEAS_STATS = [
     17,
     20
 ]
+MAX_TOL_TIMEOUTS = 5
 
 bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
 three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
@@ -1103,12 +1104,20 @@ def run_stat_benchmarks(
             if verbose:
                 print(f"    Running measurement for n={measurement.n} k={measurement.k}:")
             results: list[Result] = []
+            timeout_counter = 0 # avoid running 10 seeds that run into timeouts either way
+
             for case in measurement_cases:
                 if not case_supports_algorithm(case, algorithm_name):
                     continue
+                if timeout_counter > MAX_TOL_TIMEOUTS:
+                    break
                 if verbose:
                     print(f"        Running case: {case.name}...")
+
                 results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats, timeout))
+
+                if result_timed_out(results[-1]):
+                    timeout_counter += 1
 
             stat = compute_statistics(results, measurement)
 
