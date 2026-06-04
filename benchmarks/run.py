@@ -189,6 +189,68 @@ PM_INVARIANTS: dict[str, Algorithm] = {
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
+def max_n_pm_css(algorithm: str, positive: bool) -> int:
+    """Avoid  large cases that will only lead to certain timeouts."""
+    if algorithm == "pm_css_bruteforce":
+        return 15 if positive else 12
+    if algorithm == "pm_css_classical":
+        return 12 if positive else max(MEAS_STATS)
+    if algorithm == "pm_css_graph_iso":
+        return 15 if positive else max(MEAS_STATS)
+    if algorithm == "pm_css_matroid":
+        return max(MEAS_STATS)
+    if algorithm == "pm_css_sat":
+        return max(MEAS_STATS)
+    if algorithm == "pm_css_hybrid":
+        return max(MEAS_STATS)
+    return max(MEAS_STATS)
+
+def max_n_pm_stb(algorithm: str, positive: bool) -> int:
+    """Avoid  large cases that will only lead to certain timeouts."""
+    if algorithm == "pm_stb_bruteforce":
+        return max(MEAS_STATS)
+    if algorithm == "pm_stb_classical":
+        return max(MEAS_STATS)
+    if algorithm == "pm_stb_graph_iso":
+        return max(MEAS_STATS)
+    if algorithm == "pm_stb_aut":
+        return max(MEAS_STATS)
+    if algorithm == "pm_stb_sat":
+        return max(MEAS_STATS)
+    if algorithm == "pm_stb_hybrid":
+        return max(MEAS_STATS)
+    return max(MEAS_STATS)
+
+def max_n_lc_equ(algorithm: str, positive: bool) -> int:
+    """Avoid  large cases that will only lead to certain timeouts."""
+    if algorithm == "lc_equ_bruteforce":
+        return max(MEAS_STATS)
+    if algorithm == "lc_equ_graph_iso":
+        return max(MEAS_STATS)
+    if algorithm == "lc_equ_graph_state":
+        return max(MEAS_STATS)
+    if algorithm == "lc_equ_sat":
+        return max(MEAS_STATS)
+    if algorithm == "lc_equ_hybrid":
+        return max(MEAS_STATS)
+    return max(MEAS_STATS)
+
+def max_n_lc_css(algorithm: str, positive: bool) -> int:
+    """Avoid  large cases that will only lead to certain timeouts."""
+    if algorithm == "lc_css_bruteforce":
+        return max(MEAS_STATS)
+    if algorithm == "lc_css_kls":
+        return max(MEAS_STATS)
+    if algorithm == "lc_css_cliff_orbit":
+        return max(MEAS_STATS)
+    if algorithm == "lc_css_lc_orbit":
+        return max(MEAS_STATS)
+    if algorithm == "lc_css_sat":
+        return max(MEAS_STATS)
+    if algorithm == "lc_css_hybrid":
+        return max(MEAS_STATS)
+    return max(MEAS_STATS)
+    
 
 def _algorithm_worker(algorithm: Algorithm, inputs: tuple[StabilizerCode, ...], queue: mp.Queue) -> None:
     """Run one benchmark repeat in a child process."""
@@ -451,8 +513,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]
-                                    ))
+                                    [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds] if n <= max_n_pm_css(algorithm, positive=False) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=None, 
@@ -462,7 +523,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
+                                    [permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds] if n <= max_n_pm_css(algorithm, positive=True) else []))
             elif algorithm.startswith("pm_stb"):
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
@@ -473,7 +534,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
+                                    [non_permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds] if n <= max_n_pm_stb(algorithm, positive=False) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=None, 
@@ -483,7 +544,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
+                                    [permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds] if n <= max_n_pm_stb(algorithm, positive=True) else []))
             elif algorithm.startswith("lc_equ"):
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
@@ -494,7 +555,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]))
+                                    [lcc_eq_case(seed=s, dim=(n, k)) for s in seeds] if n <= max_n_lc_equ(algorithm, positive=True) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=None, 
@@ -504,7 +565,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_lcc_eq_case(seed=s, dim=(n, k)) for s in seeds]))
+                                    [non_lcc_eq_case(seed=s, dim=(n, k)) for s in seeds] if n <= max_n_lc_equ(algorithm, positive=False) else []))
             elif algorithm.startswith("lc_css"):
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
@@ -515,7 +576,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                    [lcc_css_case(seed=s, dim=(n, k)) for s in seeds]))
+                    [lcc_css_case(seed=s, dim=(n, k)) for s in seeds] if n <= max_n_lc_css(algorithm, positive=True) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=None, 
@@ -525,7 +586,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                    [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds]))
+                    [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds] if n <= max_n_lc_css(algorithm, positive=False) else []))
     else:
         if algorithm.startswith("pm_css"):
             for name, code in [
@@ -548,8 +609,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ),
-                                    [permuted_css_case(seed=s, code=code) for s in seeds]
-                                    ))
+                                    [permuted_css_case(seed=s, code=code) for s in seeds] if code.n <= max_n_pm_css(algorithm, positive=True) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -559,7 +619,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ),
-                                    [non_permuted_css_case(seed=s, code=code) for s in seeds]
+                                    [non_permuted_css_case(seed=s, code=code) for s in seeds] if code.n <= max_n_pm_css(algorithm, positive=False) else []
                                     ))
 
         elif algorithm.startswith("pm_stb"):
@@ -584,7 +644,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
+                                    [permuted_stabilizer_case(seed=s, code=code) for s in seeds] if code.n <= max_n_pm_stb(algorithm, positive=True) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -594,7 +654,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
+                                    [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds] if code.n <= max_n_pm_stb(algorithm, positive=False) else []))
         elif algorithm.startswith("lc_equ"):
             for name, code in [
                                 ("bell", bell_pair), # n = 2 , k = 0
@@ -617,7 +677,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [lcc_eq_case(seed=s, code=code) for s in seeds]))
+                                    [lcc_eq_case(seed=s, code=code) for s in seeds] if code.n <= max_n_lc_equ(algorithm, positive=True) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -627,7 +687,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_lcc_eq_case(seed=s, code=code) for s in seeds]))
+                                    [non_lcc_eq_case(seed=s, code=code) for s in seeds] if code.n <= max_n_lc_equ(algorithm, positive=False) else []))
         elif algorithm.startswith("lc_css"):
               for name, code in [
                                 ("bell", bell_pair),  # n = 2 , k = 0
@@ -650,7 +710,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [lcc_css_case(seed=s, code=code) for s in seeds]))
+                                    [lcc_css_case(seed=s, code=code) for s in seeds] if code.n <= max_n_lc_css(algorithm, positive=True) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -660,7 +720,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_lcc_css_case(seed=s, code=code) for s in seeds]))
+                                    [non_lcc_css_case(seed=s, code=code) for s in seeds] if code.n <= max_n_lc_css(algorithm, positive=False) else []))
 
     return measurements
     
