@@ -50,7 +50,7 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
 def preserved_rank(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the rank of the stabilizer tableau is preserved, which is a necessary condition for P-equivalence."""
-    return _rank(c1.symplectic) == _rank(c2.symplectic)
+    return _rank(c1.symplectic[:, :c1.n]) == _rank(c2.symplectic[:, :c2.n]) and _rank(c1.symplectic[:, c1.n:]) == _rank(c2.symplectic[:, c2.n:])
 
 def preserved_number_zero_columns(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the number of zero columns is preserved, which is a necessary condition for P-equivalence."""

@@ -32,7 +32,7 @@ def preserved_rank(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     if isinstance(c1, CSSCode) and isinstance(c2, CSSCode):
         return _rank(c1.Hx) == _rank(c2.Hx) and _rank(c1.Hz) == _rank(c2.Hz)
     else:        
-        return _rank(c1.symplectic) == _rank(c2.symplectic)
+        return _rank(c1.symplectic[:, :c1.n]) == _rank(c2.symplectic[:, :c2.n]) and _rank(c1.symplectic[:, c1.n:]) == _rank(c2.symplectic[:, c2.n:])
 
 
 
