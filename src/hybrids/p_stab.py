@@ -15,6 +15,7 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     cheap_invariants = (
         preserved_n,
         preserved_k,
+        preserved_d,
         preserved_rank,
         preserved_number_zero_columns,
         preserved_number_duplicate_columns,
@@ -48,6 +49,10 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the number of logical qubits is preserved, which is a necessary condition for P-equivalence."""
     return c1.k == c2.k
 
+def preserved_d(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+    """Check whether the distance is preserved, which is a necessary condition for P-equivalence."""
+    return c1.distance == c2.distance
+    
 def preserved_rank(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the rank of the stabilizer tableau is preserved, which is a necessary condition for P-equivalence."""
     return _rank(c1.symplectic[:, :c1.n]) == _rank(c2.symplectic[:, :c2.n]) and _rank(c1.symplectic[:, c1.n:]) == _rank(c2.symplectic[:, c2.n:])

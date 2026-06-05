@@ -22,6 +22,15 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
 
 
+def preserved_d(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+    """Check whether the distance is preserved, which is a necessary condition for P-equivalence."""
+    if isinstance(c1, CSSCode) and isinstance(c2, CSSCode):
+        return c1.x_distance == c2.x_distance and c1.z_distance == c2.z_distance
+    else:
+        return c1.distance == c2.distance
+
+
+
 def preserved_rank(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the rank of the stabilizer tableau is preserved, which is a necessary condition for P-equivalence."""
     def _rank(matrix: np.ndarray) -> int:
