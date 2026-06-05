@@ -101,6 +101,34 @@ def test_lc_invariants_are_preserved_by_single_qubit_cliffords() -> None:
     assert preserved_local_weight_distribution(z_product_state, x_product_state)
 
 
+def test_low_degree_local_invariant_ignores_local_pauli_type_changes() -> None:
+    assert preserved_low_degree_local_invariant(
+        StabilizerCode(["ZI", "IZ"]),
+        StabilizerCode(["YI", "IY"]),
+    )
+
+
+def test_local_weight_distribution_ignores_local_pauli_type_changes() -> None:
+    assert preserved_local_weight_distribution(
+        StabilizerCode(["ZI", "IZ"]),
+        StabilizerCode(["YI", "IY"]),
+    )
+
+
+def test_low_degree_local_invariant_is_preserved_for_entangled_local_basis_change() -> None:
+    assert preserved_low_degree_local_invariant(
+        StabilizerCode(["XX", "ZZ"]),
+        StabilizerCode(["YY", "XX"]),
+    )
+
+
+def test_local_weight_distribution_is_preserved_for_entangled_local_basis_change() -> None:
+    assert preserved_local_weight_distribution(
+        StabilizerCode(["XX", "ZZ"]),
+        StabilizerCode(["YY", "XX"]),
+    )
+
+
 def test_low_degree_local_invariant_matches_support_subcode_definition() -> None:
     product_state = StabilizerCode(["ZI", "IZ"])
     bell_state = StabilizerCode(["XX", "ZZ"])
@@ -125,6 +153,68 @@ def test_local_weight_distribution_matches_paired_support_definition() -> None:
 
     assert expected is False
     assert preserved_local_weight_distribution(product_state, bell_state) is expected
+
+
+def test_low_degree_local_invariant_rejects_different_single_qubit_support_profile() -> None:
+    code1 = StabilizerCode(["ZII", "IZI"])
+    code2 = StabilizerCode(["ZZI", "IIZ"])
+
+    assert _brute_low_degree_profile(code1) != _brute_low_degree_profile(code2)
+    assert not preserved_low_degree_local_invariant(code1, code2)
+
+
+def test_local_weight_distribution_rejects_different_single_qubit_support_profile() -> None:
+    code1 = StabilizerCode(["ZII", "IZI"])
+    code2 = StabilizerCode(["ZZI", "IIZ"])
+
+    assert _brute_local_weight_profile(code1) != _brute_local_weight_profile(code2)
+    assert not preserved_local_weight_distribution(code1, code2)
+
+
+def test_low_degree_local_invariant_detects_mismatch_with_bounded_subset_size() -> None:
+    assert not preserved_low_degree_local_invariant(
+        StabilizerCode(["ZI", "IZ"]),
+        StabilizerCode(["XX", "ZZ"]),
+        max_subset_size=1,
+    )
+
+
+def test_local_weight_distribution_detects_mismatch_with_bounded_subset_size() -> None:
+    assert not preserved_local_weight_distribution(
+        StabilizerCode(["ZI", "IZ"]),
+        StabilizerCode(["XX", "ZZ"]),
+        max_subset_size=1,
+    )
+
+
+def test_low_degree_local_invariant_handles_trivial_code() -> None:
+    assert preserved_low_degree_local_invariant(
+        StabilizerCode.get_trivial_code(2),
+        StabilizerCode.get_trivial_code(2),
+    )
+
+
+def test_local_weight_distribution_handles_trivial_code() -> None:
+    assert preserved_local_weight_distribution(
+        StabilizerCode.get_trivial_code(2),
+        StabilizerCode.get_trivial_code(2),
+    )
+
+
+def test_low_degree_local_invariant_matches_reference_profile_for_three_qubit_codes() -> None:
+    code1 = StabilizerCode(["ZZI", "IZZ"])
+    code2 = StabilizerCode(["XXI", "IXX"])
+
+    assert _brute_low_degree_profile(code1) == _brute_low_degree_profile(code2)
+    assert preserved_low_degree_local_invariant(code1, code2)
+
+
+def test_local_weight_distribution_matches_reference_profile_for_three_qubit_codes() -> None:
+    code1 = StabilizerCode(["ZZI", "IZZ"])
+    code2 = StabilizerCode(["XXI", "IXX"])
+
+    assert _brute_local_weight_profile(code1) == _brute_local_weight_profile(code2)
+    assert preserved_local_weight_distribution(code1, code2)
 
 
 @pytest.mark.parametrize(
