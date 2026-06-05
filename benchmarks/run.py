@@ -73,7 +73,7 @@ from .utils import (
 
 MEAS_STATS = list(range(3, 21))
 N_STATS = 10
-MAX_TOL_TIMEOUTS = 4
+MAX_TOL_TIMEOUTS = 3
 
 bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
 three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
@@ -272,17 +272,36 @@ def generated_stabilizer_pair(n: int, k: int, suffix: str) -> tuple[StabilizerCo
     code1_path, code2_path = paths
     return StabilizerCode.from_file(code1_path), StabilizerCode.from_file(code2_path)
 
-def generated_css_pair(n: int, k: int, suffix: str) -> tuple[CSSCode, CSSCode] | None:
+def generated_css_pair(n: int, k: int, suffix: str, seed: int | None = None) -> tuple[CSSCode, CSSCode] | None:
     """Load a generated CSS pair from data/ if both files exist."""
-    base = f"random_css_{n}_{k}"
-    paths = (
-        DATA_DIR / f"{base}1_{suffix}.txt",
-        DATA_DIR / f"{base}2_{suffix}.txt",
-    )
-    if not all(path.exists() for path in paths):
-        return None
-    code1_path, code2_path = paths
-    return CSSCode.from_file(code1_path), CSSCode.from_file(code2_path)
+    candidate_paths = [
+        (
+            DATA_DIR / f"random_css_{n}_{k}1_{suffix}.txt",
+            DATA_DIR / f"random_css_{n}_{k}2_{suffix}.txt",
+        )
+    ]
+    if seed is not None:
+        candidate_paths.insert(
+            0,
+            (
+                DATA_DIR / f"random_css_{suffix}_{n}_{k}_{seed}_1.txt",
+                DATA_DIR / f"random_css_{suffix}_{n}_{k}_{seed}_2.txt",
+            ),
+        )
+        candidate_paths.insert(
+            1,
+            (
+                DATA_DIR / f"random_css_{n}_{k}_{seed}1_{suffix}.txt",
+                DATA_DIR / f"random_css_{n}_{k}_{seed}2_{suffix}.txt",
+            ),
+        )
+
+    for paths in candidate_paths:
+        if all(path.exists() for path in paths):
+            code1_path, code2_path = paths
+            return CSSCode.from_file(code1_path), CSSCode.from_file(code2_path)
+
+    return None
 
 def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
     """Return whether a case has an expectation and compatible inputs for an algorithm."""
@@ -345,7 +364,7 @@ def non_permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: C
     if dim is not None:
         n, k = dim
         if use_cached:
-            pair = generated_css_pair(n, k, "non_peq")
+            pair = generated_css_pair(n, k, "non_peq", seed=seed)
             code1, code2 = pair or random_non_permuted_css_pair(n, k, seed=seed)
         else:
             code1, code2 = random_non_permuted_css_pair(n, k, seed=seed)
@@ -367,7 +386,7 @@ def permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCo
     if dim is not None:
         n, k = dim
         if use_cached:
-            pair = generated_css_pair(n, k, "peq")
+            pair = generated_css_pair(n, k, "peq", seed=seed)
             code1, code2 = pair or random_permuted_css_pair(n, k, seed=seed)
         else:
             code1, code2 = random_permuted_css_pair(n, k, seed=seed)
@@ -499,7 +518,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1000, size=N_STATS)
     measurements : list[tuple[Measurement, list[Case]]] = []
-    sizes = [(n, i) for n in MEAS_STATS for i in range(0, n, 1 if n < 7 else 2)]
+    sizes = [(n, i) for n in MEAS_STATS for i in range(0, n, 1 if n < 7 else 2 if n < 15 else 4)]
 
     if random:
         for n, k in sizes:
@@ -513,7 +532,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                         density=None, 
                                         symmetry=None
                                     ), 
-                                    [non_permuted_css_case(seed=s, dim=(n, k), use_cached=False) for s in seeds] if n <= max_n_pm_css(algorithm, positive=False) else []))
+                                    [non_permuted_css_case(seed=s, dim=(n, k), use_cached=n>17) for s in seeds] if n <= max_n_pm_css(algorithm, positive=False) else []))
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=None, 
@@ -1069,7 +1088,7 @@ def run_stat_benchmarks(
             for case in measurement_cases:
                 if not case_supports_algorithm(case, algorithm_name):
                     continue
-                if timeout_counter > MAX_TOL_TIMEOUTS:
+                if timeout_counter >= MAX_TOL_TIMEOUTS:
                     break
                 if verbose:
                     print(f"        Running case: {case.name}...")
@@ -1173,6 +1192,7 @@ def write_stat(stat: Statistic, seed: int, output: Path) -> None:
         "mean_seconds": f"{stat.mean:.9f}",
         "stddev_seconds": f"{stat.stddev:.9f}",
         "maximum_seconds": f"{stat.maximum:.9f}",
+        "num_times": f"{len(stat.times)}",
     }
     write_header = not output.exists() or output.stat().st_size == 0
 
