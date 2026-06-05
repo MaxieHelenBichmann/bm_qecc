@@ -84,7 +84,10 @@ MEAS_STATS = [
     12,
     13,
     15,
+    16,
     17,
+    18,
+    19,
     20
 ]
 MAX_TOL_TIMEOUTS = 5

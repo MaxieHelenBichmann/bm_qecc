@@ -158,7 +158,7 @@ The visualization scripts in `results/` can create some small plots for getting 
 
 Create plots, optionally:
 ```bash
-python3 results/visualize_named.py results/statistics.csv --x r --n 17 \
+python3 results/visualize_named.py results/statistics.csv --x r \
  --algorithm pm_css_matroid \
  --output results/matroid_plot_n17.png
 
@@ -179,7 +179,7 @@ python3 results/visualize_invariants.py results/invariants_lc.csv --x n \
 
 [![Tests](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml/badge.svg)](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml)
 
-There are also **some** (not yet extensive) tests in the directory `tests/test_*.py`. For the near future, they won't be particularly substantial, only testing some algorithm sections in more detail.
+There are also **some** (not yet extensive) tests in the directory `tests/`. For the near future, they won't be particularly substantial, still missing tests for some algorithm sections.
 ```bash
 python3 -m pytest
 ```

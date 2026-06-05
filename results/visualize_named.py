@@ -148,7 +148,7 @@ def build_series(
     ]
 
 
-def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None) -> None:
+def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str) -> None:
     """Render named cases with mean/stddev, maximum markers, and direct labels."""
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     point_labels: list[PointLabel] = []
@@ -220,7 +220,7 @@ def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | N
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(handles, labels)
-    ax.set_title("Structured codes benchmark")
+    ax.set_title(title)
 
     if output is None:
         plt.show()
@@ -242,6 +242,15 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def plot_title(rows: Sequence[StatRow]) -> str:
+    """Build a title that preserves the selected algorithm context."""
+    algorithms = sorted({row.algorithm for row in rows})
+    title = "Structured codes benchmark"
+    if len(algorithms) == 1:
+        title = f"{title}: {algorithms[0]}"
+    return title
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the named-code visualization CLI."""
     args = build_parser().parse_args(argv)
@@ -259,7 +268,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         include_positive=args.positive == "all",
         include_algorithm=len({row.algorithm for row in rows}) > 1,
     )
-    plot_named_series(series, axis=args.x, output=args.output)
+    plot_named_series(series, axis=args.x, output=args.output, title=plot_title(rows))
     return 0
 
 
