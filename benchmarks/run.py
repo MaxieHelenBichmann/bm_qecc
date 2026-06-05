@@ -71,26 +71,9 @@ from .utils import (
     random_stabilizer_code,
 )
 
+MEAS_STATS = list(range(3, 21))
 N_STATS = 10
-MEAS_STATS = [
-    3,
-    5,
-    6,
-    7,
-    8,
-    9,
-    10,
-    11,
-    12,
-    13,
-    15,
-    16,
-    17,
-    18,
-    19,
-    20
-]
-MAX_TOL_TIMEOUTS = 5
+MAX_TOL_TIMEOUTS = 4
 
 bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
 three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
@@ -102,6 +85,19 @@ hamming_15 = CSSCode.from_file("data/hamming_15")
 rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
 shor = CSSCode.from_file("data/shor")
 tetrahedral = CSSCode.from_file("data/tetrahedral")
+
+NAMED_CODES = [
+            ("bell", bell_pair), # n = 2 , k = 0
+            ("3q_rep", three_bit_repetition), # n = 3 , k = 1
+            ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
+            ("steane", steane), # n = 7 , k = 1
+            ("shor", shor),  # n = 9 , k = 1
+            ("carbon", carbon), # n = 12 , k = 2
+            ("tetrahedral", tetrahedral), # n = 15 , k = 1
+            ("hamming_15", hamming_15), # n = 15 , k = 7
+            ("golay", golay),  # n = 23 , k = 1
+            ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
+            ]
 
 @dataclass(frozen=True)
 class Case:
@@ -593,17 +589,9 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                     [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds] if n <= max_n_lc_css(algorithm, positive=False) else []))
     else:
         if algorithm.startswith("pm_css"):
-            for name, code in [
-                                ("bell", bell_pair), # n = 2 , k = 0
-                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1 
-                                ("steane", steane), # n = 7 , k = 1
-                                ("shor", shor),  # n = 9 , k = 1
-                                ("carbon", carbon), # n = 12 , k = 2
-                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
-                                ("hamming_15", hamming_15), # n = 15 , k = 7
-                                ("golay", golay),  # n = 23 , k = 1
-                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
-                               ]:
+            for name, code in NAMED_CODES:
+                if not isinstance(code, CSSCode):
+                    continue
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -627,18 +615,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     ))
 
         elif algorithm.startswith("pm_stb"):
-            for name, code in [
-                                ("bell", bell_pair), # n = 2 , k = 0
-                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1
-                                ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
-                                ("steane", steane), # n = 7 , k = 1
-                                ("shor", shor),  # n = 9 , k = 1
-                                ("carbon", carbon), # n = 12 , k = 2
-                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
-                                ("hamming_15", hamming_15), # n = 15 , k = 7
-                                ("golay", golay),  # n = 23 , k = 1
-                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
-                               ]:
+            for name, code in NAMED_CODES:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -660,18 +637,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     ), 
                                     [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds] if code.n <= max_n_pm_stb(algorithm, positive=False) else []))
         elif algorithm.startswith("lc_equ"):
-            for name, code in [
-                                ("bell", bell_pair), # n = 2 , k = 0
-                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1 
-                                ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
-                                ("steane", steane), # n = 7 , k = 1
-                                ("shor", shor),  # n = 9 , k = 1
-                                ("carbon", carbon), # n = 12 , k = 2
-                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
-                                ("hamming_15", hamming_15), # n = 15 , k = 7
-                                ("golay", golay),  # n = 23 , k = 1
-                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
-                               ]:
+            for name, code in NAMED_CODES:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -693,18 +659,9 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     ), 
                                     [non_lcc_eq_case(seed=s, code=code) for s in seeds] if code.n <= max_n_lc_equ(algorithm, positive=False) else []))
         elif algorithm.startswith("lc_css"):
-              for name, code in [
-                                ("bell", bell_pair),  # n = 2 , k = 0
-                                ("3q_rep", three_bit_repetition), # n = 3 , k = 1
-                                ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
-                                ("steane", steane), # n = 7 , k = 1
-                                ("shor", shor),  # n = 9 , k = 1
-                                ("carbon", carbon), # n = 12 , k = 2
-                                ("tetrahedral", tetrahedral), # n = 15 , k = 1
-                                ("hamming_15", hamming_15), # n = 15 , k = 7
-                                ("golay", golay),  # n = 23 , k = 1
-                                ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
-                               ]:
+              for name, code in NAMED_CODES:
+                if not isinstance(code, CSSCode):
+                    continue
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
