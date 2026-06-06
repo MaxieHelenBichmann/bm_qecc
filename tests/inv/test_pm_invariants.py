@@ -12,7 +12,7 @@ from benchmarks.utils import (
 from src.core.css_code import CSSCode
 from src.core.pauli import StabilizerTableau
 from src.core.stabilizer_code import StabilizerCode
-from src.invariants.p_eq.pm_invariants import (
+from src.invariants.pm_invariants import (
     preserved_d,
     preserved_k,
     preserved_linear_dependencies,

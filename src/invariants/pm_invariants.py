@@ -7,8 +7,8 @@ from collections import Counter
 import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 
-from ...core.stabilizer_code import StabilizerCode
-from ...core.css_code import CSSCode
+from ..core.stabilizer_code import StabilizerCode
+from ..core.css_code import CSSCode
 
 def preserved_n(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the number of qubits is preserved, which is a necessary condition for P-equivalence."""

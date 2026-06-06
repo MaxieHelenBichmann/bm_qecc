@@ -7,7 +7,7 @@ import numpy as np
 import ldpc.mod2.mod2_numpy as mod2
 from itertools import combinations
 
-from ...core.stabilizer_code import StabilizerCode
+from ..core.stabilizer_code import StabilizerCode
 
 def preserved_n(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the number of qubits is preserved, which is a necessary condition for LC-equivalence."""

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from src.core.stabilizer_code import StabilizerCode
-from src.invariants.lc_eq.lc_invariants import (
+from src.invariants.lc_invariants import (
     preserved_k,
     preserved_local_weight_distribution,
     preserved_low_degree_local_invariant,

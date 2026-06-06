@@ -42,12 +42,12 @@ from src.hybrids.p_stab import are_peq_stab
 from src.hybrids.lc_eq import are_lceq
 from src.hybrids.lc_css import is_lceq_css
 
-from src.invariants.lc_eq.lc_invariants import (
+from src.invariants.lc_invariants import (
     preserved_local_weight_distribution,
     preserved_low_degree_local_invariant
 )
 
-from src.invariants.p_eq.pm_invariants import (
+from src.invariants.pm_invariants import (
     preserved_weight_enumerator,
     preserved_pauli_weight_enumerator,
     preserved_linear_dependencies,
