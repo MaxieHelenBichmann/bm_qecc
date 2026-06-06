@@ -188,17 +188,16 @@ def _lc_orbit(code: StabilizerCode) -> bool:
         return gamma
 
     def _traverse_lc_orbit(graph: np.ndarray) -> bool:
-        def _lc(graph: np.ndarray, q: int) -> np.ndarray:
-            new_graph = graph.copy()
+        def _lc(graph: np.ndarray, q: int) -> np.ndarray | None:
             neighbors = np.flatnonzero(graph[q])
 
-            for idx in range(len(neighbors)):
-                neighbor = neighbors[idx]
-                for other_neighbor in neighbors[idx + 1:]:
-                    new_graph[neighbor, other_neighbor] ^= 1
-                    new_graph[other_neighbor, neighbor] ^= 1
+            if neighbors.size < 2:
+                return None
+            
+            new_graph = graph.copy()
 
-            np.fill_diagonal(new_graph, 0)
+            new_graph[np.ix_(neighbors, neighbors)] ^= 1
+            new_graph[neighbors, neighbors] = 0
             return new_graph
 
         def _canonical_key(graph: np.ndarray) -> bytes:
@@ -232,8 +231,9 @@ def _lc_orbit(code: StabilizerCode) -> bool:
             return True
 
         n = graph.shape[0]
-        seen = set()
-        queue = deque([graph.copy()])
+        start = graph.copy()
+        seen = {_canonical_key(start)}
+        queue = deque([start])
 
         while queue:
             current_graph = queue.popleft()
@@ -242,6 +242,10 @@ def _lc_orbit(code: StabilizerCode) -> bool:
 
             for q in range(n):
                 new_graph = _lc(current_graph, q)
+                
+                if new_graph is None:
+                    continue
+
                 key = _canonical_key(new_graph)
 
                 if key not in seen:

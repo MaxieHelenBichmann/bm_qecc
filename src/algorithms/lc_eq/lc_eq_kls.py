@@ -699,10 +699,9 @@ def _traverse_lc_orbit(graph: GSLC, target: GSLC) -> bool:
         edge_key = tuple(sorted(g.edges))
         return (g.n, g.k, adj_key, vertex_key, edge_key)
 
-    seen = set()
-    seen.add(_canonical_key(graph))
-
-    queue = deque([graph.copy()])
+    start = graph.copy()
+    seen = {_canonical_key(start)}
+    queue = deque([start])
 
     while queue:
         current_graph : GSLC = queue.popleft()
