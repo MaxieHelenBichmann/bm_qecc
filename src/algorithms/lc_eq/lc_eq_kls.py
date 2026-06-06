@@ -38,11 +38,8 @@ class GSLC:
         # S†H -> (["S", "S", "S", "H"], False)
         self.vertices : list[tuple[list[str], bool]] = []
         self.edges : set[tuple[int, int]]= set() # (u,v) with u < v
-        self.adj : list[set[int]] = []
+        self.adj : list[set[int]] = [] # optimization
         self._adj_edge_count = 0
-
-    def _edge(self, u: int, v: int) -> tuple[int, int]:
-        return (min(u, v), max(u, v))
 
     def _rebuild_adjacency(self) -> None:
         nr = self.n + self.k
@@ -59,14 +56,14 @@ class GSLC:
             self._rebuild_adjacency()
 
     def set_edges(self, edges: set[tuple[int, int]]) -> None:
-        self.edges = {self._edge(u, v) for u, v in edges if u != v}
+        self.edges = {(min(u, v), max(u, v)) for u, v in edges if u != v}
         self._rebuild_adjacency()
 
     def add_edge(self, u: int, v: int) -> None:
         if u == v:
             return
         self._ensure_adjacency()
-        edge = self._edge(u, v)
+        edge = (min(u, v), max(u, v))
         if edge not in self.edges:
             self.edges.add(edge)
             self.adj[u].add(v)
@@ -77,7 +74,7 @@ class GSLC:
         if u == v:
             return
         self._ensure_adjacency()
-        edge = self._edge(u, v)
+        edge = (min(u, v), max(u, v))
         if edge in self.edges:
             self.edges.remove(edge)
             self.adj[u].remove(v)
@@ -119,7 +116,7 @@ class GSLC:
         if u == v:
             return
         self._ensure_adjacency()
-        edge = self._edge(u, v)
+        edge = (min(u, v), max(u, v))
         if edge in self.edges:
             self.edges.remove(edge)
             self.adj[u].remove(v)

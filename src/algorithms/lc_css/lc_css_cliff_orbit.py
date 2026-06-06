@@ -30,7 +30,7 @@ class RedStabGraph:
         # (self-loop, solid, minus-sign)
         self.vertices : list[tuple[bool, bool, bool]] = []
         self.edges : set[tuple[int, int]]= set() # (u,v) with u < v
-        self.adj : list[set[int]] = []
+        self.adj : list[set[int]] = [] # optimization
         self._adj_edge_count = 0
 
     def _rebuild_adjacency(self) -> None:
