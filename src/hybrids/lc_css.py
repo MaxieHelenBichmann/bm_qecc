@@ -142,20 +142,20 @@ def _lc_orbit(code: StabilizerCode) -> bool:
 
         def _extract_adjacency_matrix(tableau: np.ndarray) -> np.ndarray:
             """Extract the adjacency matrix from the stabilizer state."""
-            def _rref_no_column_swaps(matrix: np.ndarray) -> np.ndarray:
-                matrix = matrix.copy()
+            def _rref_no_column_swaps(matrix: np.ndarray) -> tuple[np.ndarray, int]:
                 n_rows, n_cols = matrix.shape
                 pivot_row = 0
-                for col in range(n_cols):
+                for col in range(n_cols // 2):
                     if pivot_row >= n_rows:
                         break
 
-                    pivot_candidates = np.flatnonzero(matrix[pivot_row:, col])
+                    tail = matrix[pivot_row:, col]
+                    pivot_offset = int(np.argmax(tail))
 
-                    if pivot_candidates.size == 0:
+                    if not tail[pivot_offset]:
                         continue
 
-                    pivot = pivot_row + int(pivot_candidates[0])
+                    pivot = pivot_row + pivot_offset
 
                     if pivot != pivot_row:
                         matrix[[pivot_row, pivot], :] = matrix[[pivot, pivot_row], :]
@@ -165,11 +165,11 @@ def _lc_orbit(code: StabilizerCode) -> bool:
                             matrix[r, :] ^= matrix[pivot_row, :]
                     pivot_row += 1
 
-                return matrix
+                return matrix, pivot_row
 
-            rre = _rref_no_column_swaps(tableau)
+            rre, rank_x = _rref_no_column_swaps(tableau)
 
-            if _rank(rre[:, :n]) != n:
+            if rank_x != n:
                 raise ValueError("X part of the tableau is not full rank, something went wrong.")
 
             return rre[:, n:]
