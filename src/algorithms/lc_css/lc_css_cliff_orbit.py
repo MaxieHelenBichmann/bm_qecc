@@ -307,18 +307,16 @@ class RedStabGraph:
             return result
 
 
-    def equivalent_graphs(self) -> tuple[bool, set[GraphKey]]:
-        seen = {self.canon_key()}
+    def equivalent_graphs(self, seen: set[GraphKey]) -> bool:
+        key = self.canon_key()
+        seen.add(key)
         queue = deque([self.copy()])
-
-        found_bipartite = False
 
         while queue:
             current_graph = queue.popleft()
 
             if current_graph.is_bipartite():
-                found_bipartite = True
-                return found_bipartite, set()
+                return True
 
             for u, v in current_graph.edges:
                 _, s_u, _ = current_graph.vertices[u]
@@ -394,7 +392,7 @@ class RedStabGraph:
                             seen.add(key)
 
 
-        return found_bipartite, seen
+        return False
 
     @staticmethod
     def from_adj_matrix(adj:np.ndarray, k : int, solid: int | set[int]) -> RedStabGraph:
@@ -594,12 +592,9 @@ def _traverse_cliff_orbit(graph: RedStabGraph) -> bool:
 
     while queue:
         current_graph = queue.popleft()
-        eq_bipartite, equivalent_graphs = current_graph.equivalent_graphs()
 
-        if eq_bipartite:
+        if current_graph.equivalent_graphs(seen):
             return True
-        
-        seen |= equivalent_graphs
 
         for q in range(nr):
             new_graph_h = current_graph.apply_h(q)
