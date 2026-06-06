@@ -358,45 +358,23 @@ def _lse(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         return False
 
     def _lc_equiv_graph_states(graph_1: np.ndarray, graph_2: np.ndarray) -> bool:
-        connected_components_g1 = sorted(_extract_connected_components(graph_1), key=len)
-        connected_components_g2 = sorted(_extract_connected_components(graph_2), key=len)
+        connected_components_g1 = sorted(tuple(comp) for comp in _extract_connected_components(graph_1))
+        connected_components_g2 = sorted(tuple(comp) for comp in _extract_connected_components(graph_2))
 
-        if len(connected_components_g1) != len(connected_components_g2):
+        if connected_components_g1 != connected_components_g2:
             return False
-        
-        subgraphs_g1 = defaultdict(list)
-        subgraphs_g2 = defaultdict(list)
 
         for comp in connected_components_g1:
-            subgraphs_g1[len(comp)].append(graph_1[np.ix_(comp, comp)])
-        
-        for comp in connected_components_g2:
-            subgraphs_g2[len(comp)].append(graph_2[np.ix_(comp, comp)])
-
-        if set(subgraphs_g1.keys()) != set(subgraphs_g2.keys()):
-            return False
-
-        for size in subgraphs_g1.keys():
-            if len(subgraphs_g1[size]) != len(subgraphs_g2[size]):
+            comp_idx = list(comp)
+            if not _lc_equiv_connected(
+                graph_1[np.ix_(comp_idx, comp_idx)],
+                graph_2[np.ix_(comp_idx, comp_idx)],
+                len(comp_idx),
+            ):
                 return False
-            
-            unmatched_subgraphs_g2 = list(subgraphs_g2[size])
-
-            for sg1 in subgraphs_g1[size]:
-                match_idx = None
-
-                for i, sg2 in enumerate(unmatched_subgraphs_g2):
-                    if _lc_equiv_connected(sg1, sg2, size):
-                        match_idx = i
-                        break
-
-                if match_idx is None:
-                    return False
-                
-                unmatched_subgraphs_g2.pop(match_idx)
                 
         return True
-
+    
     stab_state1 = _stab_code_to_stab_state(c1)
     stab_state2 = _stab_code_to_stab_state(c2)
 
