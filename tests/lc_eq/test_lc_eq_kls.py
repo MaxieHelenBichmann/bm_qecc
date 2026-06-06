@@ -236,6 +236,84 @@ def _assert_graph(
     assert graph.edges == edges
 
 
+def _assert_adjacency_matches_edges(graph: GSLC) -> None:
+    expected = [set() for _ in range(graph.n + graph.k)]
+    for u, v in graph.edges:
+        expected[u].add(v)
+        expected[v].add(u)
+
+    graph.neighbors(0)
+    assert graph.adj == expected
+
+
+def test_gslc_rebuilds_adjacency_for_manually_assigned_edges() -> None:
+    graph = _graph(
+        2,
+        2,
+        [([], False), ([], False), ([], False), ([], False)],
+        {(0, 2), (1, 3), (2, 3)},
+    )
+
+    assert set(graph.neighbors(2)) == {0, 3}
+    _assert_adjacency_matches_edges(graph)
+
+
+def test_gslc_apply_cz_edge_keeps_adjacency_cache_in_sync() -> None:
+    graph = _graph(
+        3,
+        0,
+        [([], False), ([], False), ([], False)],
+        {(0, 1)},
+    )
+
+    assert set(graph.neighbors(0)) == {1}
+
+    graph.apply_cz_edge(0, 1)
+    assert set(graph.neighbors(0)) == set()
+    assert set(graph.neighbors(1)) == set()
+    _assert_adjacency_matches_edges(graph)
+
+    graph.apply_cz_edge(2, 0)
+    assert set(graph.neighbors(0)) == {2}
+    assert set(graph.neighbors(2)) == {0}
+    _assert_adjacency_matches_edges(graph)
+
+
+def test_gslc_copy_has_independent_adjacency_cache() -> None:
+    graph = _graph(
+        3,
+        0,
+        [([], False), ([], False), ([], False)],
+        {(0, 1)},
+    )
+    copied = graph.copy()
+
+    copied.apply_cz_edge(1, 2)
+
+    assert graph.edges == {(0, 1)}
+    assert copied.edges == {(0, 1), (1, 2)}
+    _assert_adjacency_matches_edges(graph)
+    _assert_adjacency_matches_edges(copied)
+
+
+def test_gslc_set_edges_replaces_adjacency_cache() -> None:
+    graph = _graph(
+        3,
+        0,
+        [([], False), ([], False), ([], False)],
+        {(0, 1)},
+    )
+
+    assert set(graph.neighbors(0)) == {1}
+
+    graph.set_edges({(1, 2)})
+
+    assert graph.edges == {(1, 2)}
+    assert set(graph.neighbors(0)) == set()
+    assert set(graph.neighbors(1)) == {2}
+    _assert_adjacency_matches_edges(graph)
+
+
 def _assert_hk_requirements(graph: GSLC) -> None:
     for i, (deco, _) in enumerate(graph.vertices):
         assert deco in ([], ["S"], ["H"])

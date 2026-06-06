@@ -39,8 +39,54 @@ class GSLC:
         # S†H -> (["S", "S", "S", "H"], False)
         self.vertices : list[tuple[list[str], bool]] = []
         self.edges : set[tuple[int, int]]= set() # (u,v) with u < v
+        self.adj : list[set[int]] = []
+        self._adj_edge_count = 0
+
+    def _edge(self, u: int, v: int) -> tuple[int, int]:
+        return (min(u, v), max(u, v))
+
+    def _rebuild_adjacency(self) -> None:
+        nr = self.n + self.k
+        self.adj = [set() for _ in range(nr)]
+        for u, v in self.edges:
+            if 0 <= u < nr and 0 <= v < nr and u != v:
+                self.adj[u].add(v)
+                self.adj[v].add(u)
+        self._adj_edge_count = len(self.edges)
+
+    def _ensure_adjacency(self) -> None:
+        nr = self.n + self.k
+        if len(self.adj) != nr or self._adj_edge_count != len(self.edges):
+            self._rebuild_adjacency()
+
+    def set_edges(self, edges: set[tuple[int, int]]) -> None:
+        self.edges = {self._edge(u, v) for u, v in edges if u != v}
+        self._rebuild_adjacency()
+
+    def add_edge(self, u: int, v: int) -> None:
+        if u == v:
+            return
+        self._ensure_adjacency()
+        edge = self._edge(u, v)
+        if edge not in self.edges:
+            self.edges.add(edge)
+            self.adj[u].add(v)
+            self.adj[v].add(u)
+            self._adj_edge_count = len(self.edges)
+
+    def remove_edge(self, u: int, v: int) -> None:
+        if u == v:
+            return
+        self._ensure_adjacency()
+        edge = self._edge(u, v)
+        if edge in self.edges:
+            self.edges.remove(edge)
+            self.adj[u].remove(v)
+            self.adj[v].remove(u)
+            self._adj_edge_count = len(self.edges)
 
     def get_input_output_adjacency(self) -> np.ndarray:
+        self._ensure_adjacency()
         adj = np.zeros((self.k, self.n), dtype=bool)
         for edge in self.edges:
             u, v = edge
@@ -49,6 +95,7 @@ class GSLC:
         return adj
 
     def get_full_adjacency(self) -> np.ndarray:
+        self._ensure_adjacency()
         adj = np.zeros((self.n + self.k, self.n + self.k), dtype=bool)
         for edge in self.edges:
             u, v = edge
@@ -57,10 +104,12 @@ class GSLC:
         return adj
 
     def neighbors(self, v: int) -> list[int]:
-        return [u for u in range(self.n + self.k) if (u, v) in self.edges or (v, u) in self.edges]
+        self._ensure_adjacency()
+        return list(self.adj[v])
 
     def local_complementation(self, v: int) -> None:
-        neighbors = self.neighbors(v)
+        self._ensure_adjacency()
+        neighbors = list(self.adj[v])
         for i in range(len(neighbors)):
             for j in range(i + 1, len(neighbors)):
                 p = neighbors[i]
@@ -68,29 +117,35 @@ class GSLC:
                 self.apply_cz_edge(p, q)
 
     def apply_cz_edge(self, u: int, v: int) -> None: # toggle the edge (u,v)
-        min_u_v = min(u, v)
-        max_u_v = max(u, v)
-        if (min_u_v, max_u_v) in self.edges:
-            self.edges.remove((min_u_v, max_u_v))
+        if u == v:
+            return
+        self._ensure_adjacency()
+        edge = self._edge(u, v)
+        if edge in self.edges:
+            self.edges.remove(edge)
+            self.adj[u].remove(v)
+            self.adj[v].remove(u)
         else:
-            self.edges.add((min_u_v, max_u_v))
+            self.edges.add(edge)
+            self.adj[u].add(v)
+            self.adj[v].add(u)
+        self._adj_edge_count = len(self.edges)
 
     def copy(self) -> GSLC:
+        self._ensure_adjacency()
         new_graph = GSLC()
         new_graph.n = self.n
         new_graph.k = self.k
         new_graph.vertices = [ (deco.copy(), z) for deco, z in self.vertices ]
         new_graph.edges = self.edges.copy()
+        new_graph.adj = [neighbors.copy() for neighbors in self.adj]
+        new_graph._adj_edge_count = self._adj_edge_count
         return new_graph
 
     def is_bipartite(self) -> bool:
         n = self.n + self.k
+        self._ensure_adjacency()
         colors = np.full(n, -1, dtype=np.int8)
-
-        neighbors_list : list[set] = [ set() for _ in range(n) ]
-        for u, v in self.edges:
-            (neighbors_list[u]).add(v)
-            (neighbors_list[v]).add(u)
 
         for start in range(n):
             if colors[start] != -1:
@@ -105,7 +160,7 @@ class GSLC:
 
                 neighbors = set()
                 for node in frontier:
-                    neighbors |= neighbors_list[node]
+                    neighbors |= self.adj[node]
                 neighbors = np.array(list(neighbors), dtype=int)
 
                 if np.any(colors[neighbors] == current_color):
@@ -331,11 +386,12 @@ def _stab_state_to_graph_state(tableau: np.ndarray, old_n : int, old_k : int) ->
     graph.n = old_n
     graph.k = old_k
     graph.vertices = [ _extract_decorations(local_clifords[i]) for i in range(n) ]
-    graph.edges = set()
+    edges = set()
     for i in range(n):
         for j in range(i + 1, n):
             if gamma[i, j]:
-                graph.edges.add((i, j))
+                edges.add((i, j))
+    graph.set_edges(edges)
 
     return graph
 
@@ -539,7 +595,7 @@ def _hk_normal_form(graph: GSLC) -> None:
     # 2.) slides H down
     for x in reversed(range(n)):
         while graph.vertices[x][0] == ["H"]: # x has a Hadamard component
-            low_neighbors = [v for v in range(n) if (v, x) in graph.edges]
+            low_neighbors = [v for v in graph.neighbors(x) if v < x]
             if len(low_neighbors) == 0:
                 break
 
@@ -581,11 +637,11 @@ def _kls_normal_form(graph: GSLC) -> None | True:
         for q in range(graph.k):
             graph.vertices[q] = ([], False)
 
-        graph.edges = {
+        graph.set_edges({
             (u, v)
             for u, v in graph.edges
             if not (u < graph.k and v < graph.k)
-        }
+        })
 
     _strip_input()
 
@@ -633,7 +689,7 @@ def _kls_normal_form(graph: GSLC) -> None | True:
             if u >= graph.k and v >= graph.k:
                 new_edges.add((u, v))
 
-        graph.edges = new_edges
+        graph.set_edges(new_edges)
 
     _set_io_edges(adj)
 
@@ -711,14 +767,14 @@ def _kls_normal_form(graph: GSLC) -> None | True:
                     graph.apply_cz_edge(p, q)
 
         for output in A | B:
-            graph.edges.discard((i, output))
-            graph.edges.discard((j, output))
+            graph.remove_edge(i, output)
+            graph.remove_edge(j, output)
 
         for output in B:
-            graph.edges.add((i, output))
+            graph.add_edge(i, output)
 
         for output in A:
-            graph.edges.add((j, output))
+            graph.add_edge(j, output)
 
         pivot_to_input[u], pivot_to_input[v] = j, i
         _strip_input()
