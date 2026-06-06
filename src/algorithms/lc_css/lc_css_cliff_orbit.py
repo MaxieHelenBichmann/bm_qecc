@@ -30,6 +30,22 @@ class RedStabGraph:
         # (self-loop, solid, minus-sign)
         self.vertices : list[tuple[bool, bool, bool]] = []
         self.edges : set[tuple[int, int]]= set() # (u,v) with u < v
+        self.adj : list[set[int]] = []
+        self._adj_edge_count = 0
+
+    def _rebuild_adjacency(self) -> None:
+        nr = self.n + self.k
+        self.adj = [set() for _ in range(nr)]
+        for u, v in self.edges:
+            if 0 <= u < nr and 0 <= v < nr and u != v:
+                self.adj[u].add(v)
+                self.adj[v].add(u)
+        self._adj_edge_count = len(self.edges)
+
+    def _ensure_adjacency(self) -> None:
+        nr = self.n + self.k
+        if len(self.adj) != nr or self._adj_edge_count != len(self.edges):
+            self._rebuild_adjacency()
 
     def toggle_edge(self, u:int , v:int) -> None:
         if u == v:
@@ -38,13 +54,20 @@ class RedStabGraph:
         min_u_v = min(u, v)
         max_u_v = max(u, v)
         edge = (min_u_v, max_u_v)
+        self._ensure_adjacency()
         if edge in self.edges:
             self.edges.remove(edge)
+            self.adj[u].remove(v)
+            self.adj[v].remove(u)
         else:
             self.edges.add(edge)
+            self.adj[u].add(v)
+            self.adj[v].add(u)
+        self._adj_edge_count = len(self.edges)
 
     def local_complementation(self, v:int) -> None:
-        neighbors = self.neighbors(v)
+        self._ensure_adjacency()
+        neighbors = list(self.adj[v])
         for i in range(len(neighbors)):
             for j in range(i + 1, len(neighbors)):
                 p = neighbors[i]
@@ -66,17 +89,22 @@ class RedStabGraph:
         self.vertices[u] = (self.vertices[u][0], self.vertices[u][1], self.vertices[u][2] ^ True)
 
     def neighbors(self, u: int) -> list[int]:
-        return [v for v in range(self.n + self.k) if (u, v) in self.edges or (v, u) in self.edges]
+        self._ensure_adjacency()
+        return list(self.adj[u])
     
     def input_neighbors(self, u: int) -> list[int]:
-            return [v for v in range(self.n, self.n + self.k) if (u, v) in self.edges or (v, u) in self.edges]
+        self._ensure_adjacency()
+        return [v for v in self.adj[u] if v >= self.n]
     
     def copy(self) -> RedStabGraph:
+        self._ensure_adjacency()
         new_graph = RedStabGraph()
         new_graph.n = self.n
         new_graph.k = self.k
         new_graph.vertices = self.vertices.copy()
         new_graph.edges = self.edges.copy()
+        new_graph.adj = [neighbors.copy() for neighbors in self.adj]
+        new_graph._adj_edge_count = self._adj_edge_count
         return new_graph
     
     def adj_matrix(self) -> np.ndarray:
@@ -93,8 +121,12 @@ class RedStabGraph:
     
     def is_valid(self) -> bool:
         nr = self.n + self.k
+        self._ensure_adjacency()
         for u, v in self.edges:
             if not (0 <= u < v < nr):
+                return False
+
+            if v not in self.adj[u] or u not in self.adj[v]:
                 return False
 
         for u in range(self.n + self.k):
@@ -144,7 +176,7 @@ class RedStabGraph:
 
             result.flip_fill(n)
             result.pivot_edge(n, u)
-            for nn in set(result.neighbors(n)) & set(result.neighbors(u)):
+            for nn in result.adj[n] & result.adj[u]:
                 result.flip_sign(nn)
 
             if m:
@@ -166,7 +198,7 @@ class RedStabGraph:
             n = non_solid_n[0]
 
             init_m = result.vertices[n][2]
-            both = set(result.neighbors(n)) & set(result.neighbors(u))
+            both = result.adj[n] & result.adj[u]
 
             result.local_complementation(u)
             result.local_complementation(n)
@@ -285,7 +317,7 @@ class RedStabGraph:
             return result
         
         if not s_u and not s_v: # T(x)
-            both = set(result.neighbors(v)) & set(result.neighbors(u))
+            both = result.adj[v] & result.adj[u]
             n_u = result.neighbors(u)
             n_v = result.neighbors(v)
 
@@ -331,7 +363,7 @@ class RedStabGraph:
 
                         init_solid = new_graph.vertices[solid][2]
                         init_hollow = new_graph.vertices[hollow][2]
-                        both = set(new_graph.neighbors(v)) & set(new_graph.neighbors(u))
+                        both = new_graph.adj[v] & new_graph.adj[u]
 
                         new_graph.local_complementation(solid)
                         new_graph.local_complementation(hollow)
@@ -367,7 +399,7 @@ class RedStabGraph:
                         init_u = new_graph.vertices[u][2]
                         init_v = new_graph.vertices[v][2]
 
-                        both = set(new_graph.neighbors(v)) & set(new_graph.neighbors(u))
+                        both = new_graph.adj[v] & new_graph.adj[u]
 
                         new_graph.pivot_edge(u, v)
 
@@ -400,11 +432,15 @@ class RedStabGraph:
         nr = adj.shape[1]
         graph.n = nr - k
         graph.k = k
+        graph.adj = [set() for _ in range(nr)]
         solid_vertices = set(range(solid)) if isinstance(solid, int) else solid
         for i in range(nr):
             for j in range(i + 1, nr):
                 if adj[i, j]:
                     graph.edges.add((i, j))
+                    graph.adj[i].add(j)
+                    graph.adj[j].add(i)
+        graph._adj_edge_count = len(graph.edges)
 
         graph.vertices = []
         for v in range(nr):
@@ -414,11 +450,8 @@ class RedStabGraph:
     
     def is_bipartite(self) -> bool:
         n = self.n + self.k
+        self._ensure_adjacency()
         colors = [-1] * n
-        neighbors_list : list[set] = [ set() for _ in range(n) ]
-        for u, v in self.edges:
-            neighbors_list[u].add(v)
-            neighbors_list[v].add(u)
 
         for start in range(n):
             if colors[start] != -1:
@@ -432,7 +465,7 @@ class RedStabGraph:
                 current_color = colors[node]
                 next_color = 1 - current_color
 
-                for neighbor in neighbors_list[node]:
+                for neighbor in self.adj[node]:
                     if colors[neighbor] == current_color:
                         return False
                     if colors[neighbor] == -1:

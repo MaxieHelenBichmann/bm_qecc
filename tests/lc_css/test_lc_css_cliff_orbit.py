@@ -33,6 +33,16 @@ def _red_graph(
     return graph
 
 
+def _assert_adjacency_matches_edges(graph: RedStabGraph) -> None:
+    expected = [set() for _ in range(graph.n + graph.k)]
+    for u, v in graph.edges:
+        expected[u].add(v)
+        expected[v].add(u)
+
+    graph.neighbors(0)
+    assert graph.adj == expected
+
+
 # ----------------------------------------------------------------------------------------------------
 # RedStabGraph
 # ----------------------------------------------------------------------------------------------------
@@ -47,6 +57,83 @@ def test_red_stab_graph_rejects_self_edges() -> None:
     assert graph.is_valid() is False
     with pytest.raises(ValueError, match="Self-loops"):
         graph.toggle_edge(0, 0)
+
+
+def test_red_stab_graph_rebuilds_adjacency_for_manually_assigned_edges() -> None:
+    graph = _red_graph(
+        [
+            (False, True, False),
+            (False, True, False),
+            (False, True, False),
+            (False, True, False),
+        ],
+        {(0, 1), (0, 3), (1, 2)},
+        k=2,
+    )
+
+    assert set(graph.neighbors(0)) == {1, 3}
+    assert set(graph.input_neighbors(0)) == {3}
+    _assert_adjacency_matches_edges(graph)
+
+
+def test_red_stab_graph_toggle_edge_keeps_adjacency_cache_in_sync() -> None:
+    graph = _red_graph(
+        [
+            (False, True, False),
+            (False, True, False),
+            (False, True, False),
+        ],
+        {(0, 1)},
+    )
+
+    assert set(graph.neighbors(0)) == {1}
+
+    graph.toggle_edge(0, 1)
+    assert set(graph.neighbors(0)) == set()
+    assert set(graph.neighbors(1)) == set()
+    _assert_adjacency_matches_edges(graph)
+
+    graph.toggle_edge(2, 0)
+    assert set(graph.neighbors(0)) == {2}
+    assert set(graph.neighbors(2)) == {0}
+    _assert_adjacency_matches_edges(graph)
+
+
+def test_red_stab_graph_copy_has_independent_adjacency_cache() -> None:
+    graph = _red_graph(
+        [
+            (False, True, False),
+            (False, True, False),
+            (False, True, False),
+        ],
+        {(0, 1)},
+    )
+    copied = graph.copy()
+
+    copied.toggle_edge(1, 2)
+
+    assert graph.edges == {(0, 1)}
+    assert copied.edges == {(0, 1), (1, 2)}
+    _assert_adjacency_matches_edges(graph)
+    _assert_adjacency_matches_edges(copied)
+
+
+def test_red_stab_graph_from_adj_matrix_initializes_adjacency_cache() -> None:
+    adj = np.array(
+        [
+            [0, 1, 0, 1],
+            [1, 0, 1, 0],
+            [0, 1, 0, 0],
+            [1, 0, 0, 0],
+        ],
+        dtype=np.uint8,
+    )
+
+    graph = RedStabGraph.from_adj_matrix(adj, k=2, solid={0, 1})
+
+    assert set(graph.neighbors(0)) == {1, 3}
+    assert set(graph.input_neighbors(0)) == {3}
+    _assert_adjacency_matches_edges(graph)
 
 
 def test_apply_cz_mixed_adjacent_pair_does_not_create_self_edge() -> None:
