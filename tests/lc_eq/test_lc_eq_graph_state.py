@@ -397,3 +397,24 @@ def test_are_lceq_graph_state_small_k_random_negative(n: int) -> None:
 
     assert are_lceq_graph_state(code_state, state) is False
     assert are_lceq_graph_state(code_small, small) is False
+
+
+@pytest.mark.parametrize(
+    ("n", "k", "seed"),
+    [
+        pytest.param(3, 1, 46, id="non_lcc_eq_3_1_46"),
+        pytest.param(8, 0, 44, id="non_lcc_eq_8_0_44"),
+    ],
+)
+def test_are_lceq_graph_state_benchmark_false_positive_regressions(
+    n: int,
+    k: int,
+    seed: int,
+) -> None:
+    code1 = random_stabilizer_code(n, k, seed=seed)
+    code2 = non_lc_equivalent_code(code1, seed=seed + 69)
+
+    if n <= 5:
+        assert are_lceq_bruteforce(code1, code2) is False
+
+    assert are_lceq_graph_state(code1, code2) is False
