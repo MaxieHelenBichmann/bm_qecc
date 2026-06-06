@@ -13,6 +13,11 @@ import numpy as np
 
 from ...core.stabilizer_code import StabilizerCode
 
+GraphKey = tuple[
+    tuple[tuple[int, int], ...],
+    tuple[tuple[bool, bool, bool], ...],
+]
+
 @dataclass
 class RedStabGraph:
 
@@ -32,10 +37,11 @@ class RedStabGraph:
 
         min_u_v = min(u, v)
         max_u_v = max(u, v)
-        if (min_u_v, max_u_v) in self.edges:
-            self.edges.remove((min_u_v, max_u_v))
+        edge = (min_u_v, max_u_v)
+        if edge in self.edges:
+            self.edges.remove(edge)
         else:
-            self.edges.add((min_u_v, max_u_v))
+            self.edges.add(edge)
 
     def local_complementation(self, v:int) -> None:
         neighbors = self.neighbors(v)
@@ -69,7 +75,7 @@ class RedStabGraph:
         new_graph = RedStabGraph()
         new_graph.n = self.n
         new_graph.k = self.k
-        new_graph.vertices = [ (l, h, s) for l, h, s in self.vertices ]
+        new_graph.vertices = self.vertices.copy()
         new_graph.edges = self.edges.copy()
         return new_graph
     
@@ -82,8 +88,8 @@ class RedStabGraph:
 
         return adj
 
-    def canon_key(self) -> tuple[tuple[tuple[int,...]], tuple[tuple[bool, bool, bool]]]:
-        return tuple(map(tuple, self.adj_matrix().tolist())), tuple(self.vertices)
+    def canon_key(self) -> GraphKey:
+        return tuple(sorted(self.edges)), tuple(self.vertices)
     
     def is_valid(self) -> bool:
         nr = self.n + self.k
@@ -138,11 +144,8 @@ class RedStabGraph:
 
             result.flip_fill(n)
             result.pivot_edge(n, u)
-            n_n = result.neighbors(n)
-            n_u = result.neighbors(u)
-            for nn in n_n:
-                if nn in n_u:
-                    result.flip_sign(nn)
+            for nn in set(result.neighbors(n)) & set(result.neighbors(u)):
+                result.flip_sign(nn)
 
             if m:
                 result.flip_sign(u)
@@ -163,7 +166,7 @@ class RedStabGraph:
             n = non_solid_n[0]
 
             init_m = result.vertices[n][2]
-            both = [ v for v in result.neighbors(n) if v in result.neighbors(u) ]
+            both = set(result.neighbors(n)) & set(result.neighbors(u))
 
             result.local_complementation(u)
             result.local_complementation(n)
@@ -250,7 +253,7 @@ class RedStabGraph:
         l_u, s_u, m_u = self.vertices[u]
         l_v, s_v, m_v = self.vertices[v]
 
-        init_connected = (v in result.neighbors(u))
+        init_connected = (min(u, v), max(u, v)) in result.edges
 
         if s_u and s_v: # T(viii)
             result.toggle_edge(u, v)
@@ -282,7 +285,7 @@ class RedStabGraph:
             return result
         
         if not s_u and not s_v: # T(x)
-            both = [ n for n in result.neighbors(v) if n in result.neighbors(u) ]
+            both = set(result.neighbors(v)) & set(result.neighbors(u))
             n_u = result.neighbors(u)
             n_v = result.neighbors(v)
 
@@ -304,8 +307,8 @@ class RedStabGraph:
             return result
 
 
-    def equivalent_graphs(self) -> tuple[bool, set[tuple[tuple[tuple[int,...]], tuple[tuple[bool, bool, bool]]]]]:
-        seen = set()
+    def equivalent_graphs(self) -> tuple[bool, set[GraphKey]]:
+        seen = {self.canon_key()}
         queue = deque([self.copy()])
 
         found_bipartite = False
@@ -330,7 +333,7 @@ class RedStabGraph:
 
                         init_solid = new_graph.vertices[solid][2]
                         init_hollow = new_graph.vertices[hollow][2]
-                        both = [ n for n in new_graph.neighbors(v) if n in new_graph.neighbors(u) ]
+                        both = set(new_graph.neighbors(v)) & set(new_graph.neighbors(u))
 
                         new_graph.local_complementation(solid)
                         new_graph.local_complementation(hollow)
@@ -366,7 +369,7 @@ class RedStabGraph:
                         init_u = new_graph.vertices[u][2]
                         init_v = new_graph.vertices[v][2]
 
-                        both = [ n for n in new_graph.neighbors(v) if n in new_graph.neighbors(u) ]
+                        both = set(new_graph.neighbors(v)) & set(new_graph.neighbors(u))
 
                         new_graph.pivot_edge(u, v)
 
@@ -413,35 +416,30 @@ class RedStabGraph:
     
     def is_bipartite(self) -> bool:
         n = self.n + self.k
-        colors = np.full(n, -1, dtype=np.int8)
-
+        colors = [-1] * n
         neighbors_list : list[set] = [ set() for _ in range(n) ]
         for u, v in self.edges:
-            (neighbors_list[u]).add(v)
-            (neighbors_list[v]).add(u)
+            neighbors_list[u].add(v)
+            neighbors_list[v].add(u)
 
         for start in range(n):
             if colors[start] != -1:
                 continue
 
             colors[start] = 0
-            frontier = np.array([start], dtype=int)
+            frontier = deque([start])
 
-            while frontier.size:
-                current_color = colors[frontier[0]]
+            while frontier:
+                node = frontier.popleft()
+                current_color = colors[node]
                 next_color = 1 - current_color
 
-                neighbors = set()
-                for node in frontier:
-                    neighbors |= neighbors_list[node]
-                neighbors = np.array(list(neighbors), dtype=int)
-
-                if np.any(colors[neighbors] == current_color):
-                    return False
-
-                new = neighbors[colors[neighbors] == -1]
-                colors[new] = next_color
-                frontier = new
+                for neighbor in neighbors_list[node]:
+                    if colors[neighbor] == current_color:
+                        return False
+                    if colors[neighbor] == -1:
+                        colors[neighbor] = next_color
+                        frontier.append(neighbor)
 
         return True
 
