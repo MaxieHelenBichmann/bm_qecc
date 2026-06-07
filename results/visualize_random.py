@@ -167,26 +167,54 @@ def build_series(
     axis: Axis,
     include_positive: bool,
     include_algorithm: bool,
+    sort_key: Callable[[StatRow], object] | None = None,
 ) -> list[PlotSeries]:
     """Group rows into plot series."""
     grouped: dict[str, list[StatRow]] = {}
     for row in rows:
         grouped.setdefault(series_label(row, include_positive, include_algorithm), []).append(row)
 
+    if sort_key is None:
+        sort_key = lambda row: row.axis_value(axis)
+
     return [
-        PlotSeries(label=label, rows=tuple(sorted(group, key=lambda row: row.axis_value(axis))))
+        PlotSeries(label=label, rows=tuple(sorted(group, key=sort_key)))
         for label, group in sorted(grouped.items())
     ]
 
 
+def uses_dimension_case_axis(args: argparse.Namespace) -> bool:
+    """Return whether n/r should be plotted as sorted dimension-case categories."""
+    if args.x == "n":
+        return args.k is None
+    if args.x == "r":
+        return args.n is None and args.k is None
+    return False
+
+
+def dimension_case_key(row: StatRow, axis: Axis) -> tuple[int, int]:
+    """Return the composite sorting key for an all-dimension-case plot."""
+    if axis == "n":
+        return row.n, row.r
+    if axis == "r":
+        return row.r, row.n
+    raise ValueError(f"Composite dimension-case axes only support n or r, got {axis!r}.")
+
+
+def dimension_case_positions(rows: Sequence[StatRow], axis: Axis) -> dict[tuple[int, int], int]:
+    """Map each distinct (n, r) or (r, n) case to a stable x-position."""
+    return {
+        key: index
+        for index, key in enumerate(sorted({dimension_case_key(row, axis) for row in rows}), start=1)
+    }
+
+
 def configure_axis_constraints(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     """Validate fixed dimension filters for the selected x-axis."""
-    if args.x == "n" and args.k is None:
-        parser.error("--x n requires --k so only one code rate family is plotted.")
     if args.x == "k" and args.n is None:
         parser.error("--x k requires --n so only one block length is plotted.")
-    if args.x == "r" and (args.n is None) == (args.k is None):
-        parser.error("--x r requires exactly one of --n or --k.")
+    if args.x == "r" and args.n is not None and args.k is not None:
+        parser.error("--x r accepts at most one of --n or --k.")
     if args.x in {"d", "s"} and (args.n is None or args.k is None):
         parser.error(f"--x {args.x} requires both --n and --k.")
 
@@ -224,10 +252,11 @@ def plot_random_series(
     output: Path | None,
     title: str | None,
     show_theory: bool,
+    case_positions: dict[tuple[int, int], int] | None = None,
 ) -> None:
     """Render randomized-code curves with mean/stddev and maximum markers."""
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
-    if show_theory:
+    if show_theory and case_positions is None:
         plot_boundary_fits(series, axis, ax)
 
     for color_index, item in enumerate(series):
@@ -236,7 +265,10 @@ def plot_random_series(
         else:
             colors = COLOR_FAMILIES_NEG[color_index % len(COLOR_FAMILIES_NEG)]
 
-        x = [row.axis_value(axis) for row in item.rows]
+        if case_positions is None:
+            x = [row.axis_value(axis) for row in item.rows]
+        else:
+            x = [case_positions[dimension_case_key(row, axis)] for row in item.rows]
         mean = [row.mean_seconds for row in item.rows]
         lower_error = [min(row.stddev_seconds, row.mean_seconds) for row in item.rows]
         upper_error = [row.stddev_seconds for row in item.rows]
@@ -266,11 +298,31 @@ def plot_random_series(
             maximum_x, maximum = zip(*maximum_points)
             ax.scatter(maximum_x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
 
-    ax.set_xlabel(AXIS_LABELS[axis])
+    if case_positions is None:
+        ax.set_xlabel(AXIS_LABELS[axis])
+    elif axis == "n":
+        ax.set_xlabel("case (n, r), sorted by n then r")
+    else:
+        ax.set_xlabel("case (r, n), sorted by r then n")
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
-    configure_xaxis_ticks(axis, ax)
+    if case_positions is None:
+        configure_xaxis_ticks(axis, ax)
+    else:
+        ordered_cases = sorted(case_positions.items(), key=lambda item: item[1])
+        labels: list[str] = []
+        previous_first: int | None = None
+        for (first, _), _ in ordered_cases:
+            labels.append(str(first) if first != previous_first else "")
+            previous_first = first
+
+        ax.set_xticks([position for _, position in ordered_cases])
+        ax.set_xticklabels(
+            labels,
+            rotation=45,
+            ha="right",
+        )
     draw_minute_guides(ax)
     ax.grid(True, which="major", alpha=0.15)
     handles, labels = ax.get_legend_handles_labels()
@@ -320,18 +372,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not rows:
         raise SystemExit("No randomized rows matched the selected filters.")
 
+    case_positions = dimension_case_positions(rows, args.x) if uses_dimension_case_axis(args) else None
     series = build_series(
         rows,
         axis=args.x,
         include_positive=args.positive == "all",
         include_algorithm=len({row.algorithm for row in rows}) > 1,
+        sort_key=(lambda row: dimension_case_key(row, args.x)) if case_positions is not None else None,
     )
     plot_random_series(
         series,
         axis=args.x,
         output=args.output,
         title=fixed_parameter_title(args, rows),
-        show_theory=args.theory,
+        show_theory=args.theory and case_positions is None,
+        case_positions=case_positions,
     )
     return 0
 

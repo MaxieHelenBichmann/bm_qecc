@@ -72,7 +72,7 @@ from .utils import (
     random_stabilizer_code,
 )
 
-MEAS_STATS = list(range(3, 21))
+MEAS_STATS = list(range(3, 51))
 N_STATS = 10
 MAX_TOL_TIMEOUTS = 3
 
@@ -196,7 +196,7 @@ def max_n_pm_css(algorithm: str, positive: bool) -> int:
     if algorithm == "pm_css_bruteforce":
         return 15 if positive else 12
     if algorithm == "pm_css_classical":
-        return 12 if positive else max(MEAS_STATS)
+        return 12 if positive else 20
     if algorithm == "pm_css_graph_iso":
         return 15 if positive else max(MEAS_STATS)
     if algorithm == "pm_css_matroid":
@@ -520,7 +520,13 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1000, size=N_STATS)
     measurements : list[tuple[Measurement, list[Case]]] = []
-    sizes = [(n, i) for n in MEAS_STATS for i in range(0, n, 1 if n < 7 else 2 if n < 15 else 4)]
+
+    sizes = [
+        (n, i)
+        for n in MEAS_STATS
+        for i in sorted(set(range(0, n,  1 if n < 7 else 2 if n < 15 else 4 if n < 30 else 5)) | {4, 8})
+        if i < n
+    ]
 
     if random:
         for n, k in sizes:
