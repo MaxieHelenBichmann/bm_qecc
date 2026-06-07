@@ -516,14 +516,14 @@ def non_lcc_eq_case(seed: int, dim: tuple[int, int] | None = None, code: Stabili
         expected_lc=False,
     )
 
-def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[Measurement, list[Case]]]:
+def seeded_measurements(seed: int, algorithm: str, random: bool, nmin: int | None = None, nmax: int | None = None) -> list[tuple[Measurement, list[Case]]]:
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1000, size=N_STATS)
     measurements : list[tuple[Measurement, list[Case]]] = []
 
     sizes = [
         (n, i)
-        for n in MEAS_STATS
+        for n in [n for n in MEAS_STATS if (nmin is None or n >= nmin) and (nmax is None or n <= nmax)]
         for i in sorted(set(range(0, n,  1 if n < 7 else 2 if n < 15 else 4 if n < 30 else 5)) | {4, 8})
         if i < n
     ]
@@ -616,7 +616,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                     [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds] if n <= max_n_lc_css(algorithm, positive=False) else []))
     else:
         if algorithm.startswith("pm_css"):
-            for name, code in NAMED_CODES:
+            for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
                 if not isinstance(code, CSSCode):
                     continue
                 measurements.append((Measurement(
@@ -642,7 +642,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     ))
 
         elif algorithm.startswith("pm_stb"):
-            for name, code in NAMED_CODES:
+            for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -664,7 +664,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     ), 
                                     [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds] if code.n <= max_n_pm_stb(algorithm, positive=False) else []))
         elif algorithm.startswith("lc_equ"):
-            for name, code in NAMED_CODES:
+            for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=name, 
@@ -686,7 +686,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool) -> list[tuple[M
                                     ), 
                                     [non_lcc_eq_case(seed=s, code=code) for s in seeds] if code.n <= max_n_lc_equ(algorithm, positive=False) else []))
         elif algorithm.startswith("lc_css"):
-              for name, code in NAMED_CODES:
+              for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
                 if not isinstance(code, CSSCode):
                     continue
                 measurements.append((Measurement(
@@ -778,8 +778,7 @@ def lc_invariant_cases(seed: int) -> list[Case]:
         non_lcc_eq_case(seed=seed + 26, dim=(12, 6)),
     ]
 
-
-def default_cases(seed: int, random: bool = False) -> list[Case]:
+def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax: int | None = None) -> list[Case]:
     """Return test cases."""
     case_bell_pair_same = Case(
             name="bell_pair_same",
@@ -959,7 +958,7 @@ def default_cases(seed: int, random: bool = False) -> list[Case]:
     else:
         default_cases = known_permuted + known_lc + known_lc_css
 
-    return default_cases
+    return [case for case in default_cases if (nmin is None or case.inputs[0].n >= nmin) and (nmax is None or case.inputs[0].n <= nmax)]
 
 
 def _run_algorithm_once(
@@ -1079,6 +1078,8 @@ def run_stat_benchmarks(
     timeout: float | None = None,
     verbose: bool = True,
     random: bool = False,
+    nmin: int | None = None,
+    nmax: int | None = None,
 ) -> None:
     """Run selected algorithms on cases with the matching problem type."""
     selected_names = set(algorithm_names)
@@ -1087,7 +1088,7 @@ def run_stat_benchmarks(
         if verbose:
             print(f"Running benchmark for algorithm: {algorithm_name}")
         stats_algorithm = []
-        for measurement, measurement_cases in seeded_measurements(seed=seed, algorithm=algorithm_name, random=random):
+        for measurement, measurement_cases in seeded_measurements(seed=seed, algorithm=algorithm_name, random=random, nmin=nmin, nmax=nmax):
             if verbose:
                 print(f"    Running measurement for n={measurement.n} k={measurement.k}:")
             results: list[Result] = []
@@ -1292,6 +1293,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
     parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
+    parser.add_argument("--nmin", type=int, help="Minimum value for n.")
+    parser.add_argument("--nmax", type=int, help="Maximum value for n.")
     parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
     parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
     parser.add_argument("--timeout", type=float, default=None, help="Maximum seconds allowed for each repeat before it is stopped.")
@@ -1323,6 +1326,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--algorithm can only be used with raw or stats benchmarks.")
     if args.mode == "inv" and args.random:
         parser.error("--random can only be used with raw or stats benchmarks.")
+    if  args.mode == "inv" and (args.nmin is not None or args.nmax is not None):
+        parser.error("--nmin and --nmax can only be used with raw or stats benchmarks.")
     try:
         args.algorithm = resolve_algorithm_names(args.algorithm)
     except ValueError as exc:
@@ -1343,7 +1348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.output.exists():
             args.output.unlink()
             
-        run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.timeout, args.verbose, args.random)
+        run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.timeout, args.verbose, args.random, args.nmin, args.nmax)
         return 0
     
     if args.mode == "inv":
@@ -1357,7 +1362,7 @@ def main(argv: Sequence[str] | None = None) -> int:
  
     print(f"RAW BENCHMARKS for {"random" if args.random else "known"} cases")
     results = run_raw_benchmarks(
-        default_cases(seed=args.seed, random=args.random),
+        default_cases(seed=args.seed, random=args.random, nmin=args.nmin, nmax=args.nmax),
         args.algorithm,
         args.repeats,
         timeout=args.timeout,
