@@ -34,6 +34,26 @@ class PlotSeries:
     rows: tuple[StatRow, ...]
 
 
+def axis_limit(value: str) -> tuple[float, float]:
+    """Parse a min,max x-axis data limit."""
+    raw = value.strip()
+    if raw.startswith("(") and raw.endswith(")"):
+        raw = raw[1:-1]
+
+    parts = [part.strip() for part in raw.split(",")]
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise argparse.ArgumentTypeError("expected MIN,MAX or (MIN,MAX)")
+
+    try:
+        lower, upper = (float(part) for part in parts)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("x-axis limits must be ints or floats") from exc
+
+    if lower > upper:
+        raise argparse.ArgumentTypeError("minimum x-axis limit must be <= maximum")
+    return lower, upper
+
+
 def boundary_functions(algorithm: str) -> Callable | None:
     """Return a coarse theoretical boundary function for known algorithm families."""
     def _permutation(n, a, b):
@@ -147,6 +167,10 @@ def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
         return False
     if args.symmetry is not None and row.symmetry != args.symmetry:
         return False
+    if args.xlim is not None:
+        lower, upper = args.xlim
+        if not lower <= float(row.axis_value(args.x)) <= upper:
+            return False
     return True
 
 
@@ -345,6 +369,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
     parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
+    parser.add_argument(
+        "--xlim",
+        type=axis_limit,
+        help="Only include rows whose selected x-axis value is in MIN,MAX, e.g. --xlim 4,10 or --xlim '(0.1,0.8)'.",
+    )
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--theory", action="store_true", help="Draw a faint fitted theoretical boundary function.")
     add_common_stat_filters(parser)
