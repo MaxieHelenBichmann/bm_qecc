@@ -125,11 +125,13 @@ def are_peq_css_matroid(c1: CSSCode, c2: CSSCode) -> bool:
     circuits_c1_hx = _circuits_binary_matroid(c1.Hx)
     circuits_c1_hz = _circuits_binary_matroid(c1.Hz)
 
-    graph_c1 = _graph_from_circuits(c1.n, circuits_c1_hx, circuits_c1_hz)
-
     circuits_c2_hx = _circuits_binary_matroid(c2.Hx)
     circuits_c2_hz = _circuits_binary_matroid(c2.Hz)
 
+    if len(circuits_c1_hx) != len(circuits_c2_hx) or len(circuits_c1_hz) != len(circuits_c2_hz):
+        return False
+    
+    graph_c1 = _graph_from_circuits(c1.n, circuits_c1_hx, circuits_c1_hz)
     graph_c2 = _graph_from_circuits(c2.n, circuits_c2_hx, circuits_c2_hz)
 
     return certificate(graph_c1) == certificate(graph_c2)
