@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
+from fileinput import filename
 from pathlib import Path
 import argparse
+import numpy as np
 import sys
 from collections.abc import Iterable
+import ldpc.mod2.mod2_numpy as mod2
+import networkx as nx
 
 # python3 data/generate.py 14 3 42
 # python3 data/generate.py 20 4 55
@@ -27,6 +31,8 @@ from collections.abc import Iterable
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.core.css_code import CSSCode
 
 RUN_MULTIPLE_PM_CSS_ALGORITHMS = (
     "pm_css_sat",
@@ -64,11 +70,80 @@ def write_pair(code1, code2, paths: tuple[Path, Path], *, force: bool) -> bool:
     write_code(code2, paths[1])
     return True
 
+def generate_bivariat_bicyclic_code() -> None:
+    def cyclic_shift_matrix(size: int, shift: int) -> np.ndarray:
+        """Permutation matrix for cyclic shift by `shift`."""
+        return np.roll(np.eye(size, dtype=np.uint8), shift, axis=1)
+    
+    def bb_check_matrices(
+        ell: int = 12,
+        m: int = 6,
+        a: tuple[int, int, int] = (3, 1, 2),
+        b: tuple[int, int, int] = (3, 1, 2),
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Construct H_X and H_Z for the [[144,12,12]] bivariate bicycle code.
+            H_X = [A | B]
+            H_Z = [B^T | A^T]
+        with
+            A = x^3 + y + y^2
+            B = y^3 + x + x^2
+        over F_2.
+        """
+        I_ell = np.eye(ell, dtype=np.uint8)
+        I_m = np.eye(m, dtype=np.uint8)
+        def x_power(i: int) -> np.ndarray:
+            return np.kron(cyclic_shift_matrix(ell, i), I_m).astype(np.uint8)
+        def y_power(i: int) -> np.ndarray:
+            return np.kron(I_ell, cyclic_shift_matrix(m, i)).astype(np.uint8)
+        a1, a2, a3 = a
+        b1, b2, b3 = b
+        A = x_power(a1) ^ y_power(a2) ^ y_power(a3)
+        B = y_power(b1) ^ x_power(b2) ^ x_power(b3)
+        Hx = np.hstack([A, B]).astype(np.uint8)
+        Hz = np.hstack([B.T, A.T]).astype(np.uint8)
+        return Hx, Hz
+    
+    Hx, Hz = bb_check_matrices()
+    code = CSSCode(Hx=Hx, Hz=Hz)
 
+    write_code(code, Path(__file__).resolve().parent / "bb_144")
+
+def generate_bring_code() -> None:
+    def bring_check_matrices() -> tuple[np.ndarray, np.ndarray]:
+        """
+        Return Hx, Hz for Bring's [[30,8,3]] code.
+        Qubit ordering is the sorted edge list of the icosahedral graph.
+        """
+        G = nx.icosahedral_graph()
+        edges = sorted(tuple(sorted(e)) for e in G.edges())
+        edge_index = {e: i for i, e in enumerate(edges)}
+        n_vertices = G.number_of_nodes()
+        n_edges = G.number_of_edges()
+        Hx = np.zeros((n_vertices, n_edges), dtype=np.uint8)
+        Hz = np.zeros((n_vertices, n_edges), dtype=np.uint8)
+
+        for v in G.nodes:
+            # X-check: all edges incident to v.
+            for u in G.neighbors(v):
+                e = tuple(sorted((u, v)))
+                Hx[v, edge_index[e]] = 1
+            # Z-check: edges in the 5-cycle induced by the neighbors of v.
+            neighbor_subgraph = G.subgraph(list(G.neighbors(v)))
+            for e in neighbor_subgraph.edges:
+                e = tuple(sorted(e))
+                Hz[v, edge_index[e]] = 1
+        return Hx, Hz
+    
+    Hx, Hz = bring_check_matrices()
+    code = CSSCode(Hx=Hx, Hz=Hz)
+
+    write_code(code, Path(__file__).resolve().parent / "bring")
+
+
+    
 def generate_run_multiple_css_caches(global_seed: int, output_dir: Path, *, force: bool) -> None:
     """Generate seed-specific negative CSS cache files with n > 17."""
-    import numpy as np
-
     from benchmarks.run import MEAS_STATS, N_STATS, max_n_pm_css
     from benchmarks.utils import random_non_permuted_css_pair
 
@@ -131,7 +206,25 @@ def main():
         action="store_true",
         help="Overwrite existing generated files.",
     )
+    parser.add_argument(
+        "--bb",
+        action="store_true",
+        help="Generate bivariat bicyclic code [[144,12,12]] instead of random codes.",
+    )
+    parser.add_argument(
+        "--bring",
+        action="store_true",
+        help="Generate bring code [[30,8,3]] instead of random codes.",
+    )
     args = parser.parse_args()
+
+    if args.bb:
+        generate_bivariat_bicyclic_code()
+        return
+    
+    if args.bring:
+        generate_bring_code()
+        return
 
     if args.run_multiple_css_caches:
         generate_run_multiple_css_caches(args.global_seed, args.output_dir, force=args.force)

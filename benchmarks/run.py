@@ -86,6 +86,8 @@ hamming_15 = CSSCode.from_file("data/hamming_15")
 rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
 shor = CSSCode.from_file("data/shor")
 tetrahedral = CSSCode.from_file("data/tetrahedral")
+bb_144 = CSSCode.from_file("data/bb_144")
+bring = CSSCode.from_file("data/bring")
 
 NAMED_CODES = [
             ("bell", bell_pair), # n = 2 , k = 0
@@ -98,6 +100,8 @@ NAMED_CODES = [
             ("hamming_15", hamming_15), # n = 15 , k = 7
             ("golay", golay),  # n = 23 , k = 1
             ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
+            ("bring", bring), # n = 30 , k = 8
+            ("bb_144", bb_144) # n = 144 , k = 12
             ]
 
 @dataclass(frozen=True)
