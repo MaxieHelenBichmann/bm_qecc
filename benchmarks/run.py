@@ -99,7 +99,7 @@ NAMED_CODES = [
             ("tetrahedral", tetrahedral), # n = 15 , k = 1
             ("hamming_15", hamming_15), # n = 15 , k = 7
             ("golay", golay),  # n = 23 , k = 1
-            ("rot_surf_d5", rotated_surface_d5) # n = 25 , k = 1
+            ("rot_surf_d5", rotated_surface_d5), # n = 25 , k = 1
             ("bring", bring), # n = 30 , k = 8
             ("bb_144", bb_144) # n = 144 , k = 12
             ]
