@@ -21,6 +21,9 @@ def is_lceq_css(code: StabilizerCode) -> bool:
     if code.n <= 5:
         return _bruteforce(code)
     
+    if code.n < 1:
+        return True
+    
     if code.k < 2:
         return _lc_orbit(code)
     

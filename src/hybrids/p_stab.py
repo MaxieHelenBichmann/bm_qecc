@@ -24,6 +24,9 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
         return False
     
+    if c1.n < 1:
+        return True
+    
     if c1.n <= 5: # TODO: better threshold with benchmarks?
         return _bruteforce(c1, c2)
 

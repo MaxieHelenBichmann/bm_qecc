@@ -30,6 +30,9 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> bool:
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
         return False
     
+    if c1.n < 1:
+        return True
+    
     if c1.n <= 7:
         return _bruteforce(c1, c2)
 
