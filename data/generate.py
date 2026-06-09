@@ -105,7 +105,10 @@ def generate_bivariat_bicyclic_code() -> None:
         return Hx, Hz
     
     Hx, Hz = bb_check_matrices()
-    code = CSSCode(Hx=Hx, Hz=Hz)
+    Hx_out = mod2.row_basis(Hx)
+    Hz_out = mod2.row_basis(Hz)
+
+    code = CSSCode(Hx=Hx_out, Hz=Hz_out)
 
     write_code(code, Path(__file__).resolve().parent / "bb_144")
 
@@ -136,7 +139,9 @@ def generate_bring_code() -> None:
         return Hx, Hz
     
     Hx, Hz = bring_check_matrices()
-    code = CSSCode(Hx=Hx, Hz=Hz)
+    Hx_out = mod2.row_basis(Hx)
+    Hz_out = mod2.row_basis(Hz)
+    code = CSSCode(Hx=Hx_out, Hz=Hz_out)
 
     write_code(code, Path(__file__).resolve().parent / "bring")
 
