@@ -182,6 +182,39 @@ def generate_run_multiple_css_caches(global_seed: int, output_dir: Path, *, forc
     )
 
 
+def generate_pm_css_random_larger_caches(global_seed: int, output_dir: Path, *, force: bool) -> None:
+    """Generate negative CSS cache files for the pm_css_* random stats n=21..50 run."""
+    from benchmarks.run import MEAS_STATS, N_STATS, max_n_pm_css
+    from benchmarks.utils import random_non_permuted_css_pair
+
+    algorithm = "pm_css_sat"
+    rng = np.random.default_rng(global_seed)
+    seeds = [int(seed) for seed in rng.integers(0, 1000, size=N_STATS)]
+    sizes = [
+        (n, k)
+        for n in [n for n in MEAS_STATS if 21 <= n <= 50]
+        for k in sorted(set(range(0, n, 1 if n < 7 else 2 if n < 15 else 4 if n < 30 else 5)) | {4, 8})
+        if k < n and n <= max_n_pm_css(algorithm, positive=False)
+    ]
+
+    generated = 0
+    skipped = 0
+
+    for n, k in sizes:
+        for seed in seeds:
+            paths = pair_paths(output_dir, n, k, seed, "non_peq")
+            if force or not all_paths_exist(paths):
+                code1, code2 = random_non_permuted_css_pair(n, k, seed=seed)
+                generated += int(write_pair(code1, code2, paths, force=force))
+            else:
+                skipped += 1
+
+    print(
+        f"Done. Generated {generated} negative CSS cache pairs, skipped {skipped} existing pairs "
+        f"for {algorithm} random stats n=21..50 with global seed {global_seed} in {output_dir}."
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate a large code as Paulis text.")
     parser.add_argument("n", type=int, nargs="?", help="n of the code.")
@@ -195,16 +228,24 @@ def main():
         help="Generate negative n > 17 random CSS cache files used by benchmarks/run_multiple.sh.",
     )
     parser.add_argument(
+        "--pm-css-random-larger-caches",
+        action="store_true",
+        help=(
+            "Generate negative random CSS cache files for: python3 -m benchmarks.run --stats "
+            "--algorithm pm_css_* --random --nmin 21 --nmax 50."
+        ),
+    )
+    parser.add_argument(
         "--global-seed",
         type=int,
         default=42,
-        help="Global benchmark seed for --run-multiple-css-caches.",
+        help="Global benchmark seed for cache-generation modes.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path(__file__).resolve().parent,
-        help="Output directory for --run-multiple-css-caches.",
+        help="Output directory for cache-generation modes.",
     )
     parser.add_argument(
         "--force",
@@ -235,8 +276,15 @@ def main():
         generate_run_multiple_css_caches(args.global_seed, args.output_dir, force=args.force)
         return
 
+    if args.pm_css_random_larger_caches:
+        generate_pm_css_random_larger_caches(args.global_seed, args.output_dir, force=args.force)
+        return
+
     if args.n is None or args.k is None or args.seed is None:
-        parser.error("n, k, and seed are required unless --run-multiple-css-caches is used.")
+        parser.error(
+            "n, k, and seed are required unless --run-multiple-css-caches "
+            "or --pm-css-random-larger-caches is used."
+        )
 
     if args.css:
         output = args.output or Path(__file__).resolve().parent / f"random_css_{args.n}_{args.k}.txt"
