@@ -210,7 +210,7 @@ def build_series(
 def uses_dimension_case_axis(args: argparse.Namespace) -> bool:
     """Return whether n/r should be plotted as sorted dimension-case categories."""
     if args.x == "n":
-        return args.k is None
+        return args.k is None and args.r is None
     if args.x == "r":
         return args.n is None and args.k is None
     return False
