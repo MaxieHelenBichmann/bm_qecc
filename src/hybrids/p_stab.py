@@ -27,15 +27,18 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     if c1.n < 1:
         return True
     
+    reduced_symplectic_1 = _row_basis(c1.symplectic)
+    reduced_symplectic_2 = _row_basis(c2.symplectic)
+    
     if c1.n <= 5: # TODO: better threshold with benchmarks?
-        return _bruteforce(c1, c2)
+        return _bruteforce(reduced_symplectic_1, reduced_symplectic_2)
 
     
     more_expensive_invariants = (
             preserved_linear_dependencies,
     )
 
-    if not all(invariant(c1, c2) for invariant in more_expensive_invariants):
+    if not all(invariant(reduced_symplectic_1, reduced_symplectic_2) for invariant in more_expensive_invariants):
         return False
 
     return True
@@ -73,7 +76,7 @@ def preserved_number_duplicate_columns(c1: StabilizerCode, c2: StabilizerCode) -
 
     return _duplicate_column(c1.symplectic) == _duplicate_column(c2.symplectic)
 
-def preserved_linear_dependencies(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def preserved_linear_dependencies(c1: np.ndarray, c2: np.ndarray) -> bool:
     """Check whether the linear dependencies between columns are preserved, which is a necessary condition for P-equivalence."""
     def _linear_dependencies(M: np.ndarray) -> tuple[list[int], list[int], list[int]]:
         n = M.shape[1] // 2
@@ -85,20 +88,21 @@ def preserved_linear_dependencies(c1: StabilizerCode, c2: StabilizerCode) -> boo
 
         return (sorted(one_columns), sorted(two_columns), sorted(three_columns))
     
-    return _linear_dependencies(c1.symplectic) == _linear_dependencies(c2.symplectic)
+    return _linear_dependencies(c1) == _linear_dependencies(c2)
 
 # ----------------------------------------------------------------------------------------------------
 # algorithms
 # ----------------------------------------------------------------------------------------------------
 
-def _bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> bool:
     """p_stab_bruteforce.py"""
-    c1_rank = _rank(c1.symplectic)
+    c1_rank = _rank(c1)
+    n = c1.shape[1] // 2
 
-    for perm in permutations(range(c1.n)):
-        perm_symplectic = perm + tuple(q + c1.n for q in perm)
+    for perm in permutations(range(n)):
+        perm_symplectic = perm + tuple(q + n for q in perm)
 
-        if c1_rank == _rank(np.vstack([c1.symplectic, c2.symplectic[:, perm_symplectic]])):
+        if c1_rank == _rank(np.vstack([c1, c2[:, perm_symplectic]])):
             return True
 
     return False
@@ -112,3 +116,17 @@ def _rank(matrix: np.ndarray) -> int:
     if matrix.shape[0] == 0:
         return 0
     return mod2.rank(matrix)
+
+def _row_basis(M: np.ndarray) -> np.ndarray:
+    M = (np.asarray(M) & 1).astype(np.uint8)
+    if M.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    B = mod2.row_basis(M)
+    if hasattr(B, "toarray"):
+        B = B.toarray()
+    B = (np.asarray(B) & 1).astype(np.uint8)
+    if B.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    if B.ndim == 1:
+        B = B.reshape(1, -1)
+    return B

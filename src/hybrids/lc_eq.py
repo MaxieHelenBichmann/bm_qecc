@@ -28,18 +28,21 @@ def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     if c1.n < 1:
         return True
     
+    reduced_symplectic_1 = _row_basis(c1.symplectic)
+    reduced_symplectic_2 = _row_basis(c2.symplectic)
+    
     if c1.n <= 5: # TODO: better threshold with benchmarks?
-        return _bruteforce(c1, c2)
+        return _bruteforce(reduced_symplectic_1, reduced_symplectic_2)
 
     more_expensive_invariants = (
         preserved_low_degree_local_invariant,
     )
 
-    if not all(invariant(c1, c2) for invariant in more_expensive_invariants):
+    if not all(invariant(reduced_symplectic_1, reduced_symplectic_2) for invariant in more_expensive_invariants):
         return False
     
     if c1.k < 2:
-        return _lse(c1, c2)
+        return _lse(c1, c2, reduced_symplectic_1, reduced_symplectic_2)
     
     return False # TODO: k >= 2
 
@@ -54,7 +57,7 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the number of logical qubits is preserved, which is a necessary condition for LC-equivalence."""
     return c1.k == c2.k
 
-def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool:
     """Check whether the r = 2 local invariant is preserved, which is a necessary condition for LC-equivalence.
 
     for each A ⊆ {1, ..., n}: 
@@ -65,10 +68,10 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
     Reference for this invariant: 
     - Maarten Van den Nest, Bart De Moor: Local Invariants of Stabilizer Codes
     """
-    n = c1.n
-    rk = c1.n - c1.k # assumption: c1 and c2 have the same n and k AND no redundant stabilizer generators
-    
-    def _supp_subcode_dim(code: StabilizerCode, subset: tuple[int, ...]) -> int:
+    n = c1.shape[1] // 2
+    rk = n - c1.shape[0] # assumption: c1 and c2 have the same n and k AND no redundant stabilizer generators
+
+    def _supp_subcode_dim(code: np.ndarray, subset: tuple[int, ...]) -> int:
         """
         d(A) = dim({s in S | supp(s) ⊆ A}) = dim({y in F_2 | supp(yG) ⊆ A}) 
              = rank(G) - rank(G|_(A^c)})
@@ -77,7 +80,7 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
         -> y (G|_(A^c)) = 0 for the restricted matrix outside if A 
         -> {y in F_2 | supp(yG) ⊆ A} = kernel of G|_(A^c) -> dim ker = n - rank
         """
-        G = np.asarray(code.symplectic, dtype=np.uint8) & 1
+        G = np.asarray(code, dtype=np.uint8) & 1
 
         A = set(subset)
         outside = [i for i in range(n) if i not in A]
@@ -90,9 +93,9 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
         restricted = G[:, cols]
         return rk - _rank(restricted)
     
-    max_subset_size = c1.n # theoretically O(2^n), but smaller subsets are also valid, only weaker
+    max_subset_size = n # theoretically O(2^n), but smaller subsets are also valid, only weaker
     for a in range(max_subset_size + 1):
-        for subset in combinations(range(c1.n), a):
+        for subset in combinations(range(n), a):
             if _supp_subcode_dim(c1, subset) != _supp_subcode_dim(c2, subset):
                 return False
 
@@ -104,10 +107,10 @@ def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode)
 # ----------------------------------------------------------------------------------------------------
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
-def _bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> bool:
     """lc_eq_bruteforce.py"""
-    n = c1.n
-    rank_c1 = _rank(c1.symplectic)
+    n = c1.shape[1] // 2
+    rank_c1 = _rank(c1)
 
     def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> npt.NDArray[np.int8]:
         if lc == "I":
@@ -127,20 +130,20 @@ def _bruteforce(c1: StabilizerCode, c2: StabilizerCode) -> bool:
         return tableau
 
     for action in product(LOCAL_CLIFFORDS, repeat=n):
-        lc_tableau = c2.symplectic.copy()
+        lc_tableau = c2.copy()
 
         for qubit, lc in enumerate(action):
             lc_tableau = apply_lc(lc_tableau, lc, qubit)
 
-        if rank_c1 == _rank(lc_tableau) == _rank(np.vstack([c1.symplectic, lc_tableau])):
+        if rank_c1 == _rank(lc_tableau) == _rank(np.vstack([c1, lc_tableau])):
             return True
 
     return False
 
-def _lse(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> bool:
     """lc_eq_graph_state_small_k.py"""
 
-    def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
+    def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
         """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
         Return only stabilizer tableau of the resulting stabilizer state.
         
@@ -151,14 +154,14 @@ def _lse(c1: StabilizerCode, c2: StabilizerCode) -> bool:
                 [Lz_x | 0 | Lz_z | I]
         """
         if code.k == 0:
-            return code.symplectic
+            return reduced_symplectic
 
         n = code.n
-        r = n - code.k
+        r = reduced_symplectic.shape[0]
         k = code.k
 
-        stab_x = code.symplectic[:, :n]
-        stab_z = code.symplectic[:, n:]
+        stab_x = reduced_symplectic[:, :n]
+        stab_z = reduced_symplectic[:, n:]
 
         log_x_x = code.x_logicals.tableau.matrix[:, :n]
         log_x_z = code.x_logicals.tableau.matrix[:, n:]
@@ -378,8 +381,8 @@ def _lse(c1: StabilizerCode, c2: StabilizerCode) -> bool:
                 
         return True
     
-    stab_state1 = _stab_code_to_stab_state(c1)
-    stab_state2 = _stab_code_to_stab_state(c2)
+    stab_state1 = _stab_code_to_stab_state(c1, reduced_symplectic_1)
+    stab_state2 = _stab_code_to_stab_state(c2, reduced_symplectic_2)
 
     graph_state1 = _stab_state_to_graph_state(stab_state1)
     graph_state2 = _stab_state_to_graph_state(stab_state2)
@@ -410,3 +413,17 @@ def _kernel_basis(A: np.ndarray) -> np.ndarray:
             "Kernel basis must have the same number of columns as the input matrix."
         )
     return K
+
+def _row_basis(M: np.ndarray) -> np.ndarray:
+    M = (np.asarray(M) & 1).astype(np.uint8)
+    if M.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    B = mod2.row_basis(M)
+    if hasattr(B, "toarray"):
+        B = B.toarray()
+    B = (np.asarray(B) & 1).astype(np.uint8)
+    if B.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    if B.ndim == 1:
+        B = B.reshape(1, -1)
+    return B

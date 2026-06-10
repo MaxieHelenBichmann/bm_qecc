@@ -33,18 +33,27 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> bool:
     if c1.n < 1:
         return True
     
+    reduced_Hx1 = _row_basis(c1.Hx)
+    reduced_Hz1 = _row_basis(c1.Hz)
+
+    reduced_Hx2 = _row_basis(c2.Hx)
+    reduced_Hz2 = _row_basis(c2.Hz)
+
+    if reduced_Hx1.shape[0] == 0 and reduced_Hz1.shape[0] == 0:
+        return True
+    
     if c1.n <= 7:
-        return _bruteforce(c1, c2)
+        return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
 
     more_expensive_invariants = (
         preserved_linear_dependencies,
         preserved_punctured_hull_weight_enumerator,
     )
 
-    if not all(invariant(c1, c2) for invariant in more_expensive_invariants):
+    if not all(invariant(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2) for invariant in more_expensive_invariants):
         return False
     
-    return _matroid(c1, c2) # TODO: maybe _sat for big n?
+    return _matroid(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2) # TODO: maybe _sat for big n?
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -79,7 +88,7 @@ def preserved_number_duplicate_columns(c1: CSSCode, c2: CSSCode) -> bool:
 
     return _duplicate_column(c1.symplectic) == _duplicate_column(c2.symplectic)
 
-def preserved_linear_dependencies(c1: CSSCode, c2: CSSCode) -> bool:
+def preserved_linear_dependencies(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
     """Check whether the linear dependencies between columns are preserved, which is a necessary condition for P-equivalence.
     Similar to pm_css_matroid.py"""
     def _linear_dependencies(M: np.ndarray) -> tuple[list[int], list[int], list[int]]:
@@ -92,9 +101,12 @@ def preserved_linear_dependencies(c1: CSSCode, c2: CSSCode) -> bool:
 
         return (sorted(one_columns), sorted(two_columns), sorted(three_columns))
     
-    return _linear_dependencies(c1.symplectic) == _linear_dependencies(c2.symplectic)
+    symplectic1 = np.hstack([np.vstack([Hx1, np.zeros_like(Hz1)]), np.vstack([np.zeros_like(Hx1), Hz1])])
+    symplectic2 = np.hstack([np.vstack([Hx2, np.zeros_like(Hz2)]), np.vstack([np.zeros_like(Hx2), Hz2])])
 
-def preserved_punctured_hull_weight_enumerator(c1: CSSCode, c2: CSSCode) -> bool:
+    return _linear_dependencies(symplectic1) == _linear_dependencies(symplectic2)
+
+def preserved_punctured_hull_weight_enumerator(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
     """SENDRIER - p_css_classical.py"""
     def _generator_matrix_from_parity_check(H: np.ndarray, n: int) -> np.ndarray:
         if H.size == 0 or H.shape[0] == 0:
@@ -162,11 +174,12 @@ def preserved_punctured_hull_weight_enumerator(c1: CSSCode, c2: CSSCode) -> bool
             partition[inv].append(idx)
         return {k: v for k, v in sorted(partition.items())}
 
+    n = Hx1.shape[1]
 
-    Gx1 = _generator_matrix_from_parity_check(c1.Hx, c1.n)
-    Gz1 = _generator_matrix_from_parity_check(c1.Hz, c1.n)
-    Gx2 = _generator_matrix_from_parity_check(c2.Hx, c2.n)
-    Gz2 = _generator_matrix_from_parity_check(c2.Hz, c2.n)
+    Gx1 = _generator_matrix_from_parity_check(Hx1, n)
+    Gz1 = _generator_matrix_from_parity_check(Hz1, n)
+    Gx2 = _generator_matrix_from_parity_check(Hx2, n)
+    Gz2 = _generator_matrix_from_parity_check(Hz2, n)
 
     signatures_c1 = _compute_signatures(Gx1, Gz1)
     signatures_c2 = _compute_signatures(Gx2, Gz2)
@@ -190,30 +203,29 @@ def preserved_punctured_hull_weight_enumerator(c1: CSSCode, c2: CSSCode) -> bool
 # algorithms
 # ----------------------------------------------------------------------------------------------------
 
-def _bruteforce(c1: CSSCode, c2: CSSCode) -> bool:
+def _bruteforce(Hx1, Hz1, Hx2, Hz2) -> bool:
     """p_css_bruteforce.py"""
-    hx_rank = _rank(c1.Hx)
-    hz_rank = _rank(c1.Hz)
+    n = Hx1.shape[1]
 
-    if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
-        return False
+    hx_rank = Hx1.shape[0]
+    hz_rank = Hz1.shape[0]
 
-    for perm in permutations(range(c1.n)):
-        if hx_rank and hx_rank != mod2.rank(np.vstack([c1.Hx, c2.Hx[:, perm]])):
+    for perm in permutations(range(n)):
+        if hx_rank and hx_rank != mod2.rank(np.vstack([Hx1, Hx2[:, perm]])):
             continue
-        if hz_rank and hz_rank != mod2.rank(np.vstack([c1.Hz, c2.Hz[:, perm]])):
+        if hz_rank and hz_rank != mod2.rank(np.vstack([Hz1, Hz2[:, perm]])):
             continue
         return True
 
     return False
 
-def _sat(c1: CSSCode, c2: CSSCode) -> bool:
+def _sat(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
     """pm_css_sat.py"""
     solver = z3.Solver()
 
-    n = c1.n
-    rx = c1.Hx.shape[0]
-    rz = c1.Hz.shape[0]
+    n = Hx1.shape[1]
+    rx = Hx1.shape[0]
+    rz = Hz1.shape[0]
     
 
     # permutations
@@ -230,8 +242,8 @@ def _sat(c1: CSSCode, c2: CSSCode) -> bool:
 
     for i in range(n):
         for j in range(n):
-            x_column_original = c1.Hx[:, i]
-            z_column_original = c1.Hz[:, i]
+            x_column_original = Hx1[:, i]
+            z_column_original = Hz1[:, i]
 
             x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
             z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
@@ -247,7 +259,7 @@ def _sat(c1: CSSCode, c2: CSSCode) -> bool:
 
             row_contributions = []
             for contribution in range(rx):
-                if c2.Hx[contribution, q] == 1:
+                if Hx2[contribution, q] == 1:
                     row_contributions.append(row_operation_coefficients_x[row * rx + contribution])
 
             solver.add(aux_tableau_x[row * n + q] == _xor_list(row_contributions))
@@ -257,14 +269,14 @@ def _sat(c1: CSSCode, c2: CSSCode) -> bool:
 
             row_contributions = []
             for contribution in range(rz):
-                if c2.Hz[contribution, q] == 1:
+                if Hz2[contribution, q] == 1:
                     row_contributions.append(row_operation_coefficients_z[row * rz + contribution])
 
             solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
 
     return solver.check() == z3.sat
 
-def _matroid(c1: CSSCode, c2: CSSCode) -> bool:
+def _matroid(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
     """pm_css_matroid.py"""
     def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
         K = _kernel_basis(A)
@@ -324,15 +336,17 @@ def _matroid(c1: CSSCode, c2: CSSCode) -> bool:
             ]
         )
 
-    circuits_c1_hx = _circuits_binary_matroid(c1.Hx)
-    circuits_c1_hz = _circuits_binary_matroid(c1.Hz)
+    n = Hx1.shape[1]
 
-    graph_c1 = _graph_from_circuits(c1.n, circuits_c1_hx, circuits_c1_hz)
+    circuits_c1_hx = _circuits_binary_matroid(Hx1)
+    circuits_c1_hz = _circuits_binary_matroid(Hz1)
 
-    circuits_c2_hx = _circuits_binary_matroid(c2.Hx)
-    circuits_c2_hz = _circuits_binary_matroid(c2.Hz)
+    graph_c1 = _graph_from_circuits(n, circuits_c1_hx, circuits_c1_hz)
 
-    graph_c2 = _graph_from_circuits(c2.n, circuits_c2_hx, circuits_c2_hz)
+    circuits_c2_hx = _circuits_binary_matroid(Hx2)
+    circuits_c2_hz = _circuits_binary_matroid(Hz2)
+
+    graph_c2 = _graph_from_circuits(n, circuits_c2_hx, circuits_c2_hz)
 
     return certificate(graph_c1) == certificate(graph_c2)
 

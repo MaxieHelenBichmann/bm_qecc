@@ -24,8 +24,10 @@ def is_lceq_css(code: StabilizerCode) -> bool:
     if code.n < 1:
         return True
     
+    reduced_symplectic = _row_basis(code.symplectic)
+    
     if code.k < 2:
-        return _lc_orbit(code)
+        return _lc_orbit(code, reduced_symplectic)
     
     return False # TODO: k >= 2
 
@@ -67,10 +69,10 @@ def _bruteforce(code: StabilizerCode) -> bool:
 
     return False
 
-def _lc_orbit(code: StabilizerCode) -> bool:
+def _lc_orbit(code: StabilizerCode, reduced_symplectic: np.ndarray) -> bool:
     """lc_css_lc_orbit.py"""
 
-    def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
+    def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
         """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
         Return only stabilizer tableau of the resulting stabilizer state.
         
@@ -81,14 +83,14 @@ def _lc_orbit(code: StabilizerCode) -> bool:
                 [Lz_x | 0 | Lz_z | I]
         """
         if code.k == 0:
-            return code.symplectic
+            return reduced_symplectic
 
         n = code.n
-        r = n - code.k
+        r = reduced_symplectic.shape[0]
         k = code.k
 
-        stab_x = code.symplectic[:, :n]
-        stab_z = code.symplectic[:, n:]
+        stab_x = reduced_symplectic[:, :n]
+        stab_z = reduced_symplectic[:, n:]
 
         log_x_x = code.x_logicals.tableau.matrix[:, :n]
         log_x_z = code.x_logicals.tableau.matrix[:, n:]
@@ -257,7 +259,7 @@ def _lc_orbit(code: StabilizerCode) -> bool:
 
         return False
     
-    stab_state = _stab_code_to_stab_state(code)
+    stab_state = _stab_code_to_stab_state(code, reduced_symplectic)
     graph_state = _stab_state_to_graph_state(stab_state)
     return _traverse_lc_orbit(graph_state)
 
@@ -270,3 +272,17 @@ def _rank(matrix: np.ndarray) -> int:
     if matrix.shape[0] == 0:
         return 0
     return mod2.rank(matrix)
+
+def _row_basis(M: np.ndarray) -> np.ndarray:
+    M = (np.asarray(M) & 1).astype(np.uint8)
+    if M.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    B = mod2.row_basis(M)
+    if hasattr(B, "toarray"):
+        B = B.toarray()
+    B = (np.asarray(B) & 1).astype(np.uint8)
+    if B.size == 0:
+        return np.zeros((0, M.shape[1]), dtype=np.uint8)
+    if B.ndim == 1:
+        B = B.reshape(1, -1)
+    return B
