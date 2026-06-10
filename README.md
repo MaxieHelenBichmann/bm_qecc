@@ -82,8 +82,6 @@ src/
     p_css/
     p_stab/
   invariants/      # invariants under equivalence-relations
-    lc_eq/
-    p_eq/
   hybrids/         # hybrid solutions combining best aspects of the algorithms
     lc_css.py
     lc_eq.py
