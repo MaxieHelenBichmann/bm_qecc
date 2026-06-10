@@ -65,6 +65,16 @@ def random_css_code(
     """
     Generate random CSS parity-check matrices Hx, Hz over GF(2).
     """
+    Hx, Hz = _random_css_check_matrices(n, k, rx=rx, seed=seed)
+    return CSSCode(Hx=Hx, Hz=Hz)
+
+def _random_css_check_matrices(
+    n: int,
+    k: int,
+    rx: int | None = None,
+    seed: int | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Generate random full-rank CSS check matrices without building a code object."""
     if not 0 <= k <= n:
         raise ValueError("Require 0 <= k <= n.")
 
@@ -109,7 +119,7 @@ def random_css_code(
                 break
         Hz = np.asarray(coeffs @ ker_hx, dtype=np.int8) % 2
 
-    return CSSCode(Hx=Hx, Hz=Hz)
+    return Hx, Hz
 
 def permutation_equivalent_code(code: StabilizerCode, seed: int | None = None) -> StabilizerCode:
     """Return a permuted equivalent code to the given code."""
@@ -141,30 +151,65 @@ def permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> C
     )
 
 def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> CSSCode:
-    """Return a same-invariant CSS code certified non-equivalent by joint row-space weights."""
+    """Return a CSS code certified non-equivalent by permutation invariants.
+
+    For small stabilizer ranks this uses the exact stabilizer weight enumerator.
+    For larger ranks it uses a polynomial-time CSS support-rank profile. In both
+    cases candidates must preserve the very cheap invariants used as early
+    filters by the benchmark solvers, so random negative pairs are not rejected
+    just because of zero columns or duplicate-column multiplicities.
+    """
     rng = np.random.default_rng(seed)
     rx = _rank_binary(code.Hx)
     rz = _rank_binary(code.Hz)
     if (rx, rz) in {(0, 0), (code.n, 0), (0, code.n)}:
         raise RandomizeError("No non-equivalent CSS code exists with these small invariants.")
-    if rx + rz > 50:
-        invariant = _cheap_invariant(code)
-    else:
-        invariant = _stabilizer_weight_enumerator(code)
-        
-    for _ in range(10_000):
-        candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-        candidate = random_css_code(code.n, code.k, rx=rx, seed=candidate_seed)
 
-        if rx + rz > 50:
-            other_invariant = _cheap_invariant(candidate)
+    visible_invariant = _visible_css_invariant(code)
+    if rx + rz > 20:
+        invariant = _css_support_rank_invariant_matrices(code.Hx, code.Hz)
+    else:
+        invariant = _css_stabilizer_weight_enumerator_matrices(code.Hx, code.Hz)
+
+    if rx and rz:
+        for _ in range(500):
+            candidate = _decoupled_css_column_permutation_candidate(code, rng=rng)
+            if candidate is None:
+                continue
+
+            if rx + rz > 20:
+                other_invariant = _css_support_rank_invariant_matrices(candidate.Hx, candidate.Hz)
+            else:
+                other_invariant = _css_stabilizer_weight_enumerator_matrices(candidate.Hx, candidate.Hz)
+
+            if other_invariant != invariant:
+                return candidate
+        
+    for attempt in range(10_000):
+        candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        candidate_hx, candidate_hz = _random_css_check_matrices(code.n, code.k, rx=rx, seed=candidate_seed)
+
+        if (
+            attempt < 1_000
+            and _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant
+        ):
+            continue
+
+        if rx + rz > 20:
+            other_invariant = _css_support_rank_invariant_matrices(candidate_hx, candidate_hz)
         else:
-            other_invariant = _stabilizer_weight_enumerator(candidate)
+            other_invariant = _css_stabilizer_weight_enumerator_matrices(candidate_hx, candidate_hz)
 
         if other_invariant != invariant:
-            return candidate
+            return CSSCode(
+                candidate_hx,
+                candidate_hz,
+                distance=code.distance,
+                x_distance=code.x_distance,
+                z_distance=code.z_distance,
+            )
 
-    raise RandomizeError("Could not find a candidate with a different stabilizer weight enumerator.")
+    raise RandomizeError("Could not find a same-cheap-invariant candidate with a different CSS invariant.")
 
 
 def non_permutation_equivalent_stabilizer_code(
@@ -282,7 +327,11 @@ def random_non_permuted_css_pair(
     for _ in range(max_attempts):
         code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
         other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-        rx = int(rng.integers(0, n - k + 1))
+        total_checks = n - k
+        if total_checks >= 2:
+            rx = int(rng.integers(1, total_checks))
+        else:
+            rx = int(rng.integers(0, total_checks + 1))
         code = random_css_code(n, k, rx, seed=code_seed)
         try:
             return code, non_permutation_equivalent_css_code(code, seed=other_seed)
@@ -815,6 +864,128 @@ def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
 
     return tuple(profile)
 
+def _visible_css_invariant(code: CSSCode) -> tuple[int, int, int, int, int, tuple[int, ...]]:
+    """Return the cheap CSS invariants used as early benchmark filters."""
+    return _visible_css_invariant_matrices(code.Hx, code.Hz, k=code.k)
+
+def _visible_css_invariant_matrices(
+    hx: np.ndarray,
+    hz: np.ndarray,
+    *,
+    k: int,
+) -> tuple[int, int, int, int, int, tuple[int, ...]]:
+    """Return the cheap CSS invariants from check matrices."""
+    symplectic = _css_symplectic_matrix(hx, hz)
+    n = hx.shape[1]
+    return (
+        n,
+        k,
+        _rank_binary(hx),
+        _rank_binary(hz),
+        int(np.count_nonzero(np.all(symplectic == 0, axis=0))),
+        _duplicate_column_multiplicities(symplectic),
+    )
+
+def _css_symplectic_matrix(hx: np.ndarray, hz: np.ndarray) -> np.ndarray:
+    hx = np.asarray(hx, dtype=np.int8) % 2
+    hz = np.asarray(hz, dtype=np.int8) % 2
+    x_padded = np.hstack([hx, np.zeros_like(hx)])
+    z_padded = np.hstack([np.zeros_like(hz), hz])
+    return np.vstack((x_padded, z_padded))
+
+def _duplicate_column_multiplicities(matrix: np.ndarray) -> tuple[int, ...]:
+    columns = [tuple(matrix[:, j].tolist()) for j in range(matrix.shape[1])]
+    return tuple(sorted(Counter(columns).values()))
+
+def _decoupled_css_column_permutation_candidate(
+    code: CSSCode,
+    *,
+    rng: np.random.Generator,
+) -> CSSCode | None:
+    """Shuffle X and Z check columns independently while preserving cheap counts."""
+    hx_permutation = rng.permutation(code.n)
+    hz_permutation = rng.permutation(code.n)
+
+    if np.array_equal(hx_permutation, hz_permutation):
+        return None
+
+    hx = np.asarray(code.Hx[:, hx_permutation], dtype=np.int8) % 2
+    hz = np.asarray(code.Hz[:, hz_permutation], dtype=np.int8) % 2
+
+    if hx.shape[0] and hz.shape[0] and np.any((hx @ hz.T) % 2):
+        return None
+
+    return CSSCode(
+        hx,
+        hz,
+        distance=code.distance,
+        x_distance=code.x_distance,
+        z_distance=code.z_distance,
+    )
+
+def _css_support_rank_invariant(code: CSSCode, max_w: int = 3) -> tuple[Any, ...]:
+    """Return a polynomial CSS invariant under physical-qubit permutations."""
+    return _css_support_rank_invariant_matrices(code.Hx, code.Hz, max_w=max_w)
+
+def _css_support_rank_invariant_matrices(
+    hx: np.ndarray,
+    hz: np.ndarray,
+    max_w: int = 3,
+) -> tuple[Any, ...]:
+    """Return a polynomial CSS invariant from check matrices."""
+    hx = np.asarray(hx, dtype=np.uint8) & 1
+    hz = np.asarray(hz, dtype=np.uint8) & 1
+    n = hx.shape[1]
+    rx = _rank_binary(hx)
+    rz = _rank_binary(hz)
+
+    profile = []
+    for w in range(1, min(max_w, n) + 1):
+        subset_ranks: Counter[tuple[int, int]] = Counter()
+        subset_support_dims: Counter[tuple[int, int]] = Counter()
+
+        for qubits in combinations(range(n), w):
+            qubits_set = set(qubits)
+            cols = list(qubits)
+            complement_cols = [q for q in range(n) if q not in qubits_set]
+
+            hx_rank = _rank_binary(hx[:, cols])
+            hz_rank = _rank_binary(hz[:, cols])
+            subset_ranks[(hx_rank, hz_rank)] += 1
+
+            hx_support_dim = rx - _rank_binary(hx[:, complement_cols])
+            hz_support_dim = rz - _rank_binary(hz[:, complement_cols])
+            subset_support_dims[(hx_support_dim, hz_support_dim)] += 1
+
+        profile.append((
+            tuple(sorted(subset_ranks.items())),
+            tuple(sorted(subset_support_dims.items())),
+        ))
+
+    return (rx, rz, tuple(profile))
+
+def _css_stabilizer_weight_enumerator_matrices(
+    hx: np.ndarray,
+    hz: np.ndarray,
+) -> tuple[tuple[tuple[int, int, int, int], int], ...]:
+    """Return the exact CSS stabilizer weight enumerator from check matrices."""
+    hx = np.asarray(hx, dtype=np.uint8) & 1
+    hz = np.asarray(hz, dtype=np.uint8) & 1
+    n = hx.shape[1]
+    x_words = _row_space_words(hx)
+    z_words = _row_space_words(hz)
+
+    enumerator: dict[tuple[int, int, int, int], int] = {}
+    for x_word in x_words:
+        for z_word in z_words:
+            both = int(np.count_nonzero(x_word & z_word))
+            x_only = int(np.count_nonzero(x_word)) - both
+            z_only = int(np.count_nonzero(z_word)) - both
+            key = (n - x_only - z_only - both, x_only, z_only, both)
+            enumerator[key] = enumerator.get(key, 0) + 1
+
+    return tuple(sorted(enumerator.items()))
+
 def _lc_projection_rank_invariant(code: StabilizerCode, max_w: int = 3) -> tuple[tuple[int, ...], ...]:
     """Return ordered subset projection ranks preserved by local Cliffords."""
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1
@@ -853,10 +1024,16 @@ def _stabilizer_weight_enumerator(code: StabilizerCode) -> tuple[tuple[tuple[int
 
 def _row_space_words(matrix: np.ndarray) -> np.ndarray:
     matrix = np.asarray(matrix, dtype=np.uint8) % 2
-    rank = _rank_binary(matrix)
+    basis = np.asarray(mod2.row_basis(matrix), dtype=np.uint8) % 2
+    if basis.size == 0:
+        basis = np.zeros((0, matrix.shape[1]), dtype=np.uint8)
+    if basis.ndim == 1:
+        basis = basis.reshape(1, -1)
+
+    rank = basis.shape[0]
     if rank == 0:
         return np.zeros((1, matrix.shape[1]), dtype=np.uint8)
-    basis = np.asarray(mod2.row_basis(matrix), dtype=np.uint8) % 2
+
     words = np.zeros((1 << rank, matrix.shape[1]), dtype=np.uint8)
     num_words = 1
     for row in basis:
