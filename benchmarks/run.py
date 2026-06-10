@@ -72,7 +72,7 @@ from .utils import (
     random_stabilizer_code,
 )
 
-MEAS_STATS = list(range(3, 51))
+MEAS_STATS = list(range(3, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
 N_STATS = 10
 MAX_TOL_TIMEOUTS = 3
 
