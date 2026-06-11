@@ -80,7 +80,7 @@ class RedStabGraph:
         self.local_complementation(u)
 
     def advance_loop(self, u: int) -> None:
-        self.vertices[u] = (self.vertices[u][1] ^ True, self.vertices[u][1], self.vertices[u][2] ^ self.vertices[u][0])
+        self.vertices[u] = (self.vertices[u][0] ^ True, self.vertices[u][1], self.vertices[u][2] ^ self.vertices[u][0])
 
     def flip_fill(self, u:int) -> None:
         self.vertices[u] = (self.vertices[u][0], self.vertices[u][1] ^ True, self.vertices[u][2])
