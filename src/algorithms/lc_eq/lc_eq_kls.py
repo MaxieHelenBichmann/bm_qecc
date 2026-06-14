@@ -99,6 +99,14 @@ class GSLC:
             adj[v, u] = True
         return adj
 
+    def get_upper_adjacency_key(self) -> bytes:
+        self._ensure_adjacency()
+        nr = self.n + self.k
+        upper = np.zeros(nr * (nr - 1) // 2, dtype=np.uint8)
+        for u, v in self.edges:
+            upper[u * (2 * nr - u - 1) // 2 + (v - u - 1)] = 1
+        return np.packbits(upper).tobytes()
+
     def neighbors(self, v: int) -> list[int]:
         self._ensure_adjacency()
         return list(self.adj[v])
@@ -751,10 +759,9 @@ def _kls_normal_form(graph: GSLC) -> None | True:
 def _traverse_lc_orbit(graph: GSLC, target: GSLC) -> bool:
     """Traverse LC orbit and re-canonicalize to KLS normal form at each step"""
     def _canonical_key(g: GSLC) -> bytes:
-        adj_key = np.asarray(g.get_full_adjacency(), dtype=np.uint8).tobytes()
+        adj_key = g.get_upper_adjacency_key()
         vertex_key = tuple((tuple(word), z) for word, z in g.vertices)
-        edge_key = tuple(sorted(g.edges))
-        return (g.n, g.k, adj_key, vertex_key, edge_key)
+        return (g.n, g.k, adj_key, vertex_key)
 
     start = graph.copy()
     seen = {_canonical_key(start)}
