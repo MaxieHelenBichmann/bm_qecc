@@ -84,7 +84,7 @@ def _automorphisms(tableau: np.ndarray, n: int) -> list[tuple[int, ...]]:
         return perms
 
     if tableau.shape[0] == 0:
-        return list(permutations(range(n)))
+        return [tuple(range(n))]
 
     script = f"""
 if LoadPackage("guava") = fail then
@@ -122,18 +122,19 @@ def are_peq_stab_aut(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     
     aut_c2 = _automorphisms(c2.symplectic, c2.n)
 
-    remaining_permutations = set(permutations(range(c1.n)))
+    def _is_coset_representative(perm: tuple[int, ...]) -> bool:
+        # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2
+        return perm == min(_compose(perm, alpha) for alpha in aut_c2)
 
-    while remaining_permutations:
-        perm = remaining_permutations.pop()
+
+    for perm in permutations(range(c1.n)):
+        if not _is_coset_representative(perm):
+            continue
 
         perm = np.array(perm)
         perm_symplectic = np.concatenate([perm, perm + c1.n])
 
         if c2_rank == _rank(np.vstack([c1.symplectic[:, perm_symplectic], c2.symplectic])):
             return True
-
-        # isomorphisms(c1, c2) = { α ∘ φ | α ∈ Aut(c2) } with φ: c1 -> c2
-        remaining_permutations.difference_update(_compose(perm, alpha) for alpha in aut_c2)
 
     return False
