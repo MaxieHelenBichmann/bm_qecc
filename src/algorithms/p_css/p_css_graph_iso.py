@@ -223,14 +223,7 @@ def are_peq_css_graph_iso(c1: CSSCode, c2: CSSCode) -> bool:
     graph_c1 = _graph_from_invariants(c1.n, invariants_c1)
     graph_c2 = _graph_from_invariants(c2.n, invariants_c2)
 
-    seen = set()
-
     for qubit_perm in _iter_qubit_permutations(graph_c1, graph_c2, c1.n):
-        if qubit_perm in seen:
-            continue
-
-        seen.add(qubit_perm)
-
         if hx_rank and hx_rank != mod2.rank(np.vstack([c1.Hx, c2.Hx[:, qubit_perm]])):
             continue
         if hz_rank and hz_rank != mod2.rank(np.vstack([c1.Hz, c2.Hz[:, qubit_perm]])):
