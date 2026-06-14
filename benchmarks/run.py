@@ -198,15 +198,15 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 def max_n_pm_css(algorithm: str, positive: bool) -> int:
     """Avoid  large cases that will only lead to certain timeouts."""
     if algorithm == "pm_css_bruteforce":
-        return 15 if positive else 12
+        return 13
     if algorithm == "pm_css_classical":
         return 12 if positive else 20
     if algorithm == "pm_css_graph_iso":
         return 15 if positive else max(MEAS_STATS)
     if algorithm == "pm_css_matroid":
-        return max(MEAS_STATS)
+        return 32
     if algorithm == "pm_css_sat":
-        return max(MEAS_STATS)
+        return 30
     if algorithm == "pm_css_hybrid":
         return max(MEAS_STATS)
     return max(MEAS_STATS)
@@ -214,15 +214,15 @@ def max_n_pm_css(algorithm: str, positive: bool) -> int:
 def max_n_pm_stb(algorithm: str, positive: bool) -> int:
     """Avoid  large cases that will only lead to certain timeouts."""
     if algorithm == "pm_stb_bruteforce":
-        return max(MEAS_STATS)
+        return 13
     if algorithm == "pm_stb_classical":
-        return max(MEAS_STATS)
+        return 12 if positive else 20
     if algorithm == "pm_stb_graph_iso":
-        return max(MEAS_STATS)
+        return 15 if positive else 20
     if algorithm == "pm_stb_aut":
-        return max(MEAS_STATS)
+        return 9
     if algorithm == "pm_stb_sat":
-        return max(MEAS_STATS)
+        return 25
     if algorithm == "pm_stb_hybrid":
         return max(MEAS_STATS)
     return max(MEAS_STATS)
