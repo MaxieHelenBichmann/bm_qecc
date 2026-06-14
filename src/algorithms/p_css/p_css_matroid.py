@@ -12,30 +12,19 @@ from pynauty import Graph, certificate
 from ...core.css_code import CSSCode
 
 
-def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
-    support = 0
-    for col in np.flatnonzero(row):
-        support |= 1 << int(col)
-    return support
-
-
-def _mask_as_tuple(mask: int) -> tuple[int, ...]:
-    support: list[int] = []
-    while mask:
-        bit = mask & -mask
-        support.append(bit.bit_length() - 1)
-        mask ^= bit
-    return tuple(support)
-
-
-def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
+def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[int]:
     """
     Circuits of the binary matroid whose ground set is the columns of A.
-
     In the case of a binary matrix A as matroid, the circuits are the minimal non-empty supports of vectors in the kernel of A.
-
-    Returns tuples of column indices.
+    Returns bitmasks of column indices.
     """
+    def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
+        support = 0
+        for col in np.flatnonzero(row):
+            support |= 1 << int(col)
+        return support
+    
+    # find all linear dependencies of the columns of A by finding all vectors in the kernel of A, bc Ax=0 and x interpreted as a coefficient vector stating whether a certain column is included in the linear dependence or not
 
     A = (np.asarray(A) & 1).astype(np.uint8, copy=False)
     K = mod2.nullspace(A)
@@ -53,10 +42,16 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
 
     k, _ = K.shape
     row_supports = [_row_support_as_mask(row) for row in K]
-    candidates_by_size: list[list[int]] = [[] for _ in range(A.shape[1] + 1)]
+    circuits_by_size: list[list[int]] = [[] for _ in range(A.shape[1] + 1)]
 
     # All nonzero combinations of kernel basis rows. Gray-code order changes
-    # one row at a time, avoiding a fresh vector and k row checks per mask.
+    # one row at a time, avoiding a fresh vector and k row checks per mask
+
+    # Streaming Filter, aka dont materialize all candidate supports and sort by size first, but keep track of the current minimal supports and only check against those
+
+    # Keep only the current inclusion-minimal supports instead of materializing
+    # all candidate supports by size first. Size buckets avoid scanning circuits
+    # that cannot be subsets or supersets of the current support.
     support = 0
     previous_gray = 0
     for mask in range(1, 1 << k):
@@ -65,28 +60,50 @@ def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
         support ^= row_supports[changed.bit_length() - 1]
         previous_gray = gray
 
-        if support:
-            candidates_by_size[support.bit_count()].append(support)
+        if not support:
+            continue
 
-    # inclusion-minimal supports
-    circuits: list[int] = []
+        support_size = support.bit_count()
 
-    for candidates in candidates_by_size:
-        for support in candidates:
-            if not any((circuit & support) == circuit for circuit in circuits):
-                circuits.append(support)
+        if any(
+            (circuit & support) == circuit
+            for size in range(1, support_size + 1)
+            for circuit in circuits_by_size[size]
+        ):
+            continue
 
-    return sorted((_mask_as_tuple(circuit) for circuit in circuits), key=lambda circuit: (len(circuit), circuit))
+        for size in range(support_size + 1, len(circuits_by_size)):
+            if not circuits_by_size[size]:
+                continue
+            circuits_by_size[size] = [
+                circuit
+                for circuit in circuits_by_size[size]
+                if (support & circuit) != support
+            ]
+
+        circuits_by_size[support_size].append(support)
+
+    return [
+        circuit
+        for circuits in circuits_by_size
+        for circuit in sorted(circuits)
+    ]
 
 
-def _graph_from_circuits(n: int, circuits_hx: list[tuple[int, ...]], circuits_hz: list[tuple[int, ...]]) -> Graph:
+def _graph_from_circuits(n: int, circuits_hx: list[int], circuits_hz: list[int]) -> Graph:
 
     adj = defaultdict(list)
 
-    def _add_edges_from_circuits(circuits: list[tuple[int, ...]], offset: int) -> None:
+    def _iter_mask_bits(mask: int):
+        while mask:
+            bit = mask & -mask
+            yield bit.bit_length() - 1
+            mask ^= bit
+
+    def _add_edges_from_circuits(circuits: list[int], offset: int) -> None:
         for i, circuit in enumerate(circuits):
             circuit_vertex = offset + i
-            for q in circuit:
+            for q in _iter_mask_bits(circuit):
                 adj[q].append(circuit_vertex)
                 adj[circuit_vertex].append(q)
 
@@ -109,6 +126,7 @@ def _graph_from_circuits(n: int, circuits_hx: list[tuple[int, ...]], circuits_hz
             set(range(hz_offset, hz_offset + n_hz))
         ]
     )
+
 
 def are_peq_css_matroid(c1: CSSCode, c2: CSSCode) -> bool:
     """Check permutation equivalence by checking for isomorphism of the associated pair of binary matroids.

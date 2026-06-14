@@ -278,12 +278,12 @@ def _sat(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> 
 
 def _matroid(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
     """pm_css_matroid.py"""
-    def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[tuple[int, ...]]:
+    def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[int]:
         K = _kernel_basis(A)
 
         k, _ = K.shape
         row_supports = [_row_support_as_mask(row) for row in K]
-        candidates_by_size: list[list[int]] = [[] for _ in range(A.shape[1] + 1)]
+        circuits_by_size: list[list[int]] = [[] for _ in range(A.shape[1] + 1)]
 
         support = 0
         previous_gray = 0
@@ -293,26 +293,43 @@ def _matroid(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray)
             support ^= row_supports[changed.bit_length() - 1]
             previous_gray = gray
 
-            if support:
-                candidates_by_size[support.bit_count()].append(support)
+            if not support:
+                continue
 
-        circuits: list[int] = []
+            support_size = support.bit_count()
 
-        for candidates in candidates_by_size:
-            for support in candidates:
-                if not any((circuit & support) == circuit for circuit in circuits):
-                    circuits.append(support)
+            if any(
+                (circuit & support) == circuit
+                for size in range(1, support_size + 1)
+                for circuit in circuits_by_size[size]
+            ):
+                continue
 
-        return sorted((_mask_as_tuple(circuit) for circuit in circuits), key=lambda circuit: (len(circuit), circuit))
+            for size in range(support_size + 1, len(circuits_by_size)):
+                if not circuits_by_size[size]:
+                    continue
+                circuits_by_size[size] = [
+                    circuit
+                    for circuit in circuits_by_size[size]
+                    if (support & circuit) != support
+                ]
+
+            circuits_by_size[support_size].append(support)
+
+        return [
+            circuit
+            for circuits in circuits_by_size
+            for circuit in sorted(circuits)
+        ]
 
 
-    def _graph_from_circuits(n: int, circuits_hx: list[tuple[int, ...]], circuits_hz: list[tuple[int, ...]]) -> Graph:
+    def _graph_from_circuits(n: int, circuits_hx: list[int], circuits_hz: list[int]) -> Graph:
         adj = defaultdict(list)
 
-        def _add_edges_from_circuits(circuits: list[tuple[int, ...]], offset: int) -> None:
+        def _add_edges_from_circuits(circuits: list[int], offset: int) -> None:
             for i, circuit in enumerate(circuits):
                 circuit_vertex = offset + i
-                for q in circuit:
+                for q in _iter_mask_bits(circuit):
                     adj[q].append(circuit_vertex)
                     adj[circuit_vertex].append(q)
 
@@ -410,10 +427,8 @@ def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
         support |= 1 << int(col)
     return support
 
-def _mask_as_tuple(mask: int) -> tuple[int, ...]:
-    support: list[int] = []
+def _iter_mask_bits(mask: int):
     while mask:
         bit = mask & -mask
-        support.append(bit.bit_length() - 1)
+        yield bit.bit_length() - 1
         mask ^= bit
-    return tuple(support)

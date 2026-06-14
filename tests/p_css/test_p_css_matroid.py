@@ -21,12 +21,18 @@ def test_circuits_binary_matroid_simple_dependency() -> None:
         dtype=np.int8,
     )
 
-    assert _circuits_binary_matroid(matrix) == [(0, 1, 2)]
+    assert _circuits_binary_matroid(matrix) == [0b111]
 
 
 def test_circuits_binary_matroid_matches_direct_enumeration() -> None:
-    def direct_circuits(matrix: np.ndarray) -> set[tuple[int, ...]]:
+    def direct_circuits(matrix: np.ndarray) -> set[int]:
         import ldpc.mod2.mod2_numpy as mod2
+
+        def support_as_mask(vector: np.ndarray) -> int:
+            support = 0
+            for col in np.flatnonzero(vector):
+                support |= 1 << int(col)
+            return support
 
         kernel = mod2.nullspace(matrix)
         if hasattr(kernel, "toarray"):
@@ -36,24 +42,24 @@ def test_circuits_binary_matroid_matches_direct_enumeration() -> None:
         if kernel.size == 0:
             return set()
 
-        candidates: list[set[int]] = []
+        candidates: list[int] = []
         for mask in range(1, 1 << kernel.shape[0]):
             vector = np.zeros(kernel.shape[1], dtype=np.uint8)
             for i in range(kernel.shape[0]):
                 if (mask >> i) & 1:
                     vector ^= kernel[i]
 
-            support = set(np.flatnonzero(vector))
+            support = support_as_mask(vector)
             if support:
                 candidates.append(support)
 
-        candidates.sort(key=len)
-        circuits: list[set[int]] = []
+        candidates.sort(key=int.bit_count)
+        circuits: list[int] = []
         for support in candidates:
-            if not any(circuit <= support for circuit in circuits):
+            if not any((circuit & support) == circuit for circuit in circuits):
                 circuits.append(support)
 
-        return {tuple(sorted(circuit)) for circuit in circuits}
+        return set(circuits)
 
     rng = np.random.default_rng(1234)
     matrices = [
@@ -74,7 +80,11 @@ def test_circuits_binary_matroid_matches_direct_enumeration() -> None:
 # ----------------------------------------------------------------------------------------------------
 
 def test_graph_from_circuits_small_incidence_graph() -> None:
-    graph = _graph_from_circuits(3, circuits_hx=[(0, 2)], circuits_hz=[(1, 2)])
+    graph = _graph_from_circuits(
+        3,
+        circuits_hx=[(1 << 0) | (1 << 2)],
+        circuits_hz=[(1 << 1) | (1 << 2)],
+    )
 
     assert graph.number_of_vertices == 5
     assert graph.directed is False
