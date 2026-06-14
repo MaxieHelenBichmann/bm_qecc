@@ -230,13 +230,10 @@ def _iter_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: list[l
     if not np.array_equal(np.asarray(canon1, dtype=np.int8) & 1, np.asarray(canon2, dtype=np.int8) & 1):
         return
 
-    # find all permutations that map g1 to g2
-    g2_to_can =  [_inverse_perm(p2) for p2 in can_to_g2]
-
     for p1 in can_to_g1:
         p1 = tuple(p1)
-        for p2 in g2_to_can:
-            yield _compose(p1, p2)
+        for p2 in can_to_g2:
+            yield _compose(p1, _inverse_perm(p2))
 
 def are_peq_css_classical(c1: CSSCode, c2: CSSCode) -> bool:
     """Check permutation equivalence using algorithms for classical code equivalence. A two-layer approach is used, where the first layer uses Sendrier's Support Splitting Algorithm to partition the columns of the generator matrices into equivalence classes based on the weight enumerator of the hull of the punctured code. 
