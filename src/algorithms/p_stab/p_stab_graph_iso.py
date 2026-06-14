@@ -77,6 +77,11 @@ def are_peq_stab_graph_iso(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     By creating a node for each element of the stabilizer group, this being independent from the generator basis, and by splitting the X and Z edges, we create a graph of an exponential size, which is not efficient.
     """
     graph_1 = _graph_from_code(c1)
-    graph_2 = _graph_from_code(c2)
+    cert1 = certificate(graph_1)
+    del graph_1
 
-    return certificate(graph_1) == certificate(graph_2)
+    graph_2 = _graph_from_code(c2)
+    cert2 = certificate(graph_2)
+    del graph_2
+
+    return cert1 == cert2
