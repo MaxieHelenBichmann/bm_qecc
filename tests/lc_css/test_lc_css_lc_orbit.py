@@ -10,6 +10,7 @@ from src.algorithms.lc_css.lc_css_lc_orbit import (
     _stab_code_to_stab_state,
     _stab_state_to_graph_state,
     _traverse_lc_orbit,
+    _upper_triangle_key,
     is_lceq_css_lc_orbit,
 )
 from src.core.stabilizer_code import StabilizerCode
@@ -157,6 +158,27 @@ def test_stab_state_to_graph_state_small_tableau(
 # ----------------------------------------------------------------------------------------------------
 # _traverse_lc_orbit
 # ----------------------------------------------------------------------------------------------------
+
+def test_upper_triangle_key_uses_only_packed_upper_triangle() -> None:
+    graph = np.array(
+        [
+            [0, 1, 0, 1],
+            [1, 0, 1, 0],
+            [0, 1, 0, 1],
+            [1, 0, 1, 0],
+        ],
+        dtype=np.uint8,
+    )
+    lower_modified = graph.copy()
+    lower_modified[2, 0] = 1
+    lower_modified[3, 1] = 1
+
+    key = _upper_triangle_key(graph)
+
+    assert key == _upper_triangle_key(lower_modified)
+    assert len(key) == 1
+    assert len(key) < len(graph.astype(np.uint8).tobytes())
+
 
 def test_traverse_lc_orbit() -> None:
     triangle = np.array(

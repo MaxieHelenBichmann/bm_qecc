@@ -10,6 +10,18 @@ import ldpc.mod2.mod2_numpy as mod2
 
 from ...core.stabilizer_code import StabilizerCode
 
+def _upper_triangle_key(
+    graph: np.ndarray,
+    upper_indices: tuple[np.ndarray, np.ndarray] | None = None,
+) -> bytes:
+    n = graph.shape[0]
+    if upper_indices is None:
+        upper_indices = np.triu_indices(n, k=1)
+
+    upper = graph[upper_indices].astype(np.uint8, copy=False)
+    return np.packbits(upper).tobytes()
+
+
 def _stab_code_to_stab_state(code: StabilizerCode) -> np.ndarray:
     """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
     Return only stabilizer tableau of the resulting stabilizer state.
@@ -136,6 +148,8 @@ def _stab_state_to_graph_state(tableau: np.ndarray) -> np.ndarray:
     return gamma
 
 def _traverse_lc_orbit(graph: np.ndarray) -> bool:
+    n = graph.shape[0]
+
     def _lc(graph: np.ndarray, q: int) -> np.ndarray | None:
         neighbors = np.flatnonzero(graph[q])
 
@@ -149,8 +163,10 @@ def _traverse_lc_orbit(graph: np.ndarray) -> bool:
 
         return new_graph
 
+    upper_indices = np.triu_indices(n, k=1)
+
     def _canonical_key(graph: np.ndarray) -> bytes:
-        return np.asarray(graph, dtype=np.uint8).tobytes()
+        return _upper_triangle_key(graph, upper_indices)
 
     def _is_bipartite(graph: np.ndarray) -> bool:
         graph = np.asarray(graph, dtype=bool)
@@ -179,7 +195,6 @@ def _traverse_lc_orbit(graph: np.ndarray) -> bool:
 
         return True
 
-    n = graph.shape[0]
     start = graph.copy()
     seen = {_canonical_key(start)}
     queue = deque([start])
