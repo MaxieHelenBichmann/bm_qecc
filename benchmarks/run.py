@@ -6,13 +6,21 @@ import argparse
 import csv
 import fnmatch
 import multiprocessing as mp
+import os
 import re
+import signal
+import subprocess
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from queue import Empty
-from time import perf_counter
+from time import perf_counter, sleep
+
+try:
+    import resource
+except ImportError:  # pragma: no cover - resource is Unix-only
+    resource = None
 
 import numpy as np
 
@@ -75,6 +83,8 @@ from .utils import (
 MEAS_STATS = list(range(3, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
 N_STATS = 10
 MAX_TOL_TIMEOUTS = 3
+MAX_TOL_MEMORY_ERRORS = 2
+MEMORY_POLL_INTERVAL_SECONDS = 0.2
 
 bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
 three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
@@ -124,8 +134,7 @@ class Result:
     seconds: float
     result: bool | None
     expected: bool | None
-    success: bool
-    error: str = ""
+    status: str = "ok"
 
 @dataclass(frozen=True)
 class Measurement:
@@ -146,6 +155,10 @@ class Statistic:
     mean: float
     stddev: float
     maximum: float
+    num_cases: int
+    num_successful: int
+    num_timeouts: int
+    num_memory_limited: int
 
 
 Algorithm = Callable[..., bool]
@@ -258,12 +271,101 @@ def max_n_lc_css(algorithm: str, positive: bool) -> int:
     return max(MEAS_STATS)
     
 
-def _algorithm_worker(algorithm: Algorithm, inputs: tuple[StabilizerCode, ...], queue: mp.Queue) -> None:
+def _algorithm_worker(
+    algorithm: Algorithm,
+    inputs: tuple[StabilizerCode, ...],
+    queue: mp.Queue,
+    memory_limit_bytes: int | None,
+) -> None:
     """Run one benchmark repeat in a child process."""
+    if hasattr(os, "setsid"):
+        os.setsid()
+    if memory_limit_bytes is not None:
+        _set_memory_limit(memory_limit_bytes)
     try:
         queue.put(("result", algorithm(*inputs)))
+    except MemoryError:
+        queue.put(("error", "MemoryError: exceeded memory limit"))
     except Exception as exc:  # noqa: BLE001
         queue.put(("error", f"{type(exc).__name__}: {exc}"))
+
+
+def _set_memory_limit(memory_limit_bytes: int) -> None:
+    """Limit address-space allocations in the worker process."""
+    if resource is None or not hasattr(resource, "RLIMIT_AS"):
+        return
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    new_hard = memory_limit_bytes if hard == resource.RLIM_INFINITY else min(hard, memory_limit_bytes)
+    new_soft = memory_limit_bytes if soft == resource.RLIM_INFINITY else min(soft, memory_limit_bytes)
+    if new_hard != resource.RLIM_INFINITY:
+        new_soft = min(new_soft, new_hard)
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (new_soft, new_hard))
+    except (OSError, ValueError):
+        # Some platforms reject lowering RLIMIT_AS below already-mapped memory.
+        # The parent-side RSS monitor remains active in that case.
+        pass
+
+
+def _read_rss_bytes(pid: int) -> int | None:
+    """Read resident memory usage for a process."""
+    status_path = Path(f"/proc/{pid}/status")
+    if status_path.exists():
+        try:
+            with status_path.open(encoding="utf-8") as file:
+                for line in file:
+                    if line.startswith("VmRSS:"):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            return int(parts[1]) * 1024
+        except OSError:
+            return None
+
+    try:
+        completed = subprocess.run(
+            ["ps", "-o", "rss=", "-p", str(pid)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=1,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    output = completed.stdout.strip()
+    if completed.returncode != 0 or not output:
+        return None
+    try:
+        return int(output.splitlines()[0].strip()) * 1024
+    except ValueError:
+        return None
+
+
+def _terminate_process_group(process: mp.Process) -> None:
+    """Terminate a benchmark worker and any subprocesses it spawned."""
+    if process.pid is None:
+        return
+    try:
+        if hasattr(os, "killpg"):
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+    except ProcessLookupError:
+        return
+    except OSError:
+        process.terminate()
+
+    process.join(5)
+    if process.is_alive():
+        try:
+            if hasattr(os, "killpg"):
+                os.killpg(process.pid, signal.SIGKILL)
+            else:
+                process.kill()
+        except ProcessLookupError:
+            return
+        except OSError:
+            process.kill()
+        process.join()
 
 
 def generated_stabilizer_pair(n: int, k: int, suffix: str) -> tuple[StabilizerCode, StabilizerCode] | None:
@@ -969,67 +1071,93 @@ def _run_algorithm_once(
     algorithm: Algorithm,
     inputs: tuple[StabilizerCode, ...],
     timeout: float | None,
+    memory_limit_bytes: int | None,
 ) -> tuple[float, bool | None, str]:
-    """Run one benchmark repeat, optionally killing it after timeout seconds."""
-    if timeout is None:
+    """Run one benchmark repeat, optionally killing it after timeout or memory pressure."""
+    if timeout is None and memory_limit_bytes is None:
         start = perf_counter()
         result = algorithm(*inputs)
-        return perf_counter() - start, result, ""
+        return perf_counter() - start, result, "ok"
 
     context = mp.get_context("fork") if "fork" in mp.get_all_start_methods() else mp.get_context()
     queue: mp.Queue = context.Queue()
-    process = context.Process(target=_algorithm_worker, args=(algorithm, inputs, queue))
+    process = context.Process(target=_algorithm_worker, args=(algorithm, inputs, queue, memory_limit_bytes))
 
     start = perf_counter()
+    deadline = None if timeout is None else start + timeout
     process.start()
-    process.join(timeout)
+    while process.is_alive():
+        now = perf_counter()
+        if deadline is not None and now >= deadline:
+            _terminate_process_group(process)
+            queue.close()
+            return timeout, None, "timeout"
+
+        rss_bytes = _read_rss_bytes(process.pid) if process.pid is not None else None
+        if rss_bytes is not None:
+            if memory_limit_bytes is not None and rss_bytes >= memory_limit_bytes:
+                elapsed = perf_counter() - start
+                _terminate_process_group(process)
+                queue.close()
+                return (
+                    elapsed,
+                    None,
+                    "memory_limit",
+                )
+
+        sleep_for = MEMORY_POLL_INTERVAL_SECONDS
+        if deadline is not None:
+            sleep_for = min(sleep_for, max(0.0, deadline - now))
+        process.join(sleep_for)
 
     if process.is_alive():
-        process.terminate()
-        process.join()
+        _terminate_process_group(process)
         queue.close()
-        return timeout, None, f"TimeoutError: exceeded {timeout:.6g}s"
+        return timeout or perf_counter() - start, None, "timeout"
 
     elapsed = perf_counter() - start
     try:
         kind, payload = queue.get_nowait()
     except Empty:
-        return elapsed, None, f"RuntimeError: child process exited with code {process.exitcode}"
+        return elapsed, None, "error"
     finally:
         queue.close()
 
     if kind == "error":
-        return elapsed, None, payload
+        status = "memory_limit" if payload.startswith("MemoryError:") else "error"
+        return elapsed, None, status
 
-    return elapsed, payload, ""
+    return elapsed, payload, "ok"
 
 
-def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int, timeout: float | None = None) -> Result:
-    """Run one algorithm on one case and return the average runtime."""
-    total_seconds = 0.0
-    last_result: bool | None = None
-    errors: list[str] = []
+def run_case(
+    algorithm_name: str,
+    algorithm: Algorithm,
+    case: Case,
+    timeout: float | None = None,
+    memory_limit_bytes: int | None = None,
+) -> Result:
+    """Run one algorithm on one case."""
     expected = case.expected_p if algorithm_name.startswith("pm") else (case.expected_lc if algorithm_name.startswith("lc") else None)
 
     try:
-        for _ in range(repeats):
-            seconds, result, error = _run_algorithm_once(algorithm, case.inputs, timeout)
-            total_seconds += seconds
-            if error:
-                errors.append(error)
-            else:
-                last_result = result
-        success = not errors and expected is not None and last_result == expected
+        seconds, result, status = _run_algorithm_once(
+            algorithm,
+            case.inputs,
+            timeout,
+            memory_limit_bytes,
+        )
+        if status == "ok" and expected is not None and result != expected:
+            status = "wrong"
         return Result(
             algorithm=algorithm_name,
             case=case.name,
             n=case.inputs[0].n,
             k=case.inputs[0].k,
-            seconds=total_seconds / repeats,
-            result=last_result,
+            seconds=seconds,
+            result=result,
             expected=expected,
-            success=success,
-            error="; ".join(errors),
+            status=status,
         )
     except Exception as exc:  # noqa: BLE001
         return Result(
@@ -1040,16 +1168,15 @@ def run_case(algorithm_name: str, algorithm: Algorithm, case: Case, repeats: int
             seconds=0.0,
             result=None,
             expected=expected,
-            success=False,
-            error=f"{type(exc).__name__}: {exc}",
+            status="error",
         )
 
 
 def run_raw_benchmarks(
     cases: Sequence[Case],
     algorithm_names: Sequence[str],
-    repeats: int,
     timeout: float | None = None,
+    memory_limit_bytes: int | None = None,
     verbose: bool = True,
 ) -> list[Result]:
     """Run selected algorithms on cases with the matching problem type."""
@@ -1065,7 +1192,9 @@ def run_raw_benchmarks(
                 continue
             if verbose:
                 print(f"    Running case: {case.name}...")
-            result_algorithm.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats, timeout))
+            result_algorithm.append(
+                run_case(algorithm_name, ALGORITHMS[algorithm_name], case, timeout, memory_limit_bytes)
+            )
 
         if verbose:
             print_results(result_algorithm)
@@ -1076,10 +1205,10 @@ def run_raw_benchmarks(
 
 def run_stat_benchmarks(
     algorithm_names: Sequence[str],
-    repeats: int,
     seed: int,
     output: Path,
     timeout: float | None = None,
+    memory_limit_bytes: int | None = None,
     verbose: bool = True,
     random: bool = False,
     nmin: int | None = None,
@@ -1097,34 +1226,38 @@ def run_stat_benchmarks(
                 print(f"    Running measurement for n={measurement.n} k={measurement.k}:")
             results: list[Result] = []
             timeout_counter = 0 # avoid running 10 seeds that run into timeouts either way
+            memory_counter = 0 # avoid running seeds that are expected to hit the same memory limit
 
             for case in measurement_cases:
                 if not case_supports_algorithm(case, algorithm_name):
                     continue
-                if timeout_counter >= MAX_TOL_TIMEOUTS:
+                if timeout_counter >= MAX_TOL_TIMEOUTS or memory_counter >= MAX_TOL_MEMORY_ERRORS:
                     break
                 if verbose:
                     print(f"        Running case: {case.name}...")
 
-                results.append(run_case(algorithm_name, ALGORITHMS[algorithm_name], case, repeats, timeout))
+                results.append(
+                    run_case(algorithm_name, ALGORITHMS[algorithm_name], case, timeout, memory_limit_bytes)
+                )
 
                 if result_timed_out(results[-1]):
                     timeout_counter += 1
+                if result_memory_limited(results[-1]):
+                    memory_counter += 1
 
             stat = compute_statistics(results, measurement)
 
-            if stat is not None:
-                stats_algorithm.append(stat)
-                write_stat(stat, seed=seed, output=output)
+            stats_algorithm.append(stat)
+            write_stat(stat, seed=seed, output=output, timeout=timeout, memory_limit_bytes=memory_limit_bytes)
 
         if verbose:
             print_statistics(stats_algorithm)
 
 def run_inv_benchmarks(
     pm: bool,
-    repeats: int,
     seed: int,
     timeout: float | None = None,
+    memory_limit_bytes: int | None = None,
     verbose: bool = True,
 ) -> list[Result]:
     """Run invariants on cases with the matching problem type."""
@@ -1141,7 +1274,7 @@ def run_inv_benchmarks(
             print(f"Running benchmark for invariant: {inv_name}")
         result_inv = []
         for case in cases:
-            result_inv.append(run_case(inv_name, INVS[inv_name], case, repeats, timeout))
+            result_inv.append(run_case(inv_name, INVS[inv_name], case, timeout, memory_limit_bytes))
 
         if verbose:
             print_results(result_inv)
@@ -1160,27 +1293,36 @@ def prefixed_output_path(output: Path, prefix: str) -> Path:
 
 def result_timed_out(result: Result) -> bool:
     """Return whether a result failed because at least one repeat timed out."""
-    return "TimeoutError:" in result.error
+    return result.status == "timeout"
 
 
-def compute_statistics(results: Sequence[Result], measurement: Measurement) -> Statistic | None:
+def result_memory_limited(result: Result) -> bool:
+    """Return whether a result failed because it hit the memory guard."""
+    return result.status == "memory_limit"
+
+
+def compute_statistics(results: Sequence[Result], measurement: Measurement) -> Statistic:
     """Compute mean and standard deviation of runtimes for each algorithm and case."""
     times = []
+    num_timeouts = 0
+    num_memory_limited = 0
 
     for result in results:
         if result.algorithm != measurement.algorithm:
             continue
 
-        if not result.success and not result_timed_out(result):
+        if result_timed_out(result):
+            num_timeouts += 1
+        elif result_memory_limited(result):
+            num_memory_limited += 1
+
+        if result.status not in {"ok", "timeout"}:
             print(f"Warning: Skipping failed case {result.case} for algorithm {result.algorithm} in statistics.")
             continue
 
         times.append(result.seconds)
-
-    if not times:
-        return None
     
-    mean = np.mean(times)
+    mean = float(np.mean(times)) if times else float("nan")
     stddev = np.std(times, ddof=1) if len(times) > 1 else 0.0
 
     return Statistic(
@@ -1188,10 +1330,28 @@ def compute_statistics(results: Sequence[Result], measurement: Measurement) -> S
         times=times,
         mean=mean,
         stddev=stddev,
-        maximum=max(times),
+        maximum=max(times) if times else float("nan"),
+        num_cases=len(results),
+        num_successful=sum(1 for result in results if result.status == "ok"),
+        num_timeouts=num_timeouts,
+        num_memory_limited=num_memory_limited,
     )
     
-def write_stat(stat: Statistic, seed: int, output: Path) -> None:
+def _metadata_row(seed: int, timeout: float | None, memory_limit_bytes: int | None) -> list[str | int | float]:
+    return [
+        seed,
+        "" if timeout is None else timeout,
+        "" if memory_limit_bytes is None else memory_limit_bytes,
+    ]
+
+
+def write_stat(
+    stat: Statistic,
+    seed: int,
+    output: Path,
+    timeout: float | None,
+    memory_limit_bytes: int | None,
+) -> None:
     """Append one benchmark statistic to CSV."""
     output.parent.mkdir(parents=True, exist_ok=True)
     row = {
@@ -1202,22 +1362,31 @@ def write_stat(stat: Statistic, seed: int, output: Path) -> None:
         "positive": stat.meta.positive,
         "density": stat.meta.density,
         "symmetry": stat.meta.symmetry,
-        "mean_seconds": f"{stat.mean:.9f}",
-        "stddev_seconds": f"{stat.stddev:.9f}",
-        "maximum_seconds": f"{stat.maximum:.9f}",
-        "num_times": f"{len(stat.times)}",
+        "mean_seconds": "" if np.isnan(stat.mean) else f"{stat.mean:.9f}",
+        "stddev_seconds": "" if np.isnan(stat.stddev) else f"{stat.stddev:.9f}",
+        "maximum_seconds": "" if np.isnan(stat.maximum) else f"{stat.maximum:.9f}",
+        "num_cases": stat.num_cases,
+        "num_successful": stat.num_successful,
+        "num_timeouts": stat.num_timeouts,
+        "num_memory_limited": stat.num_memory_limited,
     }
     write_header = not output.exists() or output.stat().st_size == 0
 
     with output.open("a", newline="", encoding="utf-8") as file:
         if write_header:
-            csv.writer(file).writerow([seed])
+            csv.writer(file).writerow(_metadata_row(seed, timeout, memory_limit_bytes))
         writer = csv.DictWriter(file, fieldnames=list(row.keys()))
         if write_header:
             writer.writeheader()
         writer.writerow(row)
 
-def write_bms(results: Sequence[Result], seed: int, output: Path) -> None:
+def write_bms(
+    results: Sequence[Result],
+    seed: int,
+    output: Path,
+    timeout: float | None,
+    memory_limit_bytes: int | None,
+) -> None:
     """Write benchmark results to CSV."""
     output.parent.mkdir(parents=True, exist_ok=True)
     rows = [
@@ -1229,8 +1398,7 @@ def write_bms(results: Sequence[Result], seed: int, output: Path) -> None:
             "seconds": f"{result.seconds:.9f}",
             "result": "" if result.result is None else result.result,
             "expected": "" if result.expected is None else result.expected,
-            "success": result.success,
-            "error": result.error,
+            "status": result.status,
         }
         for result in results
     ]
@@ -1239,7 +1407,7 @@ def write_bms(results: Sequence[Result], seed: int, output: Path) -> None:
         return
 
     with output.open("w", newline="", encoding="utf-8") as file:
-        csv.writer(file).writerow([seed])
+        csv.writer(file).writerow(_metadata_row(seed, timeout, memory_limit_bytes))
         writer = csv.DictWriter(file, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
@@ -1255,9 +1423,13 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
     print(f"Benchmark statistics:\n")
 
     for stat in [s for s in statistics if s.meta.positive] + [s for s in statistics if not s.meta.positive]:
+        mean = "--" if np.isnan(stat.mean) else f"{stat.mean:.6f}s"
+        stddev = "--" if np.isnan(stat.stddev) else f"{stat.stddev:.6f}s"
+        maximum = "--" if np.isnan(stat.maximum) else f"{stat.maximum:.6f}s"
         print(
             f"{stat.meta.algorithm:26} {'--' if stat.meta.name is None else stat.meta.name:11} n={stat.meta.n:<2} k={stat.meta.k:<2}   {'POS' if stat.meta.positive else 'NEG'} "
-            f"mean={stat.mean:.6f}s stddev={stat.stddev:.6f}s max={stat.maximum:.6f}s"
+            f"mean={mean} stddev={stddev} max={maximum} "
+            f"timeouts={stat.num_timeouts} memory={stat.num_memory_limited}"
         )
 
 def print_results(results: Sequence[Result]) -> None:
@@ -1269,13 +1441,44 @@ def print_results(results: Sequence[Result]) -> None:
     print(f"Benchmark results:\n")
 
     for result in results:
-        status = "ok" if result.success else "failed"
         print(
-            f"{status:6} {result.algorithm:26} {result.case:42} "
-            f"n={result.n:<2} k={result.k:<2} t={result.seconds:.6f}s"
+            f"{result.status:12} {result.algorithm:26} {result.case:42} "
+            f"n={result.n:<2} k={result.k:<2} t={result.seconds:.6f}s status={result.status}"
         )
-        if result.error:
-            print(f"       {result.error}")
+
+
+def parse_memory_limit(value: str) -> int:
+    """Parse human-readable memory sizes like 4096M, 32G, or raw bytes."""
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([kmgt]?i?b?|b)?\s*", value, re.IGNORECASE)
+    if match is None:
+        raise argparse.ArgumentTypeError("expected a size like 4096M, 32G, 16GiB, or raw bytes")
+
+    number = float(match.group(1))
+    unit = (match.group(2) or "b").lower()
+    multipliers = {
+        "b": 1,
+        "": 1,
+        "k": 1000,
+        "kb": 1000,
+        "m": 1000**2,
+        "mb": 1000**2,
+        "g": 1000**3,
+        "gb": 1000**3,
+        "t": 1000**4,
+        "tb": 1000**4,
+        "ki": 1024,
+        "kib": 1024,
+        "mi": 1024**2,
+        "mib": 1024**2,
+        "gi": 1024**3,
+        "gib": 1024**3,
+        "ti": 1024**4,
+        "tib": 1024**4,
+    }
+    bytes_value = int(number * multipliers[unit])
+    if bytes_value <= 0:
+        raise argparse.ArgumentTypeError("--memory-limit must be greater than 0")
+    return bytes_value
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -1284,7 +1487,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description=__doc__,
         epilog="Available algorithms: " + ", ".join(all_algorithm_names()),
     )
-    parser.add_argument("--repeats", type=int, default=1, help="Number of repetitions; the average runtime is recorded.")
     parser.add_argument(
         "--algorithm",
         action="append",
@@ -1302,6 +1504,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
     parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
     parser.add_argument("--timeout", type=float, default=None, help="Maximum seconds allowed for each repeat before it is stopped.")
+    parser.add_argument(
+        "--memory-limit",
+        type=parse_memory_limit,
+        default=None,
+        help=(
+            "Maximum memory for each benchmark child, e.g. 4096M, 32G, or 16GiB. "
+            "The child receives an address-space limit and is killed if observed RSS reaches the limit."
+        ),
+    )
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument(
         "--raw",
@@ -1342,8 +1553,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the benchmark CLI."""
     args = parse_args(argv)
-    if args.repeats < 1:
-        raise ValueError("--repeats must be at least 1.")
     if args.timeout is not None and args.timeout <= 0:
         raise ValueError("--timeout must be greater than 0.")
 
@@ -1352,27 +1561,37 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.output.exists():
             args.output.unlink()
             
-        run_stat_benchmarks(args.algorithm, args.repeats, args.seed, args.output, args.timeout, args.verbose, args.random, args.nmin, args.nmax)
+        run_stat_benchmarks(
+            args.algorithm,
+            args.seed,
+            args.output,
+            args.timeout,
+            args.memory_limit,
+            args.verbose,
+            args.random,
+            args.nmin,
+            args.nmax,
+        )
         return 0
     
     if args.mode == "inv":
         print(f"INVARIANT BENCHMARKS")
             
-        result_pm = run_inv_benchmarks(True, args.repeats, args.seed, args.timeout, args.verbose)
-        result_lc = run_inv_benchmarks(False, args.repeats, args.seed, args.timeout, args.verbose)
-        write_bms(result_pm, args.seed, prefixed_output_path(args.output, "pm"))
-        write_bms(result_lc, args.seed, prefixed_output_path(args.output, "lc"))
+        result_pm = run_inv_benchmarks(True, args.seed, args.timeout, args.memory_limit, args.verbose)
+        result_lc = run_inv_benchmarks(False, args.seed, args.timeout, args.memory_limit, args.verbose)
+        write_bms(result_pm, args.seed, prefixed_output_path(args.output, "pm"), args.timeout, args.memory_limit)
+        write_bms(result_lc, args.seed, prefixed_output_path(args.output, "lc"), args.timeout, args.memory_limit)
         return 0
  
     print(f"RAW BENCHMARKS for {"random" if args.random else "known"} cases")
     results = run_raw_benchmarks(
         default_cases(seed=args.seed, random=args.random, nmin=args.nmin, nmax=args.nmax),
         args.algorithm,
-        args.repeats,
         timeout=args.timeout,
+        memory_limit_bytes=args.memory_limit,
         verbose=args.verbose,
     )
-    write_bms(results, args.seed, args.output)
+    write_bms(results, args.seed, args.output, args.timeout, args.memory_limit)
     return 0
 
 if __name__ == "__main__":
