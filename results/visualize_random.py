@@ -26,6 +26,8 @@ from visual_utils import (
     stat_file_kind,
 )
 
+GRID_MAX_SECONDS = 5 * 60
+
 
 @dataclass(frozen=True)
 class PlotSeries:
@@ -354,9 +356,6 @@ def plot_random_series(
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
-    if timeout_seconds is not None:
-        _, upper = ax.get_ylim()
-        ax.set_ylim(top=max(upper, timeout_seconds * 1.06))
     if case_positions is None:
         configure_xaxis_ticks(axis, ax)
     else:
@@ -374,7 +373,7 @@ def plot_random_series(
             ha="right",
         )
     draw_runtime_guides(ax, timeout_seconds)
-    ax.grid(True, which="major", alpha=0.15)
+    ax.grid(ax.get_ylim()[1] <= GRID_MAX_SECONDS, which="major", alpha=0.15)
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(handles, labels)

@@ -323,16 +323,12 @@ def draw_minute_guides(ax) -> None:
 
 
 def format_memory_limit(memory_limit_bytes: int | None) -> str | None:
-    """Format a byte count compactly for plot titles."""
+    """Format a byte count in GiB for plot titles."""
     if memory_limit_bytes is None:
         return None
 
-    value = float(memory_limit_bytes)
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if abs(value) < 1024.0 or unit == "TiB":
-            return f"{value:g} {unit}" if unit == "B" else f"{value:.3g} {unit}"
-        value /= 1024.0
-    return f"{memory_limit_bytes} B"
+    gib_value = float(memory_limit_bytes) / (1024.0 ** 3)
+    return f"{gib_value:.3g} GiB"
 
 
 def metadata_title_suffix(metadata: StatMetadata) -> str:

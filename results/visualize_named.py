@@ -23,6 +23,8 @@ from visual_utils import (
     read_stats_csv_with_metadata,
 )
 
+GRID_MAX_SECONDS = 5 * 60
+
 
 @dataclass(frozen=True)
 class PlotSeries:
@@ -222,9 +224,6 @@ def plot_named_series(
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
-    if timeout_seconds is not None:
-        _, upper = ax.get_ylim()
-        ax.set_ylim(top=max(upper, timeout_seconds * 1.06))
     configure_xaxis_ticks(axis, ax)
     draw_runtime_guides(ax, timeout_seconds)
     xlim = ax.get_xlim()
@@ -245,7 +244,7 @@ def plot_named_series(
                 bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "none", "alpha": 0.78},
                 arrowprops={"arrowstyle": "-", "color": label.color, "alpha": 0.45, "lw": 0.6},
             )
-    ax.grid(True, which="major", alpha=0.15)
+    ax.grid(ylim[1] <= GRID_MAX_SECONDS, which="major", alpha=0.15)
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(handles, labels)
