@@ -19,9 +19,10 @@ from visual_utils import (
     StatRow,
     add_common_stat_filters,
     configure_xaxis_ticks,
-    draw_minute_guides,
+    draw_runtime_guides,
+    metadata_title_suffix,
     positive_filter,
-    read_stats_csv,
+    read_stats_csv_with_metadata,
     stat_file_kind,
 )
 
@@ -243,7 +244,7 @@ def configure_axis_constraints(args: argparse.Namespace, parser: argparse.Argume
         parser.error(f"--x {args.x} requires both --n and --k.")
 
 
-def fixed_parameter_title(args: argparse.Namespace, rows: Sequence[StatRow]) -> str:
+def fixed_parameter_title(args: argparse.Namespace, rows: Sequence[StatRow], metadata_suffix: str = "") -> str:
     """Build a title line that describes fixed dimension parameters."""
     algorithms = sorted({row.algorithm for row in rows})
     single_algorithm = algorithms[0] if len(algorithms) == 1 else None
@@ -267,6 +268,8 @@ def fixed_parameter_title(args: argparse.Namespace, rows: Sequence[StatRow]) -> 
     title_parts = [title]
     if context:
         title_parts.append(context)
+    if metadata_suffix:
+        title_parts.append(metadata_suffix)
     return "\n".join(title_parts)
 
 
@@ -276,6 +279,7 @@ def plot_random_series(
     output: Path | None,
     title: str | None,
     show_theory: bool,
+    timeout_seconds: float | None,
     case_positions: dict[tuple[int, int], int] | None = None,
 ) -> None:
     """Render randomized-code curves with mean/stddev and maximum markers."""
@@ -301,6 +305,11 @@ def plot_random_series(
             for row, label_x in zip(item.rows, x)
             if row.maximum_seconds is not None
         ]
+        memory_limited_points = [
+            (label_x, row.mean_seconds)
+            for row, label_x in zip(item.rows, x)
+            if row.num_memory_limited > 0
+        ]
 
         ax.errorbar(
             x,
@@ -321,6 +330,20 @@ def plot_random_series(
         if maximum_points:
             maximum_x, maximum = zip(*maximum_points)
             ax.scatter(maximum_x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
+        if memory_limited_points:
+            memory_x, memory_y = zip(*memory_limited_points)
+            ax.scatter(
+                memory_x,
+                memory_y,
+                s=110,
+                facecolors="none",
+                edgecolors="#d62728",
+                linewidths=1.8,
+                alpha=0.9,
+                marker="o",
+                label="_nolegend_",
+                zorder=4,
+            )
 
     if case_positions is None:
         ax.set_xlabel(AXIS_LABELS[axis])
@@ -331,6 +354,9 @@ def plot_random_series(
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
+    if timeout_seconds is not None:
+        _, upper = ax.get_ylim()
+        ax.set_ylim(top=max(upper, timeout_seconds * 1.06))
     if case_positions is None:
         configure_xaxis_ticks(axis, ax)
     else:
@@ -347,7 +373,7 @@ def plot_random_series(
             rotation=45,
             ha="right",
         )
-    draw_minute_guides(ax)
+    draw_runtime_guides(ax, timeout_seconds)
     ax.grid(True, which="major", alpha=0.15)
     handles, labels = ax.get_legend_handles_labels()
     if handles:
@@ -391,7 +417,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     configure_axis_constraints(args, parser)
 
-    all_rows = read_stats_csv(args.csv)
+    stat_csv = read_stats_csv_with_metadata(args.csv)
+    all_rows = stat_csv.rows
     if not all_rows:
         raise SystemExit("No rows found in the statistics CSV.")
     if stat_file_kind(all_rows) == "named":
@@ -413,8 +440,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         series,
         axis=args.x,
         output=args.output,
-        title=fixed_parameter_title(args, rows),
+        title=fixed_parameter_title(args, rows, metadata_title_suffix(stat_csv.metadata)),
         show_theory=args.theory and case_positions is None,
+        timeout_seconds=stat_csv.metadata.timeout_seconds,
         case_positions=case_positions,
     )
     return 0

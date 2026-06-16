@@ -17,9 +17,10 @@ from visual_utils import (
     StatRow,
     add_common_stat_filters,
     configure_xaxis_ticks,
-    draw_minute_guides,
+    draw_runtime_guides,
+    metadata_title_suffix,
     positive_filter,
-    read_stats_csv,
+    read_stats_csv_with_metadata,
 )
 
 
@@ -148,7 +149,13 @@ def build_series(
     ]
 
 
-def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | None, title: str) -> None:
+def plot_named_series(
+    series: Sequence[PlotSeries],
+    axis: Axis,
+    output: Path | None,
+    title: str,
+    timeout_seconds: float | None,
+) -> None:
     """Render named cases with mean/stddev, maximum markers, and direct labels."""
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
     point_labels: list[PointLabel] = []
@@ -166,6 +173,11 @@ def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | N
             (label_x, row.maximum_seconds)
             for row, label_x in zip(item.rows, x)
             if row.maximum_seconds is not None
+        ]
+        memory_limited_points = [
+            (label_x, row.mean_seconds)
+            for row, label_x in zip(item.rows, x)
+            if row.num_memory_limited > 0
         ]
 
         ax.errorbar(
@@ -187,6 +199,20 @@ def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | N
         if maximum_points:
             maximum_x, maximum = zip(*maximum_points)
             ax.scatter(maximum_x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
+        if memory_limited_points:
+            memory_x, memory_y = zip(*memory_limited_points)
+            ax.scatter(
+                memory_x,
+                memory_y,
+                s=110,
+                facecolors="none",
+                edgecolors="#d62728",
+                linewidths=1.8,
+                alpha=0.9,
+                marker="o",
+                label="_nolegend_",
+                zorder=4,
+            )
         for row, label_x in zip(item.rows, x):
             if row.name is None:
                 continue
@@ -196,8 +222,11 @@ def plot_named_series(series: Sequence[PlotSeries], axis: Axis, output: Path | N
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
     ax.set_ylim(bottom=0)
+    if timeout_seconds is not None:
+        _, upper = ax.get_ylim()
+        ax.set_ylim(top=max(upper, timeout_seconds * 1.06))
     configure_xaxis_ticks(axis, ax)
-    draw_minute_guides(ax)
+    draw_runtime_guides(ax, timeout_seconds)
     xlim = ax.get_xlim()
     ylim = ax.get_ylim()
     for cluster in clustered_point_labels(point_labels, xlim):
@@ -242,19 +271,22 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def plot_title(rows: Sequence[StatRow]) -> str:
+def plot_title(rows: Sequence[StatRow], metadata_suffix: str = "") -> str:
     """Build a title that preserves the selected algorithm context."""
     algorithms = sorted({row.algorithm for row in rows})
     title = "Structured codes benchmark"
     if len(algorithms) == 1:
         title = f"{title}: {algorithms[0]}"
+    if metadata_suffix:
+        title = f"{title}\n{metadata_suffix}"
     return title
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the named-code visualization CLI."""
     args = build_parser().parse_args(argv)
-    all_rows = read_stats_csv(args.csv)
+    stat_csv = read_stats_csv_with_metadata(args.csv)
+    all_rows = stat_csv.rows
     if not all_rows:
         raise SystemExit("No rows found in the statistics CSV.")
 
@@ -268,7 +300,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         include_positive=args.positive == "all",
         include_algorithm=len({row.algorithm for row in rows}) > 1,
     )
-    plot_named_series(series, axis=args.x, output=args.output, title=plot_title(rows))
+    plot_named_series(
+        series,
+        axis=args.x,
+        output=args.output,
+        title=plot_title(rows, metadata_title_suffix(stat_csv.metadata)),
+        timeout_seconds=stat_csv.metadata.timeout_seconds,
+    )
     return 0
 
 
