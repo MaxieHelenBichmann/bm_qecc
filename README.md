@@ -128,18 +128,25 @@ The benchmark runner has three mutually exclusive modes:
 - `--stats` which runs a suite of multiple codes of certain fixed dimensions, but different random instances, and then calculates statistics out of the different seeded instances *(good for broader algorithm evaluation/edge cases)*
 - `--inv` which runs a fixed suite as input for all invariant-checker algorithms *(good for invariant comparison)*
 
-`--random` and `--algorithm` can only be used with raw and stats mode.
+$\rightarrow$ `--random` and `--algorithm` can only be used with raw and stats mode.
 
-Other parameters are more straightforward, and could be used like this: 
+Apart from the hardcoded limits for n for each algorithm (they are in place because running a bruteforce algorithm on a code with n=25 is simply unrealistic and only wastes resources), the limits of each run can be customized with `--nmin` and `--nmax`.
+
+I included two optional guards:
+- `--timeout` which restricts the algorithm execution in the time dimension
+- `--memory-limit` which restricts the algorithm execution in the space dimension
+
+Other parameters (`--output`, `--seed`, `--verbose`) are more straightforward, example commands are:
+
 ```bash
-python3 -m benchmarks.run --repeats 4 --seed 69 --output results/bm.csv --verbose --timeout 200
+python3 -m benchmarks.run --seed 69 --output results/bm.csv --verbose --timeout 200
 
 python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
 python3 -m benchmarks.run --algorithm 'pm_css*'
 
-python3 -m benchmarks.run --raw --random
+python3 -m benchmarks.run --raw --random --nmin 5 --nmax 8
 python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose
-python3 -m benchmarks.run --inv --verbose --output results/invariants.csv --timeout 20
+python3 -m benchmarks.run --inv --verbose --output results/invariants.csv --timeout 20 --memory-limit 512M
 ```
 
 Run more detailed analysis, optionally:
