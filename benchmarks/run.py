@@ -1429,7 +1429,7 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
         print(
             f"{stat.meta.algorithm:26} {'--' if stat.meta.name is None else stat.meta.name:11} n={stat.meta.n:<2} k={stat.meta.k:<2}   {'POS' if stat.meta.positive else 'NEG'} "
             f"mean={mean} stddev={stddev} max={maximum} "
-            f"timeouts={stat.num_timeouts} memory={stat.num_memory_limited}"
+            f"timeouts={stat.num_timeouts} memory={stat.num_memory_limited} ntotal={stat.num_cases} nsuccess={stat.num_successful}"
         )
 
 def print_results(results: Sequence[Result]) -> None:
