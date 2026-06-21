@@ -373,7 +373,10 @@ def plot_random_series(
             ha="right",
         )
     draw_runtime_guides(ax, timeout_seconds)
-    ax.grid(ax.get_ylim()[1] <= GRID_MAX_SECONDS, which="major", alpha=0.15)
+    if ax.get_ylim()[1] <= GRID_MAX_SECONDS:
+        ax.grid(which="major", alpha=0.15)
+    else:
+        ax.grid(False, which="major")
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(handles, labels)

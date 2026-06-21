@@ -244,7 +244,10 @@ def plot_named_series(
                 bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "none", "alpha": 0.78},
                 arrowprops={"arrowstyle": "-", "color": label.color, "alpha": 0.45, "lw": 0.6},
             )
-    ax.grid(ylim[1] <= GRID_MAX_SECONDS, which="major", alpha=0.15)
+    if ylim[1] <= GRID_MAX_SECONDS:
+        ax.grid(which="major", alpha=0.15)
+    else:
+        ax.grid(False, which="major")
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(handles, labels)
