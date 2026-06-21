@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import multiprocessing
-from collections import defaultdict, deque
-from itertools import product, combinations
+from collections import deque
+from itertools import product
 
 from typing import TYPE_CHECKING
 

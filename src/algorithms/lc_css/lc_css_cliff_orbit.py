@@ -145,10 +145,10 @@ class RedStabGraph:
     
     def apply_h(self, u:int) -> RedStabGraph:
         result = self.copy()
-        l, s, m = result.vertices[u]
+        lp, s, m = result.vertices[u]
         non_solid_n = [a for a in result.neighbors(u) if not result.vertices[a][1]]
 
-        if s and not l and not non_solid_n:  # T(i)
+        if s and not lp and not non_solid_n:  # T(i)
             result.flip_fill(u)
 
             if not result.is_valid():
@@ -156,7 +156,7 @@ class RedStabGraph:
             
             return result
         
-        if s and l and not non_solid_n: # T(ii)
+        if s and lp and not non_solid_n: # T(ii)
             result.local_complementation(u)
 
             for n in result.neighbors(u):
@@ -171,7 +171,7 @@ class RedStabGraph:
 
             return result
         
-        if s and not l and non_solid_n: # T(iii)
+        if s and not lp and non_solid_n: # T(iii)
             n = non_solid_n[0]
 
             result.flip_fill(n)
@@ -194,7 +194,7 @@ class RedStabGraph:
             
             return result
    
-        if s and l and non_solid_n: # T(iv)
+        if s and lp and non_solid_n: # T(iv)
             n = non_solid_n[0]
 
             init_m = result.vertices[n][2]
@@ -233,7 +233,7 @@ class RedStabGraph:
 
     def apply_s(self, u:int) -> RedStabGraph:
         result = self.copy()
-        l, s, m = result.vertices[u]
+        _, s, m = result.vertices[u]
 
         if s: # T(vi)
             result.advance_loop(u)
@@ -257,7 +257,7 @@ class RedStabGraph:
 
     def apply_z(self, u:int) -> RedStabGraph:
         result = self.copy()
-        l, s, m = result.vertices[u]
+        lp, s, _ = result.vertices[u]
 
         if s: # T5
             result.flip_sign(u)
@@ -271,7 +271,7 @@ class RedStabGraph:
             for n in result.neighbors(u): # T6
                 result.flip_sign(n)
 
-            if l:
+            if lp:
                 result.flip_sign(u)
 
             if not result.is_valid():

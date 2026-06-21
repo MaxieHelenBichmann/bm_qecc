@@ -10,7 +10,6 @@ from itertools import product
 from collections import deque
 
 import numpy as np
-import pyzx as zx
 import ldpc.mod2.mod2_numpy as mod2
 
 from ...core.stabilizer_code import StabilizerCode
