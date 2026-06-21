@@ -197,7 +197,8 @@ def preserved_punctured_hull_weight_enumerator(Hx1: np.ndarray, Hz1: np.ndarray,
             return False
         if len(partition_c1[key1]) != len(partition_c2[key2]):
             return False
-
+        
+    return True
 
 # ----------------------------------------------------------------------------------------------------
 # algorithms

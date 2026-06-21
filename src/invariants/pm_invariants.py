@@ -145,7 +145,7 @@ def preserved_pauli_weight_enumerator(c1: StabilizerCode, c2: StabilizerCode) ->
         X = M[:, :n]
         Z = M[:, n:]
 
-        enumerator = Counter()
+        enumerator : Counter= Counter()
         enumerator[(0,0,0)] = 1
 
         x_word = np.zeros(n, dtype=np.uint8)

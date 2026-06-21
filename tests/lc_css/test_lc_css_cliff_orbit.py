@@ -34,7 +34,7 @@ def _red_graph(
 
 
 def _assert_adjacency_matches_edges(graph: RedStabGraph) -> None:
-    expected = [set() for _ in range(graph.n + graph.k)]
+    expected : list[set[int]] = [set() for _ in range(graph.n + graph.k)]
     for u, v in graph.edges:
         expected[u].add(v)
         expected[v].add(u)

@@ -17,7 +17,7 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the number of logical qubits is preserved, which is a necessary condition for LC-equivalence."""
     return c1.k == c2.k
 
-def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode, max_subset_size: int = None) -> bool:
+def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode, max_subset_size: int | None = None) -> bool:
     """Check whether the r = 2 local weight distribution is preserved, which is a necessary condition for LC-equivalence.
 
     for each w^1, w^2, w^12 ⊆ {1, ..., n}: 
@@ -86,7 +86,7 @@ def preserved_local_weight_distribution(c1: StabilizerCode, c2: StabilizerCode, 
     
     return True
 
-def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode, max_subset_size: int = None) -> bool:
+def preserved_low_degree_local_invariant(c1: StabilizerCode, c2: StabilizerCode, max_subset_size: int | None = None) -> bool:
     """Check whether the r = 2 local invariant is preserved, which is a necessary condition for LC-equivalence.
 
     for each A ⊆ {1, ..., n}: 

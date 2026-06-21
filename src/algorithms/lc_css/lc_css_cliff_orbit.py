@@ -230,6 +230,8 @@ class RedStabGraph:
         if not s: # T(v)
             result.flip_fill(u)
             return result
+        
+        return result
 
     def apply_s(self, u:int) -> RedStabGraph:
         result = self.copy()
@@ -337,6 +339,8 @@ class RedStabGraph:
                 raise ValueError("Resulting graph is not reduced, something went wrong.")
             
             return result
+        
+        return result
 
 
     def equivalent_graphs(self, seen: set[GraphKey]) -> bool:
@@ -620,7 +624,7 @@ def _traverse_cliff_orbit(graph: RedStabGraph) -> bool:
     nr = graph.n + graph.k
     n = graph.n
     k = graph.k
-    seen = set()
+    seen : set[GraphKey] = set()
     queue = deque([graph.copy()])
 
     while queue:

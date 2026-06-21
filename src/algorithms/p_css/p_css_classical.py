@@ -231,7 +231,6 @@ def _iter_permutations(canon1: np.ndarray, canon2: np.ndarray, can_to_g1: list[l
         return
 
     for p1 in can_to_g1:
-        p1 = tuple(p1)
         for p2 in can_to_g2:
             yield _compose(p1, _inverse_perm(p2))
 

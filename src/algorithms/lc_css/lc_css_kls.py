@@ -629,14 +629,12 @@ def _hk_normal_form(graph: GSLC) -> None:
         if graph.vertices[x][0] not in ([], ["H"], ["S"]):
             raise ValueError(f"After cleaning up SH: Expected only I, S, H decorations, but got: {graph.vertices[x][0]}.")
 
-def _kls_normal_form(graph: GSLC) -> None | True:
+def _kls_normal_form(graph: GSLC) -> None:
     """Additional requirements KLS normal form:
     1.) input nodes have no non-I LC decoration, and no edges between input nodes
     2.) the input-output adjacency matrix is in RREF
     3.) the pivot columns of the input-output adjacency matrix have no non-I LC decorations, and no edges between pivot vertices
     """
-    witness = False
-
     # 1.) set input vertices to have no decoration and no edges
     def _strip_input() -> None:
         for q in range(graph.k):
@@ -789,12 +787,9 @@ def _kls_normal_form(graph: GSLC) -> None | True:
     adj, _ = _rref_no_column_swaps(adj)
     _set_io_edges(adj)
 
-    if witness:
-        return True
-
 def _traverse_lc_orbit(graph: GSLC) -> bool:
     """Traverse LC orbit and re-canonicalize to KLS normal form at each step"""
-    def _canonical_key(g: GSLC) -> bytes:
+    def _canonical_key(g: GSLC) -> tuple[int, int, bytes, tuple[tuple[tuple[str, ...], bool], ...]]:
         adj_key = g.get_upper_adjacency_key()
         vertex_key = tuple((tuple(word), z) for word, z in g.vertices)
         return (g.n, g.k, adj_key, vertex_key)

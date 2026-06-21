@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import multiprocessing as mp
+import queue
 
 from benchmarks.utils import (
     RandomizeError,
@@ -37,7 +38,7 @@ def _run_carbon_peq(seed: int, out: mp.Queue) -> None:
     out.put(are_peq_stab_classical(code1, code2))
 
 def assert_not_false_within_timeout(seed: int, timeout: float = 30.0) -> None:
-    out = mp.Queue()
+    out : mp.Queue = mp.Queue()
     proc = mp.Process(target=_run_carbon_peq, args=(seed, out))
     proc.start()
     proc.join(timeout)
@@ -52,7 +53,7 @@ def assert_not_false_within_timeout(seed: int, timeout: float = 30.0) -> None:
 
     try:
         result = out.get_nowait()
-    except mp.Queue.Empty:
+    except queue.Empty:
         pytest.fail("are_peq_stab_classical exited without returning a result")
 
     assert result is True

@@ -357,7 +357,7 @@ def _compute_canonical_form(matrix: np.ndarray, cells: list[list[int]]) -> np.nd
 
         # Prefix pruning.
 
-        if best_matrix is not None and i > 0:
+        if best_prefix_keys is not None and i > 0:
             best_prefix = best_prefix_keys[i]
 
             if current_prefix > best_prefix: # prune this branch, since the canonical form must be lexicographically minimal
