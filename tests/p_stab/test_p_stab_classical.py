@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pytest
 import multiprocessing as mp
 import queue
+
+import numpy as np
+import pytest
 
 from benchmarks.utils import (
     RandomizeError,

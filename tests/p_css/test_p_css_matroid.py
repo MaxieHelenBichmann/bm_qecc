@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import ldpc.mod2.mod2_numpy as mod2
 
 from benchmarks.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
 from src.algorithms.p_css.p_css_matroid import _circuits_binary_matroid, _graph_from_circuits, are_peq_css_matroid
@@ -26,8 +27,6 @@ def test_circuits_binary_matroid_simple_dependency() -> None:
 
 def test_circuits_binary_matroid_matches_direct_enumeration() -> None:
     def direct_circuits(matrix: np.ndarray) -> set[int]:
-        import ldpc.mod2.mod2_numpy as mod2
-
         def support_as_mask(vector: np.ndarray) -> int:
             support = 0
             for col in np.flatnonzero(vector):
