@@ -13,3 +13,5 @@ results/*
 *sandbox*
 
 data/random*.txt
+
+.DS_Store
