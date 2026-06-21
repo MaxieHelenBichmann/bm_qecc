@@ -307,23 +307,11 @@ def _set_memory_limit(memory_limit_bytes: int) -> None:
         pass
 
 
-def _read_rss_bytes(pid: int) -> int | None:
-    """Read resident memory usage for a process."""
-    status_path = Path(f"/proc/{pid}/status")
-    if status_path.exists():
-        try:
-            with status_path.open(encoding="utf-8") as file:
-                for line in file:
-                    if line.startswith("VmRSS:"):
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            return int(parts[1]) * 1024
-        except OSError:
-            return None
-
+def _read_process_group_rss_bytes(process_group_id: int) -> int | None:
+    """Read the combined resident memory usage of a process group."""
     try:
         completed = subprocess.run(
-            ["ps", "-o", "rss=", "-p", str(pid)],
+            ["ps", "-o", "rss=", "-g", str(process_group_id)],
             check=False,
             capture_output=True,
             text=True,
@@ -331,13 +319,17 @@ def _read_rss_bytes(pid: int) -> int | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    output = completed.stdout.strip()
-    if completed.returncode != 0 or not output:
+    if completed.returncode != 0:
         return None
-    try:
-        return int(output.splitlines()[0].strip()) * 1024
-    except ValueError:
-        return None
+
+    rss_values_kib: list[int] = []
+    for line in completed.stdout.splitlines():
+        try:
+            rss_values_kib.append(int(line.strip()))
+        except ValueError:
+            continue
+
+    return sum(rss_values_kib) * 1024 if rss_values_kib else None
 
 
 def _terminate_process_group(process: mp.Process) -> None:
@@ -1093,7 +1085,9 @@ def _run_algorithm_once(
             queue.close()
             return timeout, None, "timeout"
 
-        rss_bytes = _read_rss_bytes(process.pid) if process.pid is not None else None
+        # The worker starts a new process group, so this includes subprocesses
+        # such as GAP in pm_stb_aut as well as the Python worker itself.
+        rss_bytes = _read_process_group_rss_bytes(process.pid) if process.pid is not None else None
         if rss_bytes is not None:
             if memory_limit_bytes is not None and rss_bytes >= memory_limit_bytes:
                 elapsed = perf_counter() - start
@@ -1557,7 +1551,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ValueError("--timeout must be greater than 0.")
 
     if args.mode == "stats":
-        print(f"STATISTICAL BENCHMARKS for {"random" if args.random else "known"} cases")
+        s = "random" if args.random else "known"
+        print(f"STATISTICAL BENCHMARKS for {s} cases")
         if args.output.exists():
             args.output.unlink()
             
