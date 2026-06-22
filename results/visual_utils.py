@@ -20,6 +20,8 @@ AXIS_LABELS: dict[Axis, str] = {
     "s": "s [symmetry]",
 }
 
+MEMORY_LIMIT_COLOR = "#d62728"
+
 
 @dataclass(frozen=True)
 class StatMetadata:

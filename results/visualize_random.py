@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,7 @@ from visual_utils import (
     AXIS_LABELS,
     COLOR_FAMILIES_NEG,
     COLOR_FAMILIES_POS,
+    MEMORY_LIMIT_COLOR,
     PlotColors,
     Axis,
     StatRow,
@@ -116,8 +118,12 @@ def plot_boundary_fits(series: Sequence[PlotSeries], axis: Axis, ax) -> None:
         if boundary_function is None or len(rows) < 2:
             continue
 
-        x = np.asarray([row.axis_value(axis) for row in rows], dtype=float)
-        y = np.asarray([row.mean_seconds for row in rows], dtype=float)
+        finite_rows = [row for row in rows if math.isfinite(row.mean_seconds)]
+        if len(finite_rows) < 2:
+            continue
+
+        x = np.asarray([row.axis_value(axis) for row in finite_rows], dtype=float)
+        y = np.asarray([row.mean_seconds for row in finite_rows], dtype=float)
         if len(set(x)) < 2:
             continue
 
@@ -310,7 +316,12 @@ def plot_random_series(
         memory_limited_points = [
             (label_x, row.mean_seconds)
             for row, label_x in zip(item.rows, x)
-            if row.num_memory_limited > 0
+            if row.num_memory_limited > 0 and math.isfinite(row.mean_seconds)
+        ]
+        memory_only_x = [
+            label_x
+            for row, label_x in zip(item.rows, x)
+            if row.num_memory_limited > 0 and not math.isfinite(row.mean_seconds)
         ]
 
         ax.errorbar(
@@ -339,12 +350,22 @@ def plot_random_series(
                 memory_y,
                 s=110,
                 facecolors="none",
-                edgecolors="#d62728",
+                edgecolors=MEMORY_LIMIT_COLOR,
                 linewidths=1.8,
                 alpha=0.9,
                 marker="o",
                 label="_nolegend_",
                 zorder=4,
+            )
+        for line_x in memory_only_x:
+            ax.axvline(
+                line_x,
+                color=MEMORY_LIMIT_COLOR,
+                linewidth=1.8,
+                linestyle="--",
+                alpha=0.9,
+                label="_nolegend_",
+                zorder=2,
             )
 
     if case_positions is None:
