@@ -109,7 +109,7 @@ run_algo() {
     fi
 
     echo "Starting ${algorithm_name}"
-    python3 -m benchmarks.run \
+    exec python3 -m benchmarks.run \
         --stats \
         --algorithm "${algorithm_name}" \
         --timeout 5400 \
@@ -122,18 +122,37 @@ run_algo() {
         2>"${output_base}.err"
 }
 
+wait_for_one() {
+    local finished_pid
+    local wait_status=0
+    local pid
+    local remaining_pids=()
+
+    wait -n -p finished_pid "${pids[@]}" || wait_status=$?
+    if (( wait_status != 0 && status == 0 )); then
+        status=$wait_status
+    fi
+
+    for pid in "${pids[@]}"; do
+        if [[ "$pid" != "$finished_pid" ]]; then
+            remaining_pids+=("$pid")
+        fi
+    done
+    pids=("${remaining_pids[@]}")
+}
+
+# Keep a fixed-size pool, refilling the first slot freed by any completed job.
 for algo in "${algorithms[@]}"; do
     while (( ${#pids[@]} >= max_jobs )); do
-        wait "${pids[0]}" || status=$?
-        pids=("${pids[@]:1}")
+        wait_for_one
     done
 
     run_algo "$algo" &
     pids+=("$!")
 done
 
-for pid in "${pids[@]}"; do
-    wait "$pid" || status=$?
+while (( ${#pids[@]} > 0 )); do
+    wait_for_one
 done
 
 exit "$status"
