@@ -89,28 +89,47 @@ MEMORY_POLL_INTERVAL_SECONDS = 0.2
 bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
 three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
 steane = CSSCode.from_file("data/steane")
-five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
 carbon = CSSCode.from_file("data/carbon")
 golay = CSSCode.from_file("data/golay")
 hamming_15 = CSSCode.from_file("data/hamming_15")
+hamming_31 = CSSCode.from_file("data/hamming_31")
 rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
 shor = CSSCode.from_file("data/shor")
 tetrahedral = CSSCode.from_file("data/tetrahedral")
-bb_144 = CSSCode.from_file("data/bb_144")
 bring = CSSCode.from_file("data/bring")
+coco_488 = CSSCode.from_file("data/coco_488") 
+coco_666 = CSSCode.from_file("data/coco_666") 
+bb_72 = CSSCode.from_file("data/bb_72")
+bb_90 = CSSCode.from_file("data/bb_90")
+bb_108 = CSSCode.from_file("data/bb_108")
+bb_144 = CSSCode.from_file("data/bb_144")
+mqt_30_6_5 = CSSCode.from_file("data/mqt_30_6_5")
+
+five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
+gottesman = StabilizerCode.from_file("data/eight_qubit_gottesman")
+fifteen_qubit_optimal = StabilizerCode.from_file("data/fifteen_qubit_optimal")
 
 NAMED_CODES = [
             ("bell", bell_pair), # n = 2 , k = 0
             ("3q_rep", three_bit_repetition), # n = 3 , k = 1
             ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
             ("steane", steane), # n = 7 , k = 1
+            ("gottesman", gottesman), # n = 8 , k = 3
             ("shor", shor),  # n = 9 , k = 1
             ("carbon", carbon), # n = 12 , k = 2
             ("tetrahedral", tetrahedral), # n = 15 , k = 1
+            ("15q_optimal", fifteen_qubit_optimal), # n = 15 , k = 3
             ("hamming_15", hamming_15), # n = 15 , k = 7
             ("golay", golay),  # n = 23 , k = 1
             ("rot_surf_d5", rotated_surface_d5), # n = 25 , k = 1
+            ("mqt_30_6_5", mqt_30_6_5), # n = 30 , k = 6
             ("bring", bring), # n = 30 , k = 8
+            ("coco_488", coco_488), # n = 31 , k = 1
+            ("hamming_31", hamming_31), # n = 31 , k = 21
+            ("coco_666", coco_666), # n = 37 , k = 1
+            ("bb_72", bb_72), # n = 72, k = 12
+            ("bb_90", bb_90), # n = 90, k = 8
+            ("bb_108", bb_108), # n = 108, k = 8
             ("bb_144", bb_144) # n = 144 , k = 12
             ]
 
