@@ -13,5 +13,7 @@ results/*
 *sandbox*
 
 data/random*.txt
+data/*.py
+results/conversion.py
 
 .DS_Store
