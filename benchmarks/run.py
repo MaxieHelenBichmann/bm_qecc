@@ -103,7 +103,6 @@ bb_72 = CSSCode.from_file("data/bb_72")
 bb_90 = CSSCode.from_file("data/bb_90")
 bb_108 = CSSCode.from_file("data/bb_108")
 bb_144 = CSSCode.from_file("data/bb_144")
-mqt_30_6_5 = CSSCode.from_file("data/mqt_30_6_5")
 
 five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
 gottesman = StabilizerCode.from_file("data/eight_qubit_gottesman")
@@ -122,7 +121,6 @@ NAMED_CODES = [
             ("hamming_15", hamming_15), # n = 15 , k = 7
             ("golay", golay),  # n = 23 , k = 1
             ("rot_surf_d5", rotated_surface_d5), # n = 25 , k = 1
-            ("mqt_30_6_5", mqt_30_6_5), # n = 30 , k = 6
             ("bring", bring), # n = 30 , k = 8
             ("coco_488", coco_488), # n = 31 , k = 1
             ("hamming_31", hamming_31), # n = 31 , k = 21
