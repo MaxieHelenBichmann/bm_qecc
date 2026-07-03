@@ -17,11 +17,14 @@ from visual_utils import (
     Axis,
     StatCsv,
     StatRow,
+    add_x_range_args,
     configure_xaxis_ticks,
     draw_runtime_guides,
     metadata_title_suffix,
     positive_filter,
     read_stats_csv_with_metadata,
+    validate_x_range_args,
+    x_in_range,
 )
 
 GRID_MAX_SECONDS = 5 * 60
@@ -64,21 +67,6 @@ def invariant_tone(base_color, algorithm: str):
     return red, green, blue, alpha
 
 
-def axis_limit(value: str) -> tuple[float, float]:
-    """Parse a min,max x-axis data limit."""
-    raw = value.strip().removeprefix("(").removesuffix(")")
-    parts = [part.strip() for part in raw.split(",")]
-    if len(parts) != 2 or not all(parts):
-        raise argparse.ArgumentTypeError("expected MIN,MAX or (MIN,MAX)")
-    try:
-        lower, upper = (float(part) for part in parts)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError("x-axis limits must be numeric") from exc
-    if lower > upper:
-        raise argparse.ArgumentTypeError("minimum x-axis limit must be <= maximum")
-    return lower, upper
-
-
 def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
     """Return whether an invariant statistics row should be plotted."""
     if args.algorithm and row.algorithm not in args.algorithm:
@@ -92,10 +80,9 @@ def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
         return False
     if args.r is not None and row.r != args.r:
         return False
-    if args.xlim is not None:
-        lower, upper = args.xlim
-        if not lower <= row.axis_value(args.x) <= upper:
-            return False
+    x_value = dimension_case_key(row, args.x) if uses_dimension_case_axis(args) else row.axis_value(args.x)
+    if not x_in_range(x_value, args.xmin, args.xmax):
+        return False
     return True
 
 
@@ -293,7 +280,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Invariant statistics CSV from benchmarks/run.py --inv.")
     parser.add_argument("--x", choices=("n", "k", "r"), required=True, help="Parameter used for the x-axis.")
-    parser.add_argument("--xlim", type=axis_limit, help="Only include x-axis values in MIN,MAX.")
+    add_x_range_args(parser)
     parser.add_argument("--algorithm", action="append", help="Invariant to include. Can be passed multiple times.")
     parser.add_argument("--positive", choices=("true", "false", "all"), default="all")
     parser.add_argument("--n", type=int, help="Fix block length n.")
@@ -312,6 +299,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--x k requires --n so only one block length is plotted.")
     if args.x == "r" and args.n is not None and args.k is not None:
         parser.error("--x r accepts at most one of --n or --k.")
+    validate_x_range_args(parser, args.xmin, args.xmax, tuple_expected=uses_dimension_case_axis(args))
 
     stat_csv = read_stats_csv_with_metadata(args.csv)
     if not stat_csv.rows:

@@ -18,14 +18,18 @@ from visual_utils import (
     MEMORY_LIMIT_COLOR,
     PlotColors,
     Axis,
+    StatMetadata,
     StatRow,
     add_common_stat_filters,
+    add_x_range_args,
     configure_xaxis_ticks,
     draw_runtime_guides,
     metadata_title_suffix,
     positive_filter,
     read_stats_csv_with_metadata,
     stat_file_kind,
+    validate_x_range_args,
+    x_in_range,
 )
 
 GRID_MAX_SECONDS = 5 * 60
@@ -39,24 +43,17 @@ class PlotSeries:
     rows: tuple[StatRow, ...]
 
 
-def axis_limit(value: str) -> tuple[float, float]:
-    """Parse a min,max x-axis data limit."""
-    raw = value.strip()
-    if raw.startswith("(") and raw.endswith(")"):
-        raw = raw[1:-1]
+def common_metadata(metadata: Sequence[StatMetadata]) -> StatMetadata:
+    """Keep only run metadata values shared by every input CSV."""
+    def shared(attribute: str):
+        values = {getattr(item, attribute) for item in metadata}
+        return next(iter(values)) if len(values) == 1 else None
 
-    parts = [part.strip() for part in raw.split(",")]
-    if len(parts) != 2 or not parts[0] or not parts[1]:
-        raise argparse.ArgumentTypeError("expected MIN,MAX or (MIN,MAX)")
-
-    try:
-        lower, upper = (float(part) for part in parts)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError("x-axis limits must be ints or floats") from exc
-
-    if lower > upper:
-        raise argparse.ArgumentTypeError("minimum x-axis limit must be <= maximum")
-    return lower, upper
+    return StatMetadata(
+        seed=shared("seed"),
+        timeout_seconds=shared("timeout_seconds"),
+        memory_limit_bytes=shared("memory_limit_bytes"),
+    )
 
 
 def boundary_functions(algorithm: str) -> Callable | None:
@@ -176,10 +173,9 @@ def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
         return False
     if args.symmetry is not None and row.symmetry != args.symmetry:
         return False
-    if args.xlim is not None:
-        lower, upper = args.xlim
-        if not lower <= float(row.axis_value(args.x)) <= upper:
-            return False
+    x_value = dimension_case_key(row, args.x) if uses_dimension_case_axis(args) else row.axis_value(args.x)
+    if not x_in_range(x_value, args.xmin, args.xmax):
+        return False
     return True
 
 
@@ -416,13 +412,14 @@ def plot_random_series(
 def build_parser() -> argparse.ArgumentParser:
     """Create the command-line parser."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
-    parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
     parser.add_argument(
-        "--xlim",
-        type=axis_limit,
-        help="Only include rows whose selected x-axis value is in MIN,MAX, e.g. --xlim 4,10 or --xlim '(0.1,0.8)'.",
+        "csv",
+        type=Path,
+        nargs="+",
+        help="One or more statistics CSVs from benchmarks/run.py --stats.",
     )
+    parser.add_argument("--x", choices=("n", "k", "r", "d", "s"), required=True, help="Parameter used for the x-axis.")
+    add_x_range_args(parser)
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--theory", action="store_true", help="Draw a faint fitted theoretical boundary function.")
     add_common_stat_filters(parser)
@@ -439,13 +436,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     configure_axis_constraints(args, parser)
+    validate_x_range_args(parser, args.xmin, args.xmax, tuple_expected=uses_dimension_case_axis(args))
 
-    stat_csv = read_stats_csv_with_metadata(args.csv)
-    all_rows = stat_csv.rows
-    if not all_rows:
-        raise SystemExit("No rows found in the statistics CSV.")
-    if stat_file_kind(all_rows) == "named":
-        raise SystemExit("This CSV contains only named rows. Use results/visualize_named.py instead.")
+    stat_csvs = [read_stats_csv_with_metadata(path) for path in args.csv]
+    empty_paths = [path for path, stat_csv in zip(args.csv, stat_csvs) if not stat_csv.rows]
+    if empty_paths:
+        raise SystemExit(f"No rows found in: {', '.join(map(str, empty_paths))}")
+    named_paths = [
+        path
+        for path, stat_csv in zip(args.csv, stat_csvs)
+        if stat_file_kind(stat_csv.rows) == "named"
+    ]
+    if named_paths:
+        raise SystemExit(
+            f"These CSVs contain only named rows: {', '.join(map(str, named_paths))}. "
+            "Use results/visualize_named.py instead."
+        )
+
+    all_rows = [row for stat_csv in stat_csvs for row in stat_csv.rows]
+    metadata = common_metadata([stat_csv.metadata for stat_csv in stat_csvs])
 
     rows = [row for row in all_rows if matches_filter(row, args)]
     if not rows:
@@ -463,9 +472,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         series,
         axis=args.x,
         output=args.output,
-        title=fixed_parameter_title(args, rows, metadata_title_suffix(stat_csv.metadata)),
+        title=fixed_parameter_title(args, rows, metadata_title_suffix(metadata)),
         show_theory=args.theory and case_positions is None,
-        timeout_seconds=stat_csv.metadata.timeout_seconds,
+        timeout_seconds=metadata.timeout_seconds,
         case_positions=case_positions,
     )
     return 0

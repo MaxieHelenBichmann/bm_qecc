@@ -175,6 +175,9 @@ python3 results/visualize_random.py results/statistics.csv --x n --k 2 \
   --algorithm pm_stb_bruteforce --algorithm pm_stb_classical \
   --output results/compare.png
 
+python3 results/visualize_random.py results/sat.csv results/matroid.csv --x n --k 1 \
+  --output results/compare_csvs.png
+
 python3 results/visualize_invariants.py results/invariants_lc.csv --x n \
   --output results/invariants_lc_plot.png
 ```

@@ -18,11 +18,14 @@ from visual_utils import (
     Axis,
     StatRow,
     add_common_stat_filters,
+    add_x_range_args,
     configure_xaxis_ticks,
     draw_runtime_guides,
     metadata_title_suffix,
     positive_filter,
     read_stats_csv_with_metadata,
+    validate_x_range_args,
+    x_in_range,
 )
 
 GRID_MAX_SECONDS = 5 * 60
@@ -117,6 +120,8 @@ def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
     if args.algorithm and row.algorithm not in args.algorithm:
         return False
     if args.name is not None and row.name != args.name:
+        return False
+    if not x_in_range(row.axis_value(args.x), args.xmin, args.xmax):
         return False
     selected_positive = positive_filter(args.positive)
     if selected_positive is not None and row.positive != selected_positive:
@@ -284,6 +289,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("csv", type=Path, help="Statistics CSV from benchmarks/run.py --stats.")
     parser.add_argument("--x", choices=("n", "k", "r"), required=True, help="Parameter used for the x-axis.")
+    add_x_range_args(parser)
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--name", help="Case name to include.")
     add_common_stat_filters(parser)
@@ -303,7 +309,9 @@ def plot_title(rows: Sequence[StatRow], metadata_suffix: str = "") -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the named-code visualization CLI."""
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    validate_x_range_args(parser, args.xmin, args.xmax, tuple_expected=False)
     stat_csv = read_stats_csv_with_metadata(args.csv)
     all_rows = stat_csv.rows
     if not all_rows:

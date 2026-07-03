@@ -7,9 +7,10 @@ import csv
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypeAlias
 
 Axis = Literal["n", "k", "r", "d", "s"]
+AxisBound: TypeAlias = float | tuple[float, ...]
 StatFileKind = Literal["randomized", "named", "mixed"]
 
 AXIS_LABELS: dict[Axis, str] = {
@@ -21,6 +22,73 @@ AXIS_LABELS: dict[Axis, str] = {
 }
 
 MEMORY_LIMIT_COLOR = "#d62728"
+
+
+def parse_axis_bound(value: str) -> AxisBound:
+    """Parse a scalar or tuple-shaped inclusive x-axis bound."""
+    raw = value.strip()
+    is_tuple = raw.startswith("(") and raw.endswith(")")
+    if is_tuple:
+        raw = raw[1:-1]
+    parts = [part.strip() for part in raw.split(",")]
+    if not parts or not all(parts) or (len(parts) > 1 and not is_tuple):
+        raise argparse.ArgumentTypeError("expected a number or parenthesized tuple, e.g. 4 or (4,2)")
+    try:
+        parsed = tuple(float(part) for part in parts)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("x-axis bounds must be numeric") from exc
+    return parsed if is_tuple else parsed[0]
+
+
+def add_x_range_args(parser: argparse.ArgumentParser) -> None:
+    """Add inclusive scalar-or-tuple x-axis range filters to a parser."""
+    parser.add_argument("--xmin", type=parse_axis_bound, help="Only include x values >= MIN (scalar or tuple).")
+    parser.add_argument("--xmax", type=parse_axis_bound, help="Only include x values <= MAX (scalar or tuple).")
+
+
+def validate_x_range_args(
+    parser: argparse.ArgumentParser,
+    minimum: AxisBound | None,
+    maximum: AxisBound | None,
+    *,
+    tuple_expected: bool,
+) -> None:
+    """Validate bound shapes and ordering for the selected x-axis representation."""
+    expected_type = tuple if tuple_expected else float
+    if minimum is not None and not isinstance(minimum, expected_type):
+        parser.error("--xmin must be a tuple for a composite x-axis" if tuple_expected else "--xmin must be scalar")
+    if maximum is not None and not isinstance(maximum, expected_type):
+        parser.error("--xmax must be a tuple for a composite x-axis" if tuple_expected else "--xmax must be scalar")
+    if tuple_expected:
+        if isinstance(minimum, tuple) and len(minimum) != 2:
+            parser.error("--xmin must contain exactly two values for a composite x-axis")
+        if isinstance(maximum, tuple) and len(maximum) != 2:
+            parser.error("--xmax must contain exactly two values for a composite x-axis")
+    if isinstance(minimum, tuple) and isinstance(maximum, tuple) and len(minimum) != len(maximum):
+        parser.error("--xmin and --xmax tuples must have the same length")
+    if minimum is not None and maximum is not None:
+        if isinstance(minimum, tuple) and isinstance(maximum, tuple):
+            invalid_order = minimum > maximum
+        elif isinstance(minimum, float) and isinstance(maximum, float):
+            invalid_order = minimum > maximum
+        else:
+            invalid_order = False  # The shape-specific errors above are more useful.
+        if invalid_order:
+            parser.error("--xmin must be <= --xmax")
+
+
+def x_in_range(value: AxisBound, minimum: AxisBound | None, maximum: AxisBound | None) -> bool:
+    """Return whether a scalar or tuple x value lies within inclusive bounds."""
+    if isinstance(value, tuple):
+        if minimum is not None and not isinstance(minimum, tuple):
+            raise ValueError("x bound shape must match the selected x value")
+        if maximum is not None and not isinstance(maximum, tuple):
+            raise ValueError("x bound shape must match the selected x value")
+        return (minimum is None or value >= minimum) and (maximum is None or value <= maximum)
+
+    if isinstance(minimum, tuple) or isinstance(maximum, tuple):
+        raise ValueError("x bound shape must match the selected x value")
+    return (minimum is None or value >= minimum) and (maximum is None or value <= maximum)
 
 
 @dataclass(frozen=True)
