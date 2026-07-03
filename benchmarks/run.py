@@ -10,8 +10,8 @@ import os
 import re
 import signal
 import subprocess
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 from queue import Empty
@@ -82,6 +82,21 @@ from .utils import (
 
 MEAS_STATS = list(range(3, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
 N_STATS = 10
+N_INVARIANT_STATS = 5
+PM_INVARIANT_NS = list(range(2, 26)) + [30, 31, 37, 72, 90, 108, 144]
+LC_INVARIANT_NS = list(range(2, 13)) + [15, 23, 25, 30, 31, 37]
+KNOWN_INVARIANT_KS = {
+    15: {1, 3, 7},
+    23: {1},
+    25: {1},
+    30: {8},
+    31: {1, 21},
+    37: {1},
+    72: {12},
+    90: {8},
+    108: {8},
+    144: {12},
+}
 MAX_TOL_TIMEOUTS = 3
 MAX_TOL_MEMORY_ERRORS = 2
 MEMORY_POLL_INTERVAL_SECONDS = 0.2
@@ -827,71 +842,72 @@ def seeded_measurements(seed: int, algorithm: str, random: bool, nmin: int | Non
 
     return measurements
     
-def pm_invariant_cases(seed: int) -> list[Case]:
-    return [
-        permuted_stabilizer_case(seed=seed + 1, dim=(2, 0)),
-        permuted_stabilizer_case(seed=seed + 2, dim=(3, 1)),
-        permuted_stabilizer_case(seed=seed + 3, code=five_qubit_perfect),
-        permuted_stabilizer_case(seed=seed + 4, dim=(5, 2)),
-        permuted_stabilizer_case(seed=seed + 7, dim=(7, 2)),
-        permuted_stabilizer_case(seed=seed + 8, dim=(9, 5)),
-        permuted_stabilizer_case(seed=seed + 9, dim=(10, 4)),
-        permuted_stabilizer_case(seed=seed + 10, dim=(10, 4)),
-        permuted_stabilizer_case(seed=seed + 16, dim=(15, 8)),
-        permuted_stabilizer_case(seed=seed + 18, dim=(12, 6)),
-        permuted_stabilizer_case(seed=seed + 19, dim=(15, 8)),
-        permuted_stabilizer_case(seed=seed + 24, dim=(23, 10)),
-        permuted_stabilizer_case(seed=seed + 25, dim=(25, 12)),
-        permuted_stabilizer_case(seed=seed + 26, dim=(18, 6)),
-        permuted_stabilizer_case(seed=seed + 27, dim=(20, 8)),
-        permuted_stabilizer_case(seed=seed + 28, dim=(20, 4)),
-        non_permuted_stabilizer_case(seed=seed + 1, dim=(7, 2), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 2, dim=(9, 5), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 3, dim=(3, 1), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 5, dim=(5, 2), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 6, dim=(4, 1), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 10, dim=(7, 2), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 11, dim=(9, 5), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 12, dim=(10, 4), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 13, dim=(7, 3), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 15, dim=(10, 4), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 20, dim=(12, 6), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 21, dim=(15, 7), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 22, dim=(12, 6), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 23, dim=(15, 8), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 1, dim=(16, 8), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 2, dim=(18, 8), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 3, dim=(16, 8), use_cached=False),
-        non_permuted_stabilizer_case(seed=seed + 5, dim=(18, 8), use_cached=False),
-    ]
+def invariant_dimensions(pm: bool) -> list[tuple[int, int]]:
+    """Return a regular, bounded (n, k) grid for invariant benchmarks."""
+    ns = PM_INVARIANT_NS if pm else LC_INVARIANT_NS
+    dimensions = []
 
-def lc_invariant_cases(seed: int) -> list[Case]:
-    return [
-        lcc_eq_case(seed=seed + 1, dim=(2, 0)),
-        lcc_eq_case(seed=seed + 2, dim=(3, 0)),
-        lcc_eq_case(seed=seed + 3, dim=(3, 1)),
-        lcc_eq_case(seed=seed + 4, dim=(4, 2)),
-        lcc_eq_case(seed=seed + 10, dim=(5, 1)),
-        lcc_eq_case(seed=seed + 11, dim=(5, 2)),
-        lcc_eq_case(seed=seed + 16, dim=(6, 5)),
-        lcc_eq_case(seed=seed + 21, dim=(7, 6)),
-        lcc_eq_case(seed=seed + 22, dim=(8, 7)),
-        lcc_eq_case(seed=seed + 23, dim=(7, 1)),
-        lcc_eq_case(seed=seed + 24, dim=(9, 1)),
-        non_lcc_eq_case(seed=seed + 1, dim=(3, 0)),
-        non_lcc_eq_case(seed=seed + 2, dim=(3, 1)),
-        non_lcc_eq_case(seed=seed + 3, dim=(4, 1)),
-        non_lcc_eq_case(seed=seed + 4, dim=(4, 2)),
-        non_lcc_eq_case(seed=seed + 5, dim=(4, 2)),
-        non_lcc_eq_case(seed=seed + 10, dim=(5, 1)),
-        non_lcc_eq_case(seed=seed + 11, dim=(5, 2)),
-        non_lcc_eq_case(seed=seed + 12, dim=(6, 3)),
-        non_lcc_eq_case(seed=seed + 18, dim=(7, 3)),
-        non_lcc_eq_case(seed=seed + 19, dim=(8, 4)),
-        non_lcc_eq_case(seed=seed + 20, dim=(9, 5)),
-        non_lcc_eq_case(seed=seed + 25, dim=(10, 5)),
-        non_lcc_eq_case(seed=seed + 26, dim=(12, 6)),
-    ]
+    for n in ns:
+        if n > 50:
+            # At these sizes, use only dimensions backed by an existing named
+            # code; eagerly generating arbitrary random pairs is too costly.
+            ks = KNOWN_INVARIANT_KS.get(n, set())
+        elif n < 7:
+            ks = range(0, n)
+        elif n < 15:
+            ks = set(range(0, n, 2)) | {n // 2}
+        elif n < 30:
+            ks = set(range(0, n, 4)) | {n // 2}
+        else:
+            ks = {0, 1, n // 4, n // 2, 3 * n // 4, n - 1}
+
+        ks = set(ks) | KNOWN_INVARIANT_KS.get(n, set())
+        dimensions.extend((n, k) for k in sorted(ks) if k < n)
+
+    return dimensions
+
+
+def invariant_measurements(seed: int, invariant: str, pm: bool) -> Iterator[tuple[Measurement, list[Case]]]:
+    """Yield five reproducible positive/negative cases per invariant dimension."""
+    rng = np.random.default_rng(seed)
+    seeds = rng.integers(0, 1_000_000, size=N_INVARIANT_STATS)
+    for n, k in invariant_dimensions(pm):
+        named_code = next(
+            (code for _, code in NAMED_CODES if n > 50 and (code.n, code.k) == (n, k)),
+            None,
+        )
+        for positive in (True, False):
+            measurement = Measurement(invariant, None, n, k, positive, None, None)
+            if pm:
+                if positive:
+                    cases = [
+                        permuted_stabilizer_case(
+                            seed=int(s), code=named_code
+                        ) if named_code is not None else permuted_stabilizer_case(
+                            seed=int(s), dim=(n, k)
+                        )
+                        for s in seeds
+                    ]
+                else:
+                    cases = [
+                        replace(
+                            non_permuted_stabilizer_case(seed=int(s), code=named_code)
+                            if named_code is not None else non_permuted_stabilizer_case(
+                                seed=int(s), dim=(n, k), use_cached=False
+                            ),
+                            expected_p=None,
+                        )
+                        for s in seeds
+                    ]
+            else:
+                if positive:
+                    cases = [lcc_eq_case(seed=int(s), dim=(n, k)) for s in seeds]
+                else:
+                    cases = [
+                        replace(non_lcc_eq_case(seed=int(s), dim=(n, k)), expected_lc=None)
+                        for s in seeds
+                    ]
+            yield measurement, cases
 
 def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax: int | None = None) -> list[Case]:
     """Return test cases."""
@@ -1267,33 +1283,32 @@ def run_stat_benchmarks(
 def run_inv_benchmarks(
     pm: bool,
     seed: int,
+    output: Path,
     timeout: float | None = None,
     memory_limit_bytes: int | None = None,
     verbose: bool = True,
-) -> list[Result]:
-    """Run invariants on cases with the matching problem type."""
-    if pm:
-        INVS = PM_INVARIANTS
-        cases = pm_invariant_cases(seed=seed)
-    else:        
-        INVS = LC_INVARIANTS
-        cases =  lc_invariant_cases(seed=seed)
-        
-    results = []
-    for inv_name in sorted(INVS.keys()):
+) -> None:
+    """Run seeded invariant measurements and write aggregate statistics."""
+    invariants = PM_INVARIANTS if pm else LC_INVARIANTS
+    for inv_name in sorted(invariants.keys()):
         if verbose:
             print(f"Running benchmark for invariant: {inv_name}")
-        result_inv = []
-        for case in cases:
-            result_inv.append(run_case(inv_name, INVS[inv_name], case, timeout, memory_limit_bytes))
-
+        statistics = []
+        for measurement, cases in invariant_measurements(seed, inv_name, pm):
+            results = []
+            timeout_counter = 0
+            memory_counter = 0
+            for case in cases:
+                if timeout_counter >= MAX_TOL_TIMEOUTS or memory_counter >= MAX_TOL_MEMORY_ERRORS:
+                    break
+                results.append(run_case(inv_name, invariants[inv_name], case, timeout, memory_limit_bytes))
+                timeout_counter += int(result_timed_out(results[-1]))
+                memory_counter += int(result_memory_limited(results[-1]))
+            statistic = compute_statistics(results, measurement)
+            statistics.append(statistic)
+            write_stat(statistic, seed, output, timeout, memory_limit_bytes)
         if verbose:
-            print_results(result_inv)
-            print()
-
-        results.extend(result_inv)
-
-    return results
+            print_statistics(statistics)
 
 
 def prefixed_output_path(output: Path, prefix: str) -> Path:
@@ -1589,10 +1604,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.mode == "inv":
         print(f"INVARIANT BENCHMARKS")
             
-        result_pm = run_inv_benchmarks(True, args.seed, args.timeout, args.memory_limit, args.verbose)
-        result_lc = run_inv_benchmarks(False, args.seed, args.timeout, args.memory_limit, args.verbose)
-        write_bms(result_pm, args.seed, prefixed_output_path(args.output, "pm"), args.timeout, args.memory_limit)
-        write_bms(result_lc, args.seed, prefixed_output_path(args.output, "lc"), args.timeout, args.memory_limit)
+        pm_output = prefixed_output_path(args.output, "pm")
+        lc_output = prefixed_output_path(args.output, "lc")
+        for output in (pm_output, lc_output):
+            if output.exists():
+                output.unlink()
+        run_inv_benchmarks(True, args.seed, pm_output, args.timeout, args.memory_limit, args.verbose)
+        run_inv_benchmarks(False, args.seed, lc_output, args.timeout, args.memory_limit, args.verbose)
         return 0
  
     print(f"RAW BENCHMARKS for {"random" if args.random else "known"} cases")
