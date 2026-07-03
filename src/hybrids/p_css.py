@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import multiprocessing
 from collections import Counter, defaultdict
 import hashlib
 from itertools import permutations
@@ -12,7 +11,6 @@ import numpy.typing as npt
 
 import ldpc.mod2.mod2_numpy as mod2
 
-import z3
 from pynauty import Graph, certificate
 
 from ..core.css_code import CSSCode
@@ -293,7 +291,7 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
         ]
 
         return Graph(
-            number_of_vertices=inv_offset, 
+            number_of_vertices=n + n_hx + n_hz, 
             directed=False,
             adjacency_dict=adj,
             vertex_coloring= qubit_colors + [
@@ -307,14 +305,32 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
     circuits_c1_hx = _circuits_binary_matroid(Hx1)
     circuits_c1_hz = _circuits_binary_matroid(Hz1)
 
-    graph_c1 = _graph_from_circuits_and_invariants(n, circuits_c1_hx, circuits_c1_hz, partition1)
+    graph_c1 = _graph_from_circuits_and_invariants(n, circuits_c1_hx, circuits_c1_hz)
+
+    len_circuits_c1_hx = len(circuits_c1_hx)
+    len_circuits_c1_hz = len(circuits_c1_hz)
+
+    del circuits_c1_hx
+    del circuits_c1_hz
+
+    cert_c1 = certificate(graph_c1)
+
+    del graph_c1
 
     circuits_c2_hx = _circuits_binary_matroid(Hx2)
+    if len_circuits_c1_hx != len(circuits_c2_hx):
+        return False
+    
     circuits_c2_hz = _circuits_binary_matroid(Hz2)
+    if len_circuits_c1_hz != len(circuits_c2_hz):
+        return False
+    
+    graph_c2 = _graph_from_circuits_and_invariants(n, circuits_c2_hx, circuits_c2_hz)
 
-    graph_c2 = _graph_from_circuits_and_invariants(n, circuits_c2_hx, circuits_c2_hz, partition2)
+    del circuits_c2_hx
+    del circuits_c2_hz
 
-    return certificate(graph_c1) == certificate(graph_c2)
+    return cert_c1 == certificate(graph_c2)
 
 # ----------------------------------------------------------------------------------------------------
 # small helpers
@@ -354,21 +370,6 @@ def _row_basis(M: np.ndarray) -> np.ndarray:
     if B.ndim == 1:
         B = B.reshape(1, -1)
     return B
-
-def _elementwise_map(normal_bool, variables):
-    return z3.And([
-        v if bit == 1 else z3.Not(v)
-        for bit, v in zip(normal_bool, variables)
-    ])
-
-def _exactly_one(variables):
-    return z3.PbEq([(v, 1) for v in variables], 1)
-
-def _xor_list(variables):
-    acc = z3.BoolVal(False)
-    for v in variables:
-        acc = z3.Xor(acc, v)
-    return acc
 
 def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
     support = 0
