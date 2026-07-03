@@ -42,7 +42,7 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> bool:
     if reduced_Hx1.shape[0] == 0 and reduced_Hz1.shape[0] == 0:
         return True
     
-    if c1.n <= 7:
+    if c1.n <= 4:
         return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
 
     more_expensive_invariants = (
