@@ -44,16 +44,16 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> bool:
     
     if c1.n <= 4:
         return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
-
-    more_expensive_invariants = (
-        preserved_linear_dependencies,
-        preserved_punctured_hull_weight_enumerator,
-    )
-
-    if not all(invariant(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2) for invariant in more_expensive_invariants):
+    
+    if not preserved_linear_dependencies(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2):
         return False
     
-    return _matroid(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2) # TODO: maybe _sat for big n?
+    result, partition1, partition2 = preserved_punctured_hull_weight_enumerator(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
+
+    if not result:
+        return False
+    
+    return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -106,7 +106,7 @@ def preserved_linear_dependencies(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndar
 
     return _linear_dependencies(symplectic1) == _linear_dependencies(symplectic2)
 
-def preserved_punctured_hull_weight_enumerator(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
+def preserved_punctured_hull_weight_enumerator(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> tuple[bool, dict[int, list[int]] | None, dict[int, list[int]] | None]:
     """SENDRIER - p_css_classical.py"""
     def _generator_matrix_from_parity_check(H: np.ndarray, n: int) -> np.ndarray:
         if H.size == 0 or H.shape[0] == 0:
@@ -188,17 +188,11 @@ def preserved_punctured_hull_weight_enumerator(Hx1: np.ndarray, Hz1: np.ndarray,
     partition_c2 = _partition_columns_by_invariants(signatures_c2)
 
     if partition_c1.keys() != partition_c2.keys():
-        return False
+        return False, None, None
     if any(len(partition_c1[k]) != len(partition_c2[k]) for k in partition_c1):
-        return False
-
-    for key1, key2 in zip(partition_c1.keys(), partition_c2.keys()):
-        if key1 != key2:
-            return False
-        if len(partition_c1[key1]) != len(partition_c2[key2]):
-            return False
+        return False, None, None
         
-    return True
+    return True, partition_c1, partition_c2
 
 # ----------------------------------------------------------------------------------------------------
 # algorithms
@@ -220,65 +214,8 @@ def _bruteforce(Hx1, Hz1, Hx2, Hz2) -> bool:
 
     return False
 
-def _sat(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
-    """pm_css_sat.py"""
-    solver = z3.Solver()
-
-    n = Hx1.shape[1]
-    rx = Hx1.shape[0]
-    rz = Hz1.shape[0]
-    
-
-    # permutations
-    aux_tableau_x = [z3.Bool(f'aux_x_{row}_{col}') for row in range(rx) for col in range(n)]
-    aux_tableau_z = [z3.Bool(f'aux_z_{row}_{col}') for row in range(rz) for col in range(n)]
-
-
-    permutation_variables = [z3.Bool(f'p_{i}_{j}') for i in range(n) for j in range(n)]
-
-    for i in range(n):
-        solver.add(_exactly_one([permutation_variables[i * n + j] for j in range(n)]))
-    for j in range(n):
-        solver.add(_exactly_one([permutation_variables[i * n + j] for i in range(n)]))
-
-    for i in range(n):
-        for j in range(n):
-            x_column_original = Hx1[:, i]
-            z_column_original = Hz1[:, i]
-
-            x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
-            z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
-
-            solver.add(z3.Implies(permutation_variables[i * n + j], z3.And(_elementwise_map(x_column_original, x_column_permuted), _elementwise_map(z_column_original, z_column_permuted))))
-
-    # row operations
-    row_operation_coefficients_x = [z3.Bool(f'r_x_{i}_{j}') for i in range(rx) for j in range(rx)]
-    row_operation_coefficients_z = [z3.Bool(f'r_z_{i}_{j}') for i in range(rz) for j in range(rz)]
-
-    for row in range(rx):
-        for q in range(n):
-
-            row_contributions = []
-            for contribution in range(rx):
-                if Hx2[contribution, q] == 1:
-                    row_contributions.append(row_operation_coefficients_x[row * rx + contribution])
-
-            solver.add(aux_tableau_x[row * n + q] == _xor_list(row_contributions))
-
-    for row in range(rz):
-        for q in range(n):
-
-            row_contributions = []
-            for contribution in range(rz):
-                if Hz2[contribution, q] == 1:
-                    row_contributions.append(row_operation_coefficients_z[row * rz + contribution])
-
-            solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
-
-    return solver.check() == z3.sat
-
-def _matroid(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray) -> bool:
-    """pm_css_matroid.py"""
+def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2: np.ndarray, Hz2: np.ndarray, partition2: dict[int, list[int]]) -> bool:
+    """pm_css_matroid.py + p_css_graph_iso.py"""
     def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[int]:
         K = _kernel_basis(A)
 
@@ -324,7 +261,7 @@ def _matroid(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray)
         ]
 
 
-    def _graph_from_circuits(n: int, circuits_hx: list[int], circuits_hz: list[int]) -> Graph:
+    def _graph_from_circuits_and_invariants(n: int, circuits_hx: list[int], circuits_hz: list[int], partition: dict[int, list[int]]) -> Graph:
         adj = defaultdict(list)
 
         def _add_edges_from_circuits(circuits: list[int], offset: int) -> None:
@@ -342,15 +279,26 @@ def _matroid(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray)
 
         _add_edges_from_circuits(circuits_hx, hx_offset)
         _add_edges_from_circuits(circuits_hz, hz_offset)
+        
+        inv_offset = n + n_hx + n_hz
+        for part in partition.values():
+            for i in range(len(part)):
+                adj[part[i]].append(inv_offset)
+                adj[inv_offset].append(part[i])
+            inv_offset += 1
+
+        qubit_colors = [
+            set(columns)
+            for _, columns in sorted(partition.items())
+        ]
 
         return Graph(
-            number_of_vertices=n + n_hx + n_hz,
+            number_of_vertices=inv_offset, 
             directed=False,
             adjacency_dict=adj,
-            vertex_coloring=[
-                set(range(n)),
+            vertex_coloring= qubit_colors + [
                 set(range(hx_offset, hx_offset + n_hx)),
-                set(range(hz_offset, hz_offset + n_hz))
+                set(range(hz_offset, hz_offset + n_hz)),
             ]
         )
 
@@ -359,12 +307,12 @@ def _matroid(Hx1: np.ndarray, Hz1: np.ndarray, Hx2: np.ndarray, Hz2: np.ndarray)
     circuits_c1_hx = _circuits_binary_matroid(Hx1)
     circuits_c1_hz = _circuits_binary_matroid(Hz1)
 
-    graph_c1 = _graph_from_circuits(n, circuits_c1_hx, circuits_c1_hz)
+    graph_c1 = _graph_from_circuits_and_invariants(n, circuits_c1_hx, circuits_c1_hz, partition1)
 
     circuits_c2_hx = _circuits_binary_matroid(Hx2)
     circuits_c2_hz = _circuits_binary_matroid(Hz2)
 
-    graph_c2 = _graph_from_circuits(n, circuits_c2_hx, circuits_c2_hz)
+    graph_c2 = _graph_from_circuits_and_invariants(n, circuits_c2_hx, circuits_c2_hz, partition2)
 
     return certificate(graph_c1) == certificate(graph_c2)
 
