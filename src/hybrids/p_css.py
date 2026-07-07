@@ -293,13 +293,6 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
 
         _add_edges_from_circuits(circuits_hx, hx_offset)
         _add_edges_from_circuits(circuits_hz, hz_offset)
-        
-        inv_offset = n + n_hx + n_hz
-        for part in partition.values():
-            for i in range(len(part)):
-                adj[part[i]].append(inv_offset)
-                adj[inv_offset].append(part[i])
-            inv_offset += 1
 
         qubit_colors = [
             set(columns)
@@ -347,11 +340,11 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
 
     circuits_c2_hx = _circuits_binary_matroid(Hx2)
     if len_circuits_c1_hx != len(circuits_c2_hx):
-        return False
+        return None
     
     circuits_c2_hz = _circuits_binary_matroid(Hz2)
     if len_circuits_c1_hz != len(circuits_c2_hz):
-        return False
+        return None
     
     graph_c2 = _graph_from_circuits_and_invariants(n, circuits_c2_hx, circuits_c2_hz, partition2)
 
