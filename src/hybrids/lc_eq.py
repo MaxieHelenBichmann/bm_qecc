@@ -16,17 +16,21 @@ if TYPE_CHECKING:  # pragma: no cover
 
 from ..core.stabilizer_code import StabilizerCode
 
-def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:
+    """Check whether two stabilizer codes are local-clifford-equivalent.
+
+    Returns: None if they are not local-clifford-equivalent, otherwise returns a list of local clifford operations
+    """
     cheap_invariants = (
         preserved_n,
         preserved_k,
     )
 
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
-        return False
+        return None
     
     if c1.n < 1:
-        return True
+        return ["I"] * c1.n
     
     reduced_symplectic_1 = _row_basis(c1.symplectic)
     reduced_symplectic_2 = _row_basis(c2.symplectic)
@@ -39,12 +43,12 @@ def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     )
 
     if not all(invariant(reduced_symplectic_1, reduced_symplectic_2) for invariant in more_expensive_invariants):
-        return False
+        return None
     
     if c1.k < 2:
         return _lse(c1, c2, reduced_symplectic_1, reduced_symplectic_2)
     
-    return False # TODO: k >= 2
+    return None # TODO: k >= 2
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -107,7 +111,7 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
 # ----------------------------------------------------------------------------------------------------
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
-def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> bool:
+def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> None | list[str]:
     """lc_eq_bruteforce.py"""
     n = c1.shape[1] // 2
     rank_c1 = _rank(c1)
@@ -136,9 +140,9 @@ def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> bool:
             lc_tableau = apply_lc(lc_tableau, lc, qubit)
 
         if rank_c1 == _rank(lc_tableau) == _rank(np.vstack([c1, lc_tableau])):
-            return True
+            return list(action)
 
-    return False
+    return None
 
 def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> bool:
     """lc_eq_graph_state_small_k.py"""

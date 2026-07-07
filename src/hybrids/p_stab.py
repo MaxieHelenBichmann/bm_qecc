@@ -13,6 +13,10 @@ import z3
 from ..core.stabilizer_code import StabilizerCode
 
 def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> None | list[int]:
+    """Check whether two stabilizer codes are permutation-equivalent.
+
+    Returns: None if they are not permutation-equivalent, otherwise returns a permutation p with p[i] = j iff c1[i] -> c2[j]
+    """
     cheap_invariants = (
         preserved_n,
         preserved_k,

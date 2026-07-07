@@ -17,26 +17,30 @@ if TYPE_CHECKING:  # pragma: no cover
 from ..core.stabilizer_code import StabilizerCode
 
 
-def is_lceq_css(code: StabilizerCode) -> bool:
+def is_lceq_css(code: StabilizerCode) -> None | list[str]:
+    """Check whether the stabilizer codes is local-clifford-equivalent to a CSS code.
+
+    Returns: None if it is not local-clifford-equivalent, otherwise returns a list of local clifford operations
+    """
     if code.n <= 5:
         return _bruteforce(code)
     
     if code.n < 1:
-        return True
+        return ["I"] * code.n
     
     reduced_symplectic = _row_basis(code.symplectic)
     
     if code.k < 2:
         return _lc_orbit(code, reduced_symplectic)
     
-    return False # TODO: k >= 2
+    return None # TODO: k >= 2
 
 # ----------------------------------------------------------------------------------------------------
 # algorithms
 # ----------------------------------------------------------------------------------------------------
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
-def _bruteforce(code: StabilizerCode) -> bool:
+def _bruteforce(code: StabilizerCode) -> None | list[str]:
     """lc_css_bruteforce.py"""
     n = code.n
     r = _rank(code.symplectic)
@@ -65,11 +69,11 @@ def _bruteforce(code: StabilizerCode) -> bool:
             lc_tableau = apply_lc(lc_tableau, lc, qubit)
 
         if _rank(lc_tableau[:, :n]) + _rank(lc_tableau[:, n:]) == r:
-            return True
+            return list(action)
 
-    return False
+    return None
 
-def _lc_orbit(code: StabilizerCode, reduced_symplectic: np.ndarray) -> bool:
+def _lc_orbit(code: StabilizerCode, reduced_symplectic: np.ndarray) -> None | list[str]:
     """lc_css_lc_orbit.py"""
 
     def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
