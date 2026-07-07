@@ -11,11 +11,16 @@ import numpy.typing as npt
 
 import ldpc.mod2.mod2_numpy as mod2
 
-from pynauty import Graph, certificate
+from pynauty import Graph, certificate, canon_label
+import z3
 
 from ..core.css_code import CSSCode
 
-def are_peq_css(c1: CSSCode, c2: CSSCode) -> bool:
+def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
+    """Check whether two CSS codes are permutation-equivalent.
+
+    Returns: None if they are not permutation-equivalent, otherwise returns a permutation p with p[i] = j iff c1[i] -> c2[j]
+    """
     cheap_invariants = (
         preserved_n,
         preserved_k,
@@ -196,7 +201,7 @@ def preserved_punctured_hull_weight_enumerator(Hx1: np.ndarray, Hz1: np.ndarray,
 # algorithms
 # ----------------------------------------------------------------------------------------------------
 
-def _bruteforce(Hx1, Hz1, Hx2, Hz2) -> bool:
+def _bruteforce(Hx1, Hz1, Hx2, Hz2) -> list[int] | None:
     """p_css_bruteforce.py"""
     n = Hx1.shape[1]
 
@@ -208,15 +213,20 @@ def _bruteforce(Hx1, Hz1, Hx2, Hz2) -> bool:
             continue
         if hz_rank and hz_rank != mod2.rank(np.vstack([Hz1, Hz2[:, perm]])):
             continue
-        return True
+        return list(perm)
 
-    return False
+    return None
 
-def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2: np.ndarray, Hz2: np.ndarray, partition2: dict[int, list[int]]) -> bool:
+def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2: np.ndarray, Hz2: np.ndarray, partition2: dict[int, list[int]]) -> list[int] | None:
     """pm_css_matroid.py + p_css_graph_iso.py"""
     def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[int]:
+        def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
+            support = 0
+            for col in np.flatnonzero(row):
+                support |= 1 << int(col)
+            return support
+        
         K = _kernel_basis(A)
-
         k, _ = K.shape
         row_supports = [_row_support_as_mask(row) for row in K]
         circuits_by_size: list[list[int]] = [[] for _ in range(A.shape[1] + 1)]
@@ -262,6 +272,12 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
     def _graph_from_circuits_and_invariants(n: int, circuits_hx: list[int], circuits_hz: list[int], partition: dict[int, list[int]]) -> Graph:
         adj = defaultdict(list)
 
+        def _iter_mask_bits(mask: int):
+            while mask:
+                bit = mask & -mask
+                yield bit.bit_length() - 1
+                mask ^= bit
+
         def _add_edges_from_circuits(circuits: list[int], offset: int) -> None:
             for i, circuit in enumerate(circuits):
                 circuit_vertex = offset + i
@@ -299,13 +315,24 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
                 set(range(hz_offset, hz_offset + n_hz)),
             ]
         )
+    
+    def _graph_isomorphism(canon_to_g1, canon_to_g2) -> list[int]:
+        def _inverse(permutation):
+            inverse = [0] * len(permutation)
+            for index, value in enumerate(permutation):
+                inverse[value] = index
+            return tuple(inverse)
+    
+        g1_to_canon = _inverse(canon_to_g1)
+
+        return [canon_to_g2[index] for index in g1_to_canon]
 
     n = Hx1.shape[1]
 
     circuits_c1_hx = _circuits_binary_matroid(Hx1)
     circuits_c1_hz = _circuits_binary_matroid(Hz1)
 
-    graph_c1 = _graph_from_circuits_and_invariants(n, circuits_c1_hx, circuits_c1_hz)
+    graph_c1 = _graph_from_circuits_and_invariants(n, circuits_c1_hx, circuits_c1_hz, partition1)
 
     len_circuits_c1_hx = len(circuits_c1_hx)
     len_circuits_c1_hz = len(circuits_c1_hz)
@@ -314,6 +341,7 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
     del circuits_c1_hz
 
     cert_c1 = certificate(graph_c1)
+    canonical_to_g1 = canon_label(graph_c1)
 
     del graph_c1
 
@@ -325,12 +353,104 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
     if len_circuits_c1_hz != len(circuits_c2_hz):
         return False
     
-    graph_c2 = _graph_from_circuits_and_invariants(n, circuits_c2_hx, circuits_c2_hz)
+    graph_c2 = _graph_from_circuits_and_invariants(n, circuits_c2_hx, circuits_c2_hz, partition2)
 
     del circuits_c2_hx
     del circuits_c2_hz
 
-    return cert_c1 == certificate(graph_c2)
+    cert_c2 = certificate(graph_c2)
+    canonical_to_g2 = canon_label(graph_c2)
+
+    del graph_c2
+
+    if cert_c1 != cert_c2:
+        return None
+    
+    graph_iso = _graph_isomorphism(canonical_to_g1, canonical_to_g2)
+    return graph_iso[:n]
+
+
+def _sat(c1: CSSCode, c2: CSSCode) -> list[int] | None:
+    """pm_css_sat.py"""
+    def _elementwise_map(normal_bool, variables):
+        return z3.And([
+            v if bit == 1 else z3.Not(v)
+            for bit, v in zip(normal_bool, variables)
+        ])
+
+    def _exactly_one(variables):
+        return z3.PbEq([(v, 1) for v in variables], 1)
+
+    def _xor_list(variables):
+        acc = z3.BoolVal(False)
+        for v in variables:
+            acc = z3.Xor(acc, v)
+        return acc
+    solver = z3.Solver()
+
+    n = c1.n
+    rx = c1.Hx.shape[0]
+    rz = c1.Hz.shape[0]
+    
+
+    # permutations
+    aux_tableau_x = [z3.Bool(f'aux_x_{row}_{col}') for row in range(rx) for col in range(n)]
+    aux_tableau_z = [z3.Bool(f'aux_z_{row}_{col}') for row in range(rz) for col in range(n)]
+
+
+    permutation_variables = [z3.Bool(f'p_{i}_{j}') for i in range(n) for j in range(n)]
+
+    for i in range(n):
+        solver.add(_exactly_one([permutation_variables[i * n + j] for j in range(n)]))
+    for j in range(n):
+        solver.add(_exactly_one([permutation_variables[i * n + j] for i in range(n)]))
+
+    for i in range(n):
+        for j in range(n):
+            x_column_original = c1.Hx[:, i]
+            z_column_original = c1.Hz[:, i]
+
+            x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
+            z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
+
+            solver.add(z3.Implies(permutation_variables[i * n + j], z3.And(_elementwise_map(x_column_original, x_column_permuted), _elementwise_map(z_column_original, z_column_permuted))))
+
+    # row operations
+    row_operation_coefficients_x = [z3.Bool(f'r_x_{i}_{j}') for i in range(rx) for j in range(rx)]
+    row_operation_coefficients_z = [z3.Bool(f'r_z_{i}_{j}') for i in range(rz) for j in range(rz)]
+
+    for row in range(rx):
+        for q in range(n):
+
+            row_contributions = []
+            for contribution in range(rx):
+                if c2.Hx[contribution, q] == 1:
+                    row_contributions.append(row_operation_coefficients_x[row * rx + contribution])
+
+            solver.add(aux_tableau_x[row * n + q] == _xor_list(row_contributions))
+
+    for row in range(rz):
+        for q in range(n):
+
+            row_contributions = []
+            for contribution in range(rz):
+                if c2.Hz[contribution, q] == 1:
+                    row_contributions.append(row_operation_coefficients_z[row * rz + contribution])
+
+            solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
+
+    if solver.check() != z3.sat:
+        return None
+
+    model = solver.model()
+    return [
+        next(
+            j
+            for j in range(n)
+            if z3.is_true(model.eval(permutation_variables[i * n + j], model_completion=True))
+        )
+        for i in range(n)
+    ]
 
 # ----------------------------------------------------------------------------------------------------
 # small helpers
@@ -371,14 +491,3 @@ def _row_basis(M: np.ndarray) -> np.ndarray:
         B = B.reshape(1, -1)
     return B
 
-def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:
-    support = 0
-    for col in np.flatnonzero(row):
-        support |= 1 << int(col)
-    return support
-
-def _iter_mask_bits(mask: int):
-    while mask:
-        bit = mask & -mask
-        yield bit.bit_length() - 1
-        mask ^= bit
