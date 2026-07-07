@@ -13,14 +13,14 @@ from src.hybrids.p_stab import are_peq_stab
 # ----------------------------------------------------------------------------------------------------
 
 def test_are_peq_stab_preserves_n() -> None:
-    assert are_peq_stab(StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4)) is False
+    assert are_peq_stab(StabilizerCode.get_trivial_code(3), StabilizerCode.get_trivial_code(4)) is None
 
 
 def test_are_peq_stab_preserves_k() -> None:
     code1 = StabilizerCode.get_trivial_code(3)
     code2 = StabilizerCode(["ZII"])
 
-    assert are_peq_stab(code1, code2) is False
+    assert are_peq_stab(code1, code2) is None
 
 
 def test_are_peq_stab_does_not_swap_x_and_z() -> None:
@@ -29,14 +29,14 @@ def test_are_peq_stab_does_not_swap_x_and_z() -> None:
 
     assert code1.n == code2.n
     assert code1.k == code2.k
-    assert are_peq_stab(code1, code2) is False
+    assert are_peq_stab(code1, code2) is None
 
 
 def test_are_peq_stab_hardcoded_positive() -> None:
     code1 = StabilizerCode(["XXII", "IIZZ"])
     code2 = StabilizerCode(["XIXI", "IZIZ"])
 
-    assert are_peq_stab(code1, code2) is True
+    assert are_peq_stab(code1, code2) is not None
 
 
 def test_are_peq_stab_random_smoke() -> None:
@@ -44,7 +44,7 @@ def test_are_peq_stab_random_smoke() -> None:
         for k in range(n + 1):
             try:
                 code1, code2 = random_permuted_stabilizer_pair(n, k, seed=1000 + 17 * n + k)
-                assert isinstance(are_peq_stab(code1, code2), bool)
+                assert isinstance(are_peq_stab(code1, code2), (list, type(None)))
             except RandomizeError:
                 pass
 
@@ -59,7 +59,7 @@ def test_are_peq_stab_random_positive(seed: int) -> None:
     except RandomizeError as re:
         pytest.skip(f"Skip test random_positive: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
-    assert are_peq_stab(code1, code2) is True
+    assert are_peq_stab(code1, code2) is not None
 
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
@@ -72,4 +72,4 @@ def test_are_peq_stab_random_negative(seed: int) -> None:
     except RandomizeError as re:
         pytest.skip(f"Skip test random_negative: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
-    assert are_peq_stab(code1, code2) is False
+    assert are_peq_stab(code1, code2) is None

@@ -12,7 +12,7 @@ import z3
 
 from ..core.stabilizer_code import StabilizerCode
 
-def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> bool:
+def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> None | list[int]:
     cheap_invariants = (
         preserved_n,
         preserved_k,
@@ -23,15 +23,15 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     )
 
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
-        return False
+        return None
     
     if c1.n < 1:
-        return True
+        return list(range(c1.n))
     
     reduced_symplectic_1 = _row_basis(c1.symplectic)
     reduced_symplectic_2 = _row_basis(c2.symplectic)
     
-    if c1.n <= 5: # TODO: better threshold with benchmarks?
+    if c1.n <= 5:
         return _bruteforce(reduced_symplectic_1, reduced_symplectic_2)
 
     
@@ -40,9 +40,9 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     )
 
     if not all(invariant(reduced_symplectic_1, reduced_symplectic_2) for invariant in more_expensive_invariants):
-        return False
+        return None
 
-    return True
+    return _sat(reduced_symplectic_1, reduced_symplectic_2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -250,7 +250,7 @@ def preserved_punctured_hull_weight_enumerator(c1: np.ndarray, c2: np.ndarray) -
 # algorithms
 # ----------------------------------------------------------------------------------------------------
 
-def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> bool:
+def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> None | list[int]:
     """p_stab_bruteforce.py"""
     c1_rank = _rank(c1)
     n = c1.shape[1] // 2
@@ -259,11 +259,11 @@ def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> bool:
         perm_symplectic = perm + tuple(q + n for q in perm)
 
         if c1_rank == _rank(np.vstack([c1, c2[:, perm_symplectic]])):
-            return True
+            return list(perm)
 
-    return False
+    return None
 
-def _sat(c1: np.ndarray, c2: np.ndarray) -> bool:
+def _sat(c1: np.ndarray, c2: np.ndarray) -> None | list[int]:
     """p_stab_sat.py"""
     def _elementwise_map(normal_bool, variables):
         return z3.And([
@@ -316,7 +316,18 @@ def _sat(c1: np.ndarray, c2: np.ndarray) -> bool:
 
             solver.add(aux_tableau[row * (2*n) + q] == _xor_list(row_contributions))
 
-    return solver.check() == z3.sat
+    if solver.check() != z3.sat:
+        return None
+
+    model = solver.model()
+    return [
+        next(
+            j
+            for j in range(n)
+            if z3.is_true(model.eval(permutation_variables[i * n + j], model_completion=True))
+        )
+        for i in range(n)
+    ]
 
 
 # ----------------------------------------------------------------------------------------------------

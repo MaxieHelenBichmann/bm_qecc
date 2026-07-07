@@ -14,14 +14,14 @@ from src.hybrids.p_css import are_peq_css
 # ----------------------------------------------------------------------------------------------------
 
 def test_are_peq_css_preserves_n() -> None:
-    assert are_peq_css(CSSCode(n=3), CSSCode(n=4)) is False
+    assert are_peq_css(CSSCode(n=3), CSSCode(n=4)) is None
 
 
 def test_are_peq_css_preserves_k() -> None:
     code1 = CSSCode(n=4)
     code2 = CSSCode(Hx=np.array([[1, 0, 0, 0]], dtype=np.int8))
 
-    assert are_peq_css(code1, code2) is False
+    assert are_peq_css(code1, code2) is None
 
 
 def test_are_peq_css_preserves_x_and_z_ranks() -> None:
@@ -30,7 +30,7 @@ def test_are_peq_css_preserves_x_and_z_ranks() -> None:
 
     assert code1.n == code2.n
     assert code1.k == code2.k
-    assert are_peq_css(code1, code2) is False
+    assert are_peq_css(code1, code2) is None
 
 
 def test_are_peq_css_hardcoded_positive() -> None:
@@ -43,7 +43,7 @@ def test_are_peq_css_hardcoded_positive() -> None:
         Hz=np.array([[1, 1, 1, 1]], dtype=np.int8),
     )
 
-    assert are_peq_css(code1, code2) is True
+    assert are_peq_css(code1, code2) is not None
 
 
 def test_are_peq_css_random_smoke() -> None:
@@ -51,7 +51,7 @@ def test_are_peq_css_random_smoke() -> None:
         for k in range(1, n):
             try:
                 code1, code2 = random_permuted_css_pair(n, k, seed=1000 + 17 * n + k)
-                assert isinstance(are_peq_css(code1, code2), bool)
+                assert isinstance(are_peq_css(code1, code2), (list, type(None)))
             except RandomizeError:
                 pass
 
@@ -66,7 +66,7 @@ def test_are_peq_css_random_positive(seed: int) -> None:
     except RandomizeError as re:
         pytest.skip(f"Skip test random_positive: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
-    assert are_peq_css(code1, code2) is True
+    assert are_peq_css(code1, code2) is not None
 
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
@@ -79,4 +79,4 @@ def test_are_peq_css_random_negative(seed: int) -> None:
     except RandomizeError as re:
         pytest.skip(f"Skip test random_negative: [[{n}, {k}]] (seed {seed}) - randomization error: {re}")
 
-    assert are_peq_css(code1, code2) is False
+    assert are_peq_css(code1, code2) is None

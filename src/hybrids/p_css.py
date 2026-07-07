@@ -31,10 +31,10 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
     )
 
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
-        return False
+        return None
     
     if c1.n < 1:
-        return True
+        return list(range(c1.n))
     
     reduced_Hx1 = _row_basis(c1.Hx)
     reduced_Hz1 = _row_basis(c1.Hz)
@@ -43,18 +43,18 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
     reduced_Hz2 = _row_basis(c2.Hz)
 
     if reduced_Hx1.shape[0] == 0 and reduced_Hz1.shape[0] == 0:
-        return True
+        return None
     
     if c1.n <= 4:
         return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
     
     if not preserved_linear_dependencies(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2):
-        return False
+        return None
     
     result, partition1, partition2 = preserved_punctured_hull_weight_enumerator(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
 
     if not result:
-        return False
+        return None
     
     return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
 
