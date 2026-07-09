@@ -123,12 +123,16 @@ COLOR_FAMILIES_POS: tuple[PlotColors, ...] = (
     PlotColors("forestgreen", "darkgreen", "palegreen", "mediumseagreen"),
     PlotColors("mediumpurple", "indigo", "thistle", "plum"),
     PlotColors("lightseagreen", "darkcyan", "paleturquoise", "mediumturquoise"),
+    PlotColors("steelblue", "midnightblue", "lightblue", "cadetblue"),
+    PlotColors("olivedrab", "darkolivegreen", "yellowgreen", "olive"),
 )
 COLOR_FAMILIES_NEG: tuple[PlotColors, ...] = (
     PlotColors("orange", "darkorange", "moccasin", "peru"),
     PlotColors("indianred", "darkred", "mistyrose", "salmon"),
     PlotColors("peru", "saddlebrown", "tan", "burlywood"),
     PlotColors("hotpink", "mediumvioletred", "pink", "palevioletred"),
+    PlotColors("goldenrod", "darkgoldenrod", "wheat", "darkorange"),
+    PlotColors("tomato", "firebrick", "mistyrose", "lightcoral"),
 )
 
 

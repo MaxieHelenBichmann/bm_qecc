@@ -13,8 +13,11 @@ from matplotlib.lines import Line2D
 
 from visual_utils import (
     AXIS_LABELS,
+    COLOR_FAMILIES_NEG,
+    COLOR_FAMILIES_POS,
     MEMORY_LIMIT_COLOR,
     Axis,
+    PlotColors,
     StatCsv,
     StatRow,
     add_x_range_args,
@@ -28,11 +31,6 @@ from visual_utils import (
 )
 
 GRID_MAX_SECONDS = 5 * 60
-
-
-def invariant_algorithm_base(algorithm: str) -> str:
-    """Return the base invariant name without a trailing subset-size suffix."""
-    return re.sub(r"_s\d+$", "", algorithm)
 
 
 def invariant_algorithm_variant(algorithm: str) -> int | None:
@@ -50,27 +48,19 @@ def invariant_marker(algorithm: str) -> str:
     return markers[(variant - 1) % len(markers)]
 
 
-def invariant_tone(base_color, algorithm: str):
-    """Return a related but distinct tone for subset-sized invariant variants."""
-    variant = invariant_algorithm_variant(algorithm)
-    if variant is None:
-        return base_color
-
-    import colorsys
-
-    red, green, blue, alpha = base_color
-    hue, lightness, saturation = colorsys.rgb_to_hls(red, green, blue)
-    direction = -1 if variant % 2 == 0 else 1
-    amount = min(0.1 + 0.06 * ((variant - 1) // 2), 0.28)
-    lightness = max(0.18, min(0.82, lightness + direction * amount))
-    red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
-    return red, green, blue, alpha
+def invariant_color_pairs(algorithms: Sequence[str]) -> dict[str, tuple[PlotColors, PlotColors]]:
+    """Assign every algorithm a stable positive/negative color pair."""
+    return {
+        algorithm: (
+            COLOR_FAMILIES_POS[index % len(COLOR_FAMILIES_POS)],
+            COLOR_FAMILIES_NEG[index % len(COLOR_FAMILIES_NEG)],
+        )
+        for index, algorithm in enumerate(sorted(algorithms))
+    }
 
 
 def matches_filter(row: StatRow, args: argparse.Namespace) -> bool:
     """Return whether an invariant statistics row should be plotted."""
-    if args.algorithm and row.algorithm not in args.algorithm:
-        return False
     selected_positive = positive_filter(args.positive)
     if selected_positive is not None and row.positive != selected_positive:
         return False
@@ -149,13 +139,7 @@ def plot_invariant_rows(
 ) -> None:
     """Render invariant statistics with uncertainty and failure annotations."""
     algorithms = sorted({row.algorithm for row in rows})
-    bases = sorted({invariant_algorithm_base(algorithm) for algorithm in algorithms})
-    cmap = plt.get_cmap("tab10" if len(bases) <= 10 else "tab20")
-    base_colors = {base: cmap(index % cmap.N) for index, base in enumerate(bases)}
-    colors = {
-        algorithm: invariant_tone(base_colors[invariant_algorithm_base(algorithm)], algorithm)
-        for algorithm in algorithms
-    }
+    colors_by_algorithm = invariant_color_pairs(algorithms)
 
     grouped: dict[tuple[str, bool], list[StatRow]] = {}
     for row in rows:
@@ -175,7 +159,7 @@ def plot_invariant_rows(
 
         finite = [(label_x, row) for label_x, row in zip(x, group) if math.isfinite(row.mean_seconds)]
         label = f"{algorithm} ({'positive' if positive else 'negative'})"
-        color = colors[algorithm]
+        colors = colors_by_algorithm[algorithm][0 if positive else 1]
         if finite:
             finite_x = [label_x for label_x, _ in finite]
             mean = [row.mean_seconds for _, row in finite]
@@ -186,10 +170,10 @@ def plot_invariant_rows(
                 mean,
                 yerr=[lower, upper],
                 marker=invariant_marker(algorithm),
-                markerfacecolor=color if positive else "white",
-                markeredgecolor=color,
-                color=color,
-                ecolor=(*color[:3], 0.35),
+                markerfacecolor=colors.point,
+                markeredgecolor=colors.point,
+                color=colors.line,
+                ecolor=colors.error,
                 capsize=3,
                 linewidth=1.4,
                 markersize=5,
@@ -201,7 +185,7 @@ def plot_invariant_rows(
             maximum = [(label_x, row.maximum_seconds) for label_x, row in finite if row.maximum_seconds is not None]
             if maximum:
                 maximum_x, maximum_y = zip(*maximum)
-                ax.scatter(maximum_x, maximum_y, marker="x", s=20, color=color, alpha=0.55, zorder=3)
+                ax.scatter(maximum_x, maximum_y, marker="x", s=20, color=colors.maximum, alpha=0.55, zorder=3)
                 has_maximum = True
 
             memory = [(label_x, row.mean_seconds) for label_x, row in finite if row.num_memory_limited > 0]
@@ -281,7 +265,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("csv", type=Path, help="Invariant statistics CSV from benchmarks/run.py --inv.")
     parser.add_argument("--x", choices=("n", "k", "r"), required=True, help="Parameter used for the x-axis.")
     add_x_range_args(parser)
-    parser.add_argument("--algorithm", action="append", help="Invariant to include. Can be passed multiple times.")
     parser.add_argument("--positive", choices=("true", "false", "all"), default="all")
     parser.add_argument("--n", type=int, help="Fix block length n.")
     parser.add_argument("--k", type=int, help="Fix logical dimension k.")
