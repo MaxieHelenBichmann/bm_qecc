@@ -7,7 +7,7 @@ from pynauty import Graph
 
 from benchmarks.utils import RandomizeError, random_permuted_stabilizer_pair, random_non_permuted_stabilizer_pair
 from src.core.stabilizer_code import StabilizerCode
-from src.algorithms.p_stab.p_stab_graph_iso import (
+from src.algorithms.p_stb.p_stab_graph_iso import (
     _graph_from_code,
     are_peq_stab_graph_iso,
 )

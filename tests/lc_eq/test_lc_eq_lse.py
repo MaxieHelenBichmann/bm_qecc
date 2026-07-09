@@ -6,13 +6,13 @@ import numpy as np
 import pytest
 
 from benchmarks.utils import non_lc_equivalent_code, random_stabilizer_code, lc_equivalent_code, lc_equivalent_code_and_log_ops
-from src.algorithms.lc_eq.lc_eq_graph_state import (
+from src.algorithms.lc_stb.lc_eq_lse import (
     _stab_state_to_graph_state,
     _stab_code_to_stab_state,
     _lc_equiv_graph_states,
     are_lceq_graph_state,
 )
-from src.algorithms.lc_eq.lc_eq_bruteforce import are_lceq_bruteforce
+from src.algorithms.lc_stb.lc_eq_bruteforce import are_lceq_bruteforce
 from src.core.stabilizer_code import StabilizerCode
 
 def _assert_same_matrix(actual: np.ndarray, expected: np.ndarray) -> None:

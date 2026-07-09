@@ -6,7 +6,7 @@ import pytest
 
 from benchmarks.utils import lc_equivalent_code, non_lc_equivalent_code, random_stabilizer_code
 from src.core.stabilizer_code import StabilizerCode
-from src.algorithms.lc_eq.lc_eq_sat import are_lceq_sat
+from src.algorithms.lc_stb.lc_eq_sat import are_lceq_sat
 
 # ----------------------------------------------------------------------------------------------------
 # are_lceq_sat

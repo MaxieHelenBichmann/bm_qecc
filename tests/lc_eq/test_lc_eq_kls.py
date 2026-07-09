@@ -8,7 +8,7 @@ import pytest
 import ldpc.mod2.mod2_numpy as mod2
 
 from benchmarks.utils import random_stabilizer_code, lc_equivalent_code
-from src.algorithms.lc_eq.lc_eq_kls import (
+from src.algorithms.lc_stb.lc_eq_kls import (
     GSLC,
     _code_to_encoder_circuit,
     _code_to_graph,

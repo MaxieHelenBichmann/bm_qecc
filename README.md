@@ -25,7 +25,7 @@ $$ \exists P \in \mathfrak{S}_n : \medspace \exists R_x \in \mathrm{GL}(r_x, \ma
 
 ### Local-Clifford Equivalence
 
-- **LC-EQ**: Are two given Stabilizer Codes C and C' Local-Clifford equivalent (define the same codespace) up to Local Clifford gates on the output qubits?
+- **LC-STB**: Are two given Stabilizer Codes C and C' Local-Clifford equivalent (define the same codespace) up to Local Clifford gates on the output qubits?
 
 $$\exists Q = \begin{bmatrix} A & B \\ C & D \end{bmatrix} \in \operatorname{Sp}(2n, \mathbb{F}_2): Q_i = \begin{bmatrix} a_{ii} & b_{ii} \\ c_{ii} & d_{ii} \end{bmatrix} \in \operatorname{Sp}(2, \mathbb{F}_2): \medspace \exists R \in \mathrm{GL}(r, \mathbb{F}_2): \enspace \operatorname{S}(\text{C}')  = R \cdot \operatorname{S}(\text{C}) \cdot Q$$
 
