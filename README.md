@@ -43,30 +43,28 @@ $$
 
 ## Approaches
 
-### Permutation Equivalence
-#### Stabilizer Codes
+#### PM-STB
 - [x] Brute Force
 - [x] Classical Algorithms
 - [x] Automorphisms
 - [x] Graph Isomorphism
 - [x] SAT
 
-#### CSS Codes
+#### PM-CSS
 - [x] Brute Force
 - [x] Classical Algorithms
 - [x] Graph Isomorphism
 - [x] Matroid Isomorphism
 - [x] SAT
 
-### Local-Clifford Equivalence
-#### $C \thicksim_{LC} \ C'$
+#### LC-EQ
 - [x] Brute Force
 - [x] Graph Isomorphism
 - [x] Graph State LSE **(ONLY VALID FOR _k < 2_ OR _RESTRICTIONS ON LOGICAL OPERATORS_)**
 - [x] KLS Normal Form + LC Orbit
 - [x] SAT
 
-#### $C \thicksim_{LC} \ C_{CSS}$
+#### LC-CSS
 - [x] Brute Force
 - [x] KLS Normal Form + LC Orbit
 - [x] Clifford Orbit
