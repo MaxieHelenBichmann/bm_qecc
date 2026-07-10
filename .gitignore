@@ -15,5 +15,6 @@ results/*
 data/random*.txt
 data/*.py
 results/conversion.py
+results/extraction.py
 
 .DS_Store
