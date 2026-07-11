@@ -283,11 +283,15 @@ def plot_random_series(
     output: Path | None,
     title: str | None,
     show_theory: bool,
+    log_scale: bool,
+    show_memory_errors: bool,
     timeout_seconds: float | None,
     case_positions: dict[tuple[int, int], int] | None = None,
 ) -> None:
     """Render randomized-code curves with mean/stddev and maximum markers."""
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
+    if log_scale:
+        ax.set_yscale("log")
     if show_theory and case_positions is None:
         plot_boundary_fits(series, axis, ax)
 
@@ -339,7 +343,7 @@ def plot_random_series(
         if maximum_points:
             maximum_x, maximum = zip(*maximum_points)
             ax.scatter(maximum_x, maximum, s=18, alpha=0.5, color=colors.maximum, marker="x", zorder=3)
-        if memory_limited_points:
+        if show_memory_errors and memory_limited_points:
             memory_x, memory_y = zip(*memory_limited_points)
             ax.scatter(
                 memory_x,
@@ -353,7 +357,7 @@ def plot_random_series(
                 label="_nolegend_",
                 zorder=4,
             )
-        for line_x in memory_only_x:
+        for line_x in memory_only_x if show_memory_errors else ():
             ax.axvline(
                 line_x,
                 color=MEMORY_LIMIT_COLOR,
@@ -372,7 +376,8 @@ def plot_random_series(
         ax.set_xlabel("case (r, n), sorted by r then n")
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
-    ax.set_ylim(bottom=0)
+    if not log_scale:
+        ax.set_ylim(bottom=0)
     if case_positions is None:
         configure_xaxis_ticks(axis, ax)
     else:
@@ -422,6 +427,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_x_range_args(parser)
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
     parser.add_argument("--theory", action="store_true", help="Draw a faint fitted theoretical boundary function.")
+    parser.add_argument("--log", action="store_true", help="Use a logarithmic runtime (y) axis.")
+    parser.add_argument(
+        "--memory-errors",
+        action="store_true",
+        help="Mark rows with memory errors using circles or dashed vertical lines.",
+    )
     add_common_stat_filters(parser)
     parser.add_argument("--n", type=int, help="Fix block length n.")
     parser.add_argument("--k", type=int, help="Fix logical dimension k.")
@@ -474,6 +485,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         output=args.output,
         title=fixed_parameter_title(args, rows, metadata_title_suffix(metadata)),
         show_theory=args.theory and case_positions is None,
+        log_scale=args.log,
+        show_memory_errors=args.memory_errors,
         timeout_seconds=metadata.timeout_seconds,
         case_positions=case_positions,
     )
