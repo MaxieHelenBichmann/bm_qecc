@@ -87,11 +87,15 @@ def build_heatmap_grid(
     rows: Iterable[StatRow],
     y_axis: VerticalAxis,
     aggregate: AggregateMode,
-) -> tuple[list[int], list[int], list[list[float]]]:
-    """Build a dense matrix whose cells contain aggregated mean runtime."""
+) -> tuple[list[int], list[int], list[list[float]], list[list[bool]]]:
+    """Build runtime and memory-error matrices for the heatmap cells."""
     cell_values: dict[tuple[int, int], list[float]] = {}
+    memory_error_cells: set[tuple[int, int]] = set()
     for row in rows:
-        cell_values.setdefault((row.n, vertical_value(row, y_axis)), []).append(row.mean_seconds)
+        cell = (row.n, vertical_value(row, y_axis))
+        cell_values.setdefault(cell, []).append(row.mean_seconds)
+        if row.num_memory_limited > 0:
+            memory_error_cells.add(cell)
 
     x_values = sorted({n for n, _ in cell_values})
     y_values = sorted({y for _, y in cell_values})
@@ -99,9 +103,11 @@ def build_heatmap_grid(
     y_index = {value: index for index, value in enumerate(y_values)}
 
     grid = [[float("nan") for _ in x_values] for _ in y_values]
+    memory_errors = [[False for _ in x_values] for _ in y_values]
     for (n, y), values in cell_values.items():
         grid[y_index[y]][x_index[n]] = aggregate_values(values, aggregate)
-    return x_values, y_values, grid
+        memory_errors[y_index[y]][x_index[n]] = (n, y) in memory_error_cells
+    return x_values, y_values, grid, memory_errors
 
 
 def heatmap_title(args: argparse.Namespace, rows: Sequence[StatRow], metadata_suffix: str = "") -> str:
@@ -127,6 +133,7 @@ def plot_heatmap(
     x_values: Sequence[int],
     y_values: Sequence[int],
     grid: Sequence[Sequence[float]],
+    memory_errors: Sequence[Sequence[bool]],
     y_axis: VerticalAxis,
     output: Path | None,
     title: str,
@@ -180,6 +187,32 @@ def plot_heatmap(
     ax.set_yticks([tick - 0.5 for tick in range(1, len(y_values))], minor=True)
     ax.grid(which="minor", color="white", linewidth=0.7, alpha=0.55)
     ax.tick_params(which="minor", bottom=False, left=False)
+
+    memory_y, memory_x = np.nonzero(np.asarray(memory_errors, dtype=bool))
+    if memory_x.size:
+        marker_color = "#1565c0"
+        ax.scatter(
+            memory_x,
+            memory_y,
+            s=150,
+            facecolors="none",
+            edgecolors=marker_color,
+            linewidths=1.8,
+            marker="s",
+            label="one or more memory errors",
+            zorder=4,
+        )
+        ax.scatter(
+            memory_x,
+            memory_y,
+            s=100,
+            color=marker_color,
+            linewidths=1.8,
+            marker="x",
+            label="_nolegend_",
+            zorder=5,
+        )
+        ax.legend(loc="best")
 
     if output is None:
         plt.show()
@@ -251,11 +284,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("No randomized rows matched the selected filters.")
 
     metadata = common_metadata([stat_csv.metadata for stat_csv in stat_csvs])
-    x_values, y_values, grid = build_heatmap_grid(rows, args.y, args.aggregate)
+    x_values, y_values, grid, memory_errors = build_heatmap_grid(rows, args.y, args.aggregate)
     plot_heatmap(
         x_values=x_values,
         y_values=y_values,
         grid=grid,
+        memory_errors=memory_errors,
         y_axis=args.y,
         output=args.output,
         title=heatmap_title(args, rows, metadata_title_suffix(metadata)),
