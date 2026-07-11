@@ -163,10 +163,13 @@ def plot_named_series(
     axis: Axis,
     output: Path | None,
     title: str,
+    log_scale: bool,
     timeout_seconds: float | None,
 ) -> None:
     """Render named cases with mean/stddev, maximum markers, and direct labels."""
     fig, ax = plt.subplots(figsize=(8, 4.8), constrained_layout=True)
+    if log_scale:
+        ax.set_yscale("log")
     point_labels: list[PointLabel] = []
     for color_index, item in enumerate(series):
         if item.rows and item.rows[0].positive:
@@ -245,7 +248,8 @@ def plot_named_series(
     ax.set_xlabel(AXIS_LABELS[axis])
     ax.set_ylabel("runtime [s]")
     ax.margins(x=0.12, y=0.18)
-    ax.set_ylim(bottom=0)
+    if not log_scale:
+        ax.set_ylim(bottom=0)
     configure_xaxis_ticks(axis, ax)
     draw_runtime_guides(ax, timeout_seconds)
     xlim = ax.get_xlim()
@@ -291,6 +295,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--x", choices=("n", "k", "r"), required=True, help="Parameter used for the x-axis.")
     add_x_range_args(parser)
     parser.add_argument("--output", type=Path, help="Where to save the diagram. Shows an interactive window if omitted.")
+    parser.add_argument("--log", action="store_true", help="Use a logarithmic runtime (y) axis.")
     parser.add_argument("--name", help="Case name to include.")
     add_common_stat_filters(parser)
     return parser
@@ -332,6 +337,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         axis=args.x,
         output=args.output,
         title=plot_title(rows, metadata_title_suffix(stat_csv.metadata)),
+        log_scale=args.log,
         timeout_seconds=stat_csv.metadata.timeout_seconds,
     )
     return 0
