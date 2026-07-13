@@ -57,6 +57,7 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
         return None
     
     return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
+    return _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -363,7 +364,7 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
     return graph_iso[:n]
 
 
-def _sat(c1: CSSCode, c2: CSSCode) -> list[int] | None:
+def _sat(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2: np.ndarray, Hz2: np.ndarray, partition2: dict[int, list[int]]) -> list[int] | None:
     """pm_css_sat.py"""
     def _elementwise_map(normal_bool, variables):
         return z3.And([
@@ -381,32 +382,31 @@ def _sat(c1: CSSCode, c2: CSSCode) -> list[int] | None:
         return acc
     solver = z3.Solver()
 
-    n = c1.n
-    rx = c1.Hx.shape[0]
-    rz = c1.Hz.shape[0]
-    
+    n = Hx1.shape[1]
+    rx = Hx1.shape[0]
+    rz = Hz1.shape[0]
+
 
     # permutations
     aux_tableau_x = [z3.Bool(f'aux_x_{row}_{col}') for row in range(rx) for col in range(n)]
     aux_tableau_z = [z3.Bool(f'aux_z_{row}_{col}') for row in range(rz) for col in range(n)]
 
 
-    permutation_variables = [z3.Bool(f'p_{i}_{j}') for i in range(n) for j in range(n)]
+    permutation_variables = {(i,j) :z3.Bool(f'p_{i}_{j}') for sig, col1 in partition1.items() for i in col1 for j in partition2[sig] }
 
     for i in range(n):
-        solver.add(_exactly_one([permutation_variables[i * n + j] for j in range(n)]))
+        solver.add(_exactly_one([var for (src, _), var in permutation_variables.items() if src == i]))
     for j in range(n):
-        solver.add(_exactly_one([permutation_variables[i * n + j] for i in range(n)]))
+        solver.add(_exactly_one([ var for (_, tgt), var in permutation_variables.items() if tgt == j]))
 
-    for i in range(n):
-        for j in range(n):
-            x_column_original = c1.Hx[:, i]
-            z_column_original = c1.Hz[:, i]
+    for (i,j), permutation_variable in permutation_variables:
+        x_column_original = Hx1[:, i]
+        z_column_original = Hz1[:, i]
 
-            x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
-            z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
+        x_column_permuted = [aux_tableau_x[row * n + j] for row in range(rx)]
+        z_column_permuted = [aux_tableau_z[row * n + j] for row in range(rz)]
 
-            solver.add(z3.Implies(permutation_variables[i * n + j], z3.And(_elementwise_map(x_column_original, x_column_permuted), _elementwise_map(z_column_original, z_column_permuted))))
+        solver.add(z3.Implies(permutation_variable, z3.And(_elementwise_map(x_column_original, x_column_permuted), _elementwise_map(z_column_original, z_column_permuted))))
 
     # row operations
     row_operation_coefficients_x = [z3.Bool(f'r_x_{i}_{j}') for i in range(rx) for j in range(rx)]
@@ -417,7 +417,7 @@ def _sat(c1: CSSCode, c2: CSSCode) -> list[int] | None:
 
             row_contributions = []
             for contribution in range(rx):
-                if c2.Hx[contribution, q] == 1:
+                if Hx2[contribution, q] == 1:
                     row_contributions.append(row_operation_coefficients_x[row * rx + contribution])
 
             solver.add(aux_tableau_x[row * n + q] == _xor_list(row_contributions))
@@ -427,7 +427,7 @@ def _sat(c1: CSSCode, c2: CSSCode) -> list[int] | None:
 
             row_contributions = []
             for contribution in range(rz):
-                if c2.Hz[contribution, q] == 1:
+                if Hz2[contribution, q] == 1:
                     row_contributions.append(row_operation_coefficients_z[row * rz + contribution])
 
             solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
@@ -435,15 +435,17 @@ def _sat(c1: CSSCode, c2: CSSCode) -> list[int] | None:
     if solver.check() != z3.sat:
         return None
 
+    perm = [-1] * n
     model = solver.model()
-    return [
-        next(
+    for i in range(n):
+        perm[i] =  next(
             j
-            for j in range(n)
-            if z3.is_true(model.eval(permutation_variables[i * n + j], model_completion=True))
+            for (src, j), var in permutation_variables.items()
+            if src == i and z3.is_true(
+                model.eval(var, model_completion=True)
+            )
         )
-        for i in range(n)
-    ]
+    return perm
 
 # ----------------------------------------------------------------------------------------------------
 # small helpers
