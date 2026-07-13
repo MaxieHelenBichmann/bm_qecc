@@ -126,7 +126,6 @@ def test_are_lceq_random_smoke() -> None:
             assert isinstance(are_lceq(code1, code2), (list, type(None)))
 
 
-@pytest.mark.skip(reason="src.hybrids.lc_eq.are_lceq is not implemented yet.")
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(2, 10)])
 def test_are_lceq_random_positive(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 5
@@ -136,8 +135,6 @@ def test_are_lceq_random_positive(seed: int) -> None:
 
     assert are_lceq(code1, code2) is not None
 
-
-@pytest.mark.skip(reason="src.hybrids.lc_eq.are_lceq is not implemented yet.")
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(2, 6)])
 def test_are_lceq_random_negative(seed: int) -> None:
     n = 2 + (3 * seed + 1) % 4
