@@ -14,7 +14,7 @@ from ..core.stabilizer_code import StabilizerCode
 def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:
     """Check whether two stabilizer codes are local-clifford-equivalent.
 
-    Returns: None if they are not local-clifford-equivalent, otherwise returns a list of local clifford operations
+    Returns: None if they are not local-clifford-equivalent, otherwise returns a list of local clifford operations with which c1 can be transformed into c2.
     """
     cheap_invariants = (
         preserved_n,
