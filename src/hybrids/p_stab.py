@@ -38,12 +38,12 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> None | list[int]:
     if c1.n <= 5:
         return _bruteforce(reduced_symplectic_1, reduced_symplectic_2)
 
+    if not preserved_linear_dependencies(reduced_symplectic_1, reduced_symplectic_2):
+        return None
     
-    more_expensive_invariants = (
-            preserved_linear_dependencies,
-    )
+    result, partition1, partition2 = preserved_punctured_hull_weight_enumerator(reduced_symplectic_1, reduced_symplectic_2)
 
-    if not all(invariant(reduced_symplectic_1, reduced_symplectic_2) for invariant in more_expensive_invariants):
+    if not result:
         return None
 
     return _sat(reduced_symplectic_1, reduced_symplectic_2)
@@ -95,7 +95,7 @@ def preserved_linear_dependencies(c1: np.ndarray, c2: np.ndarray) -> bool:
     
     return _linear_dependencies(c1) == _linear_dependencies(c2)
 
-def preserved_punctured_hull_weight_enumerator(c1: np.ndarray, c2: np.ndarray) -> bool:
+def preserved_punctured_hull_weight_enumerator(c1: np.ndarray, c2: np.ndarray) -> tuple[bool, dict[int, list[int]] | None, dict[int, list[int]] | None]:
     """SENDRIER - p_stab_classical.py"""
     def _symplectic_to_gf4(symplectic: np.ndarray) -> np.ndarray:
         """
@@ -243,11 +243,11 @@ def preserved_punctured_hull_weight_enumerator(c1: np.ndarray, c2: np.ndarray) -
 
     for key1, key2 in zip(partition_c1.keys(), partition_c2.keys()):
         if key1 != key2:
-            return False
+            return False, None, None
         if len(partition_c1[key1]) != len(partition_c2[key2]):
-            return False
+            return False, None, None
         
-    return True
+    return True, partition_c1, partition_c2
 
 
 # ----------------------------------------------------------------------------------------------------
@@ -267,7 +267,7 @@ def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> None | list[int]:
 
     return None
 
-def _sat(c1: np.ndarray, c2: np.ndarray) -> None | list[int]:
+def _sat(c1: np.ndarray, partition1: dict[int, list[int]], c2: np.ndarray, partition2: dict[int, list[int]]) -> None | list[int]:
     """p_stab_sat.py"""
     def _elementwise_map(normal_bool, variables):
         return z3.And([
@@ -290,22 +290,22 @@ def _sat(c1: np.ndarray, c2: np.ndarray) -> None | list[int]:
 
     # permutations
     aux_tableau = [z3.Bool(f'aux_{row}_{col}') for row in range(r) for col in range(2*n)]
-    permutation_variables = [z3.Bool(f'p_{i}_{j}') for i in range(n) for j in range(n)]
+
+    permutation_variables = {(i,j) :z3.Bool(f'p_{i}_{j}') for sig, col1 in partition1.items() for i in col1 for j in partition2[sig] }
 
     for i in range(n):
-        solver.add(_exactly_one([permutation_variables[i * n + j] for j in range(n)]))
+        solver.add(_exactly_one([var for (src, _), var in permutation_variables.items() if src == i]))
     for j in range(n):
-        solver.add(_exactly_one([permutation_variables[i * n + j] for i in range(n)]))
+        solver.add(_exactly_one([ var for (_, tgt), var in permutation_variables.items() if tgt == j]))
 
-    for i in range(n):
-        for j in range(n):
+    for (i,j), permutation_variable in permutation_variables:
             x_column_original = c1[:, i]
             z_column_original = c1[:, i + n]
 
             x_column_permuted = [aux_tableau[row * (2*n) + j] for row in range(r)]
             z_column_permuted = [aux_tableau[row * (2*n) + j + n] for row in range(r)]
 
-            solver.add(z3.Implies(permutation_variables[i * n + j], z3.And(_elementwise_map(x_column_original, x_column_permuted), _elementwise_map(z_column_original, z_column_permuted))))
+            solver.add(z3.Implies(permutation_variable, z3.And(_elementwise_map(x_column_original, x_column_permuted), _elementwise_map(z_column_original, z_column_permuted))))
 
     # row operations
     row_operation_coefficients = [z3.Bool(f'r_{i}_{j}') for i in range(r) for j in range(r)]
@@ -323,15 +323,17 @@ def _sat(c1: np.ndarray, c2: np.ndarray) -> None | list[int]:
     if solver.check() != z3.sat:
         return None
 
+    perm = [-1] * n
     model = solver.model()
-    return [
-        next(
+    for i in range(n):
+        perm[i] =  next(
             j
-            for j in range(n)
-            if z3.is_true(model.eval(permutation_variables[i * n + j], model_completion=True))
+            for (src, j), var in permutation_variables.items()
+            if src == i and z3.is_true(
+                model.eval(var, model_completion=True)
+            )
         )
-        for i in range(n)
-    ]
+    return perm
 
 
 # ----------------------------------------------------------------------------------------------------
