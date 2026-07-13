@@ -100,7 +100,7 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
 # ----------------------------------------------------------------------------------------------------
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
-def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> None | list[str]:
+def _lse(c1: StabilizerCode, c2: StabilizerCode, reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> None | list[str]:
     """lc_eq_lse.py"""
 
     def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
@@ -114,7 +114,7 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
                 [Lz_x | 0 | Lz_z | I]
         """
         if code.k == 0:
-            return reduced_symplectic
+            return reduced_symplectic.copy()
 
         n = code.n
         r = reduced_symplectic.shape[0]
@@ -135,12 +135,13 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
 
         return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
 
-    def _stab_state_to_graph_state(tableau: np.ndarray, lc: list[str]) -> tuple[np.ndarray, list[str]]:
+    def _stab_state_to_graph_state(tableau: np.ndarray) -> tuple[np.ndarray, list[str]]:
         """Convert a stabilizer state into a graph state under local Clifford operations.
         Returns the adjacency matrix of the graph state."""
         n = tableau.shape[1] // 2
+        lc = [""] * n
 
-        def _make_X_invertible(t: np.ndarray, lc: list[str]) -> tuple[np.ndarray, list[str]]:
+        def _make_X_invertible(t: np.ndarray) -> np.ndarray:
             old_x_rank = _rank(t[:, :n])
             while old_x_rank < n:
                 improved = False
@@ -156,7 +157,7 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
                     x_col = t[:, q].copy()
                     z_col = t[:, q + n].copy()
 
-                    for new_x, new_z , op in [ (x_col, z_col, ), (z_col, x_col, "H"), ((x_col + z_col) % 2, x_col, "HS") ]:
+                    for new_x, new_z , op in [ (x_col, z_col, ""), (z_col, x_col, "H"), ((x_col + z_col) % 2, x_col, "HS") ]:
                         t[:, q] = new_x
                         new_x_rank = _rank(t[:, :n])
                         if new_x_rank > best_rank:
@@ -168,17 +169,16 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
                         t[:, q] = best_choice[0]
                         t[:, q + n] = best_choice[1]
                         old_x_rank = best_rank
-                        lc[q] = best_op + lc[q]
+                        lc[q] = best_op
                         improved = True
                     else:
                         t[:, q] = x_col
                         t[:, q + n] = z_col
-                        lc[q] = ""
 
                 if not improved:
                     break
 
-            return t, lc
+            return t
 
         def _extract_adjacency_matrix(tableau: np.ndarray) -> np.ndarray:
             """Extract the adjacency matrix from the stabilizer state."""
@@ -214,18 +214,16 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
 
             return rre[:, n:]
     
-        def _remove_diagonal(tableau: np.ndarray, lc: list[str]) -> tuple[np.ndarray, list[str]]:
+        def _remove_diagonal(tableau: np.ndarray) -> None:
             """Basically apply S gate on all qubits to remove self-loops in the graph state."""
             for i in range(tableau.shape[0]):
                 if tableau[i,i] == 1:
                     lc[i] = "S" + lc[i]
                     tableau[i,i] = 0
-            return tableau, lc
 
-        lc = [""] * n
-        state, lc = _make_X_invertible(tableau, lc)
+        state = _make_X_invertible(tableau)
         gamma = _extract_adjacency_matrix(state)
-        gamma, lc = _remove_diagonal(gamma, lc)
+        _remove_diagonal(gamma)
 
         if not np.array_equal(gamma, gamma.T):
             raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
@@ -259,8 +257,9 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
 
         return connected_components
     
-    def _extract_lc_operation(x: np.ndarray, lc: list[str]) -> list[str] | None:
-        n = len(lc)
+    def _extract_lc_operation(x: np.ndarray) -> list[str] | None:
+        n = len(x) // 4
+        lc = [""] * n
         for i in range(n): # code1 --op--> code2
             a_i = x[i]
             b_i = x[n + i]
@@ -268,22 +267,22 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
             d_i = x[3 * n + i]
 
             if (a_i, b_i, c_i, d_i) == (1, 0, 0, 1):
-                lc[i] = "I" + lc[i]
+                lc[i] = "I"
             elif (a_i, b_i, c_i, d_i) == (0, 1, 1, 0):
-                lc[i] = "H" + lc[i]
+                lc[i] = "H"
             elif (a_i, b_i, c_i, d_i) == (1, 1, 0, 1):
-                lc[i] = "S" + lc[i]
+                lc[i] = "S"
             elif (a_i, b_i, c_i, d_i) == (0, 1, 1, 1):
-                lc[i] = "HS" + lc[i]
+                lc[i] = "HS"
             elif (a_i, b_i, c_i, d_i) == (1, 1, 1, 0):
-                lc[i] = "SH" + lc[i]
+                lc[i] = "SH"
             elif (a_i, b_i, c_i, d_i) == (1, 0, 1, 1):
-                lc[i] = "HSH" + lc[i]
+                lc[i] = "HSH"
             else:
                 return None
         return lc
 
-    def _lc_equiv_connected(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
+    def _lc_equiv_connected(g1: np.ndarray, g2: np.ndarray, n : int) -> list[str] | None:
         """Check if two graph states are equivalent under local complementations using an efficient algorithm that considers a linear system of equations."""
 
         def _build_lse():
@@ -346,40 +345,84 @@ def _lse(c1: np.ndarray, c2: np.ndarray, reduced_symplectic_1: np.ndarray, reduc
                         return _extract_lc_operation(x)
         else:
             for coeffs in product([0, 1], repeat=dim):
+
                 x = np.zeros(4 * n, dtype=np.uint8)
                 for bit, basis_vec in zip(coeffs, V):
                     if bit:
                         x ^= basis_vec
-                    if _satisfy_constraints(x):
-                        return _extract_lc_operation(x)
+
+                if _satisfy_constraints(x):
+                    return _extract_lc_operation(x)
 
         return None
 
-    def _lc_equiv_graph_states(graph_1: np.ndarray, graph_2: np.ndarray) -> bool:
+    def _lc_equiv_graph_states(graph_1: np.ndarray, graph_2: np.ndarray) -> None | list[str]:
+        lc = [""] * graph_1.shape[0]
         connected_components_g1 = sorted(tuple(comp) for comp in _extract_connected_components(graph_1))
         connected_components_g2 = sorted(tuple(comp) for comp in _extract_connected_components(graph_2))
 
         if connected_components_g1 != connected_components_g2:
-            return False
+            return None
 
         for comp in connected_components_g1:
             comp_idx = list(comp)
-            if not _lc_equiv_connected(
-                graph_1[np.ix_(comp_idx, comp_idx)],
-                graph_2[np.ix_(comp_idx, comp_idx)],
-                len(comp_idx),
-            ):
-                return False
+
+            component_lc = _lc_equiv_connected(graph_1[np.ix_(comp_idx, comp_idx)],graph_2[np.ix_(comp_idx, comp_idx)],len(comp_idx))
+            if component_lc is None:
+                return None
+
+            for global_q, operation in zip(comp_idx, component_lc, strict=True):
+                lc[global_q] = operation
                 
-        return True
+        return lc
     
+    def _simplify_lc_operations(lc: list[str]) -> list[str]:
+        """Simplify a list of local clifford operations by removing identity operations."""
+        identity = np.eye(2, dtype=np.uint8)
+        h = np.array([[0, 1], [1, 0]], dtype=np.uint8)
+        s = np.array([[1, 0], [1, 1]], dtype=np.uint8)
+
+        representatives = {
+            "I": identity,
+            "H": h,
+            "S": s,
+            "HS": (h @ s) % 2,
+            "SH": (s @ h) % 2,
+            "HSH": (h @ s @ h) % 2,
+        }
+        name_by_matrix = {
+            tuple(matrix.flat): name
+            for name, matrix in representatives.items()
+        }
+
+        def canonicalize(word: str) -> str:
+            matrix = identity.copy()
+
+            for gate in word:
+                if gate == "H":
+                    matrix = (matrix @ h) % 2
+                elif gate == "S":
+                    matrix = (matrix @ s) % 2
+                elif gate != "I":
+                    raise ValueError(f"Unknown Clifford gate {gate!r}.")
+
+            return name_by_matrix[tuple(matrix.flat)]
+
+        return [canonicalize(operation) for operation in lc]
+
     stab_state1 = _stab_code_to_stab_state(c1, reduced_symplectic_1)
     stab_state2 = _stab_code_to_stab_state(c2, reduced_symplectic_2)
 
-    graph_state1 = _stab_state_to_graph_state(stab_state1)
-    graph_state2 = _stab_state_to_graph_state(stab_state2)
+    graph_state1 , lc1 = _stab_state_to_graph_state(stab_state1)
+    graph_state2 , lc2 = _stab_state_to_graph_state(stab_state2)
 
-    return _lc_equiv_graph_states(graph_state1, graph_state2)
+    leq = _lc_equiv_graph_states(graph_state1, graph_state2)
+
+    if leq is None:
+        return None
+
+    result = [ op2[::-1] + op_eq + op1 for op1, op_eq, op2 in zip(lc1, leq, lc2, strict=True)]
+    return _simplify_lc_operations(result[:c1.n])
 
 
 def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:

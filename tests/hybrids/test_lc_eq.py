@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ldpc.mod2.mod2_numpy as mod2
+import numpy as np
 import pytest
 
 from benchmarks.utils import (
@@ -11,7 +13,38 @@ from benchmarks.utils import (
     random_stabilizer_code,
 )
 from src.core.stabilizer_code import StabilizerCode
-from src.hybrids.lc_eq import are_lceq
+from src.hybrids.lc_eq import LOCAL_CLIFFORDS, are_lceq
+
+
+def _apply_lc_witness(symplectic: np.ndarray, witness: list[str]) -> np.ndarray:
+    """Apply matrix-ordered LC words to a symplectic tableau."""
+    transformed = symplectic.copy()
+    n = transformed.shape[1] // 2
+
+    assert len(witness) == n
+    assert all(operation in LOCAL_CLIFFORDS for operation in witness)
+
+    for qubit, operation in enumerate(witness):
+        # The strings denote matrix products, so the rightmost gate acts first.
+        for gate in reversed(operation):
+            if gate == "H":
+                transformed[:, [qubit, qubit + n]] = transformed[:, [qubit + n, qubit]]
+            elif gate == "S":
+                transformed[:, qubit + n] ^= transformed[:, qubit]
+
+    return transformed
+
+
+def _assert_maps_rowspace(
+    code1: StabilizerCode,
+    code2: StabilizerCode,
+    witness: list[str],
+) -> None:
+    transformed = _apply_lc_witness(code1.symplectic, witness)
+    rank = mod2.rank(code1.symplectic)
+
+    assert mod2.rank(code2.symplectic) == rank
+    assert mod2.rank(np.vstack([transformed, code2.symplectic])) == rank
 
 # ----------------------------------------------------------------------------------------------------
 # are_lceq
@@ -35,28 +68,24 @@ def test_are_lceq_preserves_k() -> None:
             StabilizerCode(["Z"]),
             StabilizerCode(["X"]),
             ["H"],
-            marks=pytest.mark.skip(reason="src.hybrids.lc_eq.are_lceq is not implemented yet."),
             id="one-qubit-z-vs-x",
         ),
         pytest.param(
             StabilizerCode(["ZI", "IZ"]),
             StabilizerCode(["XI", "IX"]),
             ["H", "H"],
-            marks=pytest.mark.skip(reason="src.hybrids.lc_eq.are_lceq is not implemented yet."),
             id="two-product-bases",
         ),
         pytest.param(
             StabilizerCode(["ZI", "IZ"]),
             StabilizerCode(["XX", "ZZ"]),
             None,
-            marks=pytest.mark.skip(reason="src.hybrids.lc_eq.are_lceq is not implemented yet."),
             id="product-vs-bell-state",
         ),
         pytest.param(
             StabilizerCode(["ZZ"], z_logicals=["ZI"], x_logicals=["XX"]),
             StabilizerCode(["ZI"], z_logicals=["IZ"], x_logicals=["IX"]),
             None,
-            marks=pytest.mark.skip(reason="src.hybrids.lc_eq.are_lceq is not implemented yet."),
             id="weight-two-vs-weight-one-stabilizer",
         ),
     ],
@@ -64,9 +93,28 @@ def test_are_lceq_preserves_k() -> None:
 def test_are_lceq_hardcoded_cases(
     code1: StabilizerCode,
     code2: StabilizerCode,
-    expected: bool,
+    expected: list[str] | None,
 ) -> None:
-    assert are_lceq(code1, code2) is expected
+    assert are_lceq(code1, code2) == expected
+
+
+@pytest.mark.parametrize(
+    ("n", "k", "seed"),
+    [
+        pytest.param(1, 0, 11, id="one-qubit-state"),
+        pytest.param(4, 0, 12, id="four-qubit-state"),
+        pytest.param(2, 1, 13, id="small-one-logical"),
+        pytest.param(6, 1, 14, id="larger-one-logical"),
+    ],
+)
+def test_are_lceq_lse_returns_valid_witness(n: int, k: int, seed: int) -> None:
+    code1 = random_stabilizer_code(n, k, seed=1000 + seed)
+    code2 = lc_equivalent_code(code1, seed=2000 + seed)
+
+    witness = are_lceq(code1, code2)
+
+    assert witness is not None
+    _assert_maps_rowspace(code1, code2, witness)
 
 
 def test_are_lceq_random_smoke() -> None:
