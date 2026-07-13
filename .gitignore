@@ -18,3 +18,5 @@ results/conversion.py
 results/extraction.py
 
 .DS_Store
+
+*tmp*
