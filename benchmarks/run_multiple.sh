@@ -72,7 +72,7 @@ case "$problem_type" in
         algorithm_prefix="pm_stb"
         algorithms=(sat graph_iso classical bruteforce aut)
         ;;
-    lc_eq)
+    lc_equ)
         algorithm_prefix="lc_equ"
         algorithms=(sat kls graph_state graph_iso bruteforce)
         ;;
