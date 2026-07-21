@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import multiprocessing
 from collections import Counter, defaultdict
 from itertools import permutations
 
