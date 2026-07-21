@@ -101,7 +101,7 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
 def _lse(c1: StabilizerCode, c2: StabilizerCode, reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> None | list[str]:
-    """lc_eq_lse.py"""
+    """lc_stb_lse.py"""
 
     def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
         """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
@@ -426,7 +426,7 @@ def _lse(c1: StabilizerCode, c2: StabilizerCode, reduced_symplectic_1: np.ndarra
 
 
 def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:
-    """lc_eq_sat.py"""
+    """lc_stb_sat.py"""
     def _elementwise_map(normal_bool, variables):
         return z3.And([
             v if bit == 1 else z3.Not(v)

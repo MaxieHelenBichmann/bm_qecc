@@ -6,7 +6,7 @@ import pytest
 
 from benchmarks.utils import lc_equivalent_code, non_lc_equivalent_code, random_stabilizer_code
 from src.core.stabilizer_code import StabilizerCode
-from src.algorithms.lc_stb.lc_eq_bruteforce import are_lceq_bruteforce
+from src.algorithms.lc_stb.lc_stb_bruteforce import are_lceq_bruteforce
 
 # ----------------------------------------------------------------------------------------------------
 # are_lceq_bruteforce

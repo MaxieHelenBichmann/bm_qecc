@@ -13,7 +13,7 @@ from benchmarks.utils import (
     random_stabilizer_code,
 )
 from src.core.stabilizer_code import StabilizerCode
-from src.hybrids.lc_eq import LOCAL_CLIFFORDS, are_lceq
+from src.hybrids.lc_stb import LOCAL_CLIFFORDS, are_lceq
 
 
 def _apply_lc_witness(symplectic: np.ndarray, witness: list[str]) -> np.ndarray:

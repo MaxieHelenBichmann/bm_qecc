@@ -29,11 +29,11 @@ from src.algorithms.lc_css.lc_css_kls import is_lceq_css_kls
 from src.algorithms.lc_css.lc_css_cliff_orbit import is_lceq_css_cliff_orbit
 from src.algorithms.lc_css.lc_css_lc_orbit import is_lceq_css_lc_orbit
 from src.algorithms.lc_css.lc_css_sat import is_lceq_css_sat
-from src.algorithms.lc_stb.lc_eq_lse import are_lceq_graph_state
-from src.algorithms.lc_stb.lc_eq_bruteforce import are_lceq_bruteforce
-from src.algorithms.lc_stb.lc_eq_sat import are_lceq_sat
-from src.algorithms.lc_stb.lc_eq_kls import are_lceq_kls
-from src.algorithms.lc_stb.lc_eq_graph_iso import are_lceq_graph_iso
+from src.algorithms.lc_stb.lc_stb_lse import are_lceq_graph_state
+from src.algorithms.lc_stb.lc_stb_bruteforce import are_lceq_bruteforce
+from src.algorithms.lc_stb.lc_stb_sat import are_lceq_sat
+from src.algorithms.lc_stb.lc_stb_kls import are_lceq_kls
+from src.algorithms.lc_stb.lc_stb_graph_iso import are_lceq_graph_iso
 from src.algorithms.p_css.p_css_bruteforce import are_peq_css_bruteforce
 from src.algorithms.p_css.p_css_classical import are_peq_css_classical
 from src.algorithms.p_css.p_css_graph_iso import are_peq_css_graph_iso
@@ -47,7 +47,7 @@ from src.algorithms.p_stb.p_stab_sat import are_peq_stab_sat
 
 from src.hybrids.p_css import are_peq_css
 from src.hybrids.p_stab import are_peq_stab
-from src.hybrids.lc_eq import are_lceq
+from src.hybrids.lc_stb import are_lceq
 from src.hybrids.lc_css import is_lceq_css
 
 from src.invariants.lc_invariants import (
