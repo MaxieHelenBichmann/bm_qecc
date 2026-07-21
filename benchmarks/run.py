@@ -193,7 +193,8 @@ class Statistic:
     num_memory_limited: int
 
 
-Algorithm = Callable[..., bool | None | list[int] | list[str]]
+AlgorithmResult = bool | None | list[int] | list[str]
+Algorithm = Callable[..., AlgorithmResult]
 
 ALGORITHMS: dict[str, Algorithm] = {
     "pm_css_bruteforce": are_peq_css_bruteforce,
@@ -1034,7 +1035,7 @@ def _run_algorithm_once(
     inputs: tuple[StabilizerCode, ...],
     timeout: float | None,
     memory_limit_bytes: int | None,
-) -> tuple[float, bool | None, str]:
+) -> tuple[float, AlgorithmResult, str]:
     """Run one benchmark repeat, optionally killing it after timeout or memory pressure."""
     if timeout is None and memory_limit_bytes is None:
         start = perf_counter()
@@ -1094,6 +1095,13 @@ def _run_algorithm_once(
     return elapsed, payload, "ok"
 
 
+def decision_result(result: AlgorithmResult) -> bool:
+    """Convert a Boolean or witness result into a Boolean decision."""
+    if isinstance(result, bool):
+        return result
+    return result is not None
+
+
 def run_case(
     algorithm_name: str,
     algorithm: Algorithm,
@@ -1105,12 +1113,13 @@ def run_case(
     expected = case.expected_p if algorithm_name.startswith("pm") else (case.expected_lc if algorithm_name.startswith("lc") else None)
 
     try:
-        seconds, result, status = _run_algorithm_once(
+        seconds, raw_result, status = _run_algorithm_once(
             algorithm,
             case.inputs,
             timeout,
             memory_limit_bytes,
         )
+        result = decision_result(raw_result) if status == "ok" else None
         if status == "ok" and expected is not None and result != expected:
             status = "wrong"
         return Result(
