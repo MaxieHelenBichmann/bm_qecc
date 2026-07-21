@@ -102,7 +102,7 @@ src/
   invariants/        # invariants under the equivalence relations
   hybrids/           # hybrid solutions combining best aspects of the algorithms
     lc_css.py
-    lc_eq.py
+    lc_stb.py
     p_css.py
     p_stab.py
 
@@ -153,7 +153,7 @@ The benchmark runner has three mutually exclusive modes:
 
 The `--random`, `--algorithm`, `--nmin`, and `--nmax` arguments can only be used in raw or statistics mode, not with `--inv`.
 
-Each algorithm has a hard-coded upper limit for $n$ to avoid predictably impractical runs, such as brute-force search on a code with $n=25$. Within those limits, the range can be customized with `--nmin` and `--nmax`.
+For each algorithm, the range of benchmarked instance sizes can be customized with `--nmin` and `--nmax`.
 
 Two optional resource guards are available:
 
@@ -165,7 +165,7 @@ Other parameters include `--output`, `--seed`, and `--verbose`. For example:
 ```bash
 python3 -m benchmarks.run --seed 69 --output results/bm.csv --verbose --timeout 200
 
-python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_equ_graph_state
+python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_stb_lse
 python3 -m benchmarks.run --algorithm 'pm_css*'
 
 python3 -m benchmarks.run --raw --random --nmin 5 --nmax 8

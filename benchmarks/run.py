@@ -193,7 +193,7 @@ class Statistic:
     num_memory_limited: int
 
 
-Algorithm = Callable[..., bool]
+Algorithm = Callable[..., bool | None | list[int] | list[str]]
 
 ALGORITHMS: dict[str, Algorithm] = {
     "pm_css_bruteforce": are_peq_css_bruteforce,
@@ -206,11 +206,11 @@ ALGORITHMS: dict[str, Algorithm] = {
     "pm_stb_classical": are_peq_stab_classical,
     "pm_stb_graph_iso": are_peq_stab_graph_iso,
     "pm_stb_sat": are_peq_stab_sat,
-    "lc_equ_graph_state": are_lceq_graph_state,
-    "lc_equ_bruteforce": are_lceq_bruteforce,
-    "lc_equ_graph_iso": are_lceq_graph_iso,
-    "lc_equ_kls": are_lceq_kls,
-    "lc_equ_sat": are_lceq_sat,
+    "lc_stb_lse": are_lceq_graph_state,
+    "lc_stb_bruteforce": are_lceq_bruteforce,
+    "lc_stb_graph_iso": are_lceq_graph_iso,
+    "lc_stb_kls": are_lceq_kls,
+    "lc_stb_sat": are_lceq_sat,
     "lc_css_bruteforce": is_lceq_css_bruteforce,
     "lc_css_kls": is_lceq_css_kls,
     "lc_css_cliff_orbit": is_lceq_css_cliff_orbit,
@@ -219,7 +219,7 @@ ALGORITHMS: dict[str, Algorithm] = {
 
     "pm_css_hybrid": are_peq_css,
     "pm_stb_hybrid": are_peq_stab,
-    "lc_eq_hybrid": are_lceq,
+    "lc_stb_hybrid": are_lceq,
     "lc_css_hybrid": is_lceq_css,
 }
 
@@ -378,8 +378,8 @@ def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
         return True
     if algorithm_name.startswith("pm_stb") and len(case.inputs) == 2 and case.expected_p is not None:
         return True
-    if algorithm_name.startswith("lc_equ") and len(case.inputs) == 2 and case.expected_lc is not None:
-        if algorithm_name == "lc_equ_graph_state":
+    if algorithm_name.startswith("lc_stb") and len(case.inputs) == 2 and case.expected_lc is not None:
+        if algorithm_name == "lc_stb_graph_state":
             return all(isinstance(code, StabilizerCode) and code.k < 2 for code in case.inputs)
         return True
     if algorithm_name.startswith("lc_css") and len(case.inputs) == 1 and case.expected_lc is not None:
@@ -639,7 +639,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool, nmin: int | Non
                                         symmetry=None
                                     ), 
                                     [permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False) for s in seeds]))
-            elif algorithm.startswith("lc_equ"):
+            elif algorithm.startswith("lc_stb"):
                 measurements.append((Measurement(
                                         algorithm=algorithm, 
                                         name=None, 
@@ -730,7 +730,7 @@ def seeded_measurements(seed: int, algorithm: str, random: bool, nmin: int | Non
                                         symmetry=None
                                     ), 
                                     [non_permuted_stabilizer_case(seed=s, code=code) for s in seeds]))
-        elif algorithm.startswith("lc_equ"):
+        elif algorithm.startswith("lc_stb"):
             for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
                 measurements.append((Measurement(
                                         algorithm=algorithm, 

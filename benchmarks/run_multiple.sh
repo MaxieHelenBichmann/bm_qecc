@@ -23,11 +23,11 @@ nmin_for() {
         pm_stb_classical) echo "" ;;
         pm_stb_bruteforce) echo "" ;;
         pm_stb_aut) echo "" ;;
-        lc_equ_sat) echo "" ;;
-        lc_equ_kls) echo "" ;;
-        lc_equ_graph_state) echo "" ;;
-        lc_equ_graph_iso) echo "" ;;
-        lc_equ_bruteforce) echo "" ;;
+        lc_stb_sat) echo "" ;;
+        lc_stb_kls) echo "" ;;
+        lc_stb_graph_state) echo "" ;;
+        lc_stb_graph_iso) echo "" ;;
+        lc_stb_bruteforce) echo "" ;;
         lc_css_sat) echo "" ;;
         lc_css_kls) echo "" ;;
         lc_css_cliff_orbit) echo "" ;;
@@ -48,11 +48,11 @@ nmax_for() {
         pm_stb_classical) echo "" ;;
         pm_stb_bruteforce) echo "" ;;
         pm_stb_aut) echo "" ;;
-        lc_equ_sat) echo "" ;;
-        lc_equ_kls) echo "" ;;
-        lc_equ_graph_state) echo "" ;;
-        lc_equ_graph_iso) echo "" ;;
-        lc_equ_bruteforce) echo "" ;;
+        lc_stb_sat) echo "" ;;
+        lc_stb_kls) echo "" ;;
+        lc_stb_graph_state) echo "" ;;
+        lc_stb_graph_iso) echo "" ;;
+        lc_stb_bruteforce) echo "" ;;
         lc_css_sat) echo "" ;;
         lc_css_kls) echo "" ;;
         lc_css_cliff_orbit) echo "" ;;
@@ -72,8 +72,8 @@ case "$problem_type" in
         algorithm_prefix="pm_stb"
         algorithms=(sat graph_iso classical bruteforce aut)
         ;;
-    lc_equ)
-        algorithm_prefix="lc_equ"
+    lc_stb)
+        algorithm_prefix="lc_stb"
         algorithms=(sat kls graph_state graph_iso bruteforce)
         ;;
     lc_css)

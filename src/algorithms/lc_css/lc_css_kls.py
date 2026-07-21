@@ -696,9 +696,6 @@ def _kls_normal_form(graph: GSLC) -> None:
 
     _set_io_edges(adj)
 
-    if graph.is_bipartite():
-        witness = True
-
     # 4.) remove pivot vertex decorations (apply local complementation)
     # |G> = prod_{p,q in N(i)} CS_{p,q} |G>
     def _add_S(word: tuple[list[str], bool]) -> tuple[list[str], bool]:
@@ -713,9 +710,6 @@ def _kls_normal_form(graph: GSLC) -> None:
                 break
 
         return deco, new_z_bit
-
-    if graph.is_bipartite():
-        witness = True
 
     for input, pivot in pivots.items():
         deco, z = graph.vertices[pivot]
@@ -733,10 +727,6 @@ def _kls_normal_form(graph: GSLC) -> None:
                 graph.vertices[neighbor] = _add_S(graph.vertices[neighbor])
 
             graph.local_complementation(input)
-
-
-    if graph.is_bipartite():
-       witness = True
     
     # 5.) remove pivot-pivot edges, basically apply Eq. 11 (but HZ on inputs can be removed)
     # |G> = H_i Z_i H_j Z_j prod_{p in A, q in B} CZ_{p,q} |G>
