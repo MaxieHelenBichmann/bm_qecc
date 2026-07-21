@@ -45,7 +45,7 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> None | list[int]:
     if not result:
         return None
 
-    return _sat(reduced_symplectic_1, reduced_symplectic_2)
+    return _sat(reduced_symplectic_1, partition1, reduced_symplectic_2, partition2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -94,7 +94,7 @@ def preserved_linear_dependencies(c1: np.ndarray, c2: np.ndarray) -> bool:
     
     return _linear_dependencies(c1) == _linear_dependencies(c2)
 
-def preserved_punctured_hull_weight_enumerator(c1: np.ndarray, c2: np.ndarray) -> tuple[bool, dict[int, list[int]] | None, dict[int, list[int]] | None]:
+def preserved_punctured_hull_weight_enumerator(c1: np.ndarray, c2: np.ndarray) -> tuple[bool, dict[tuple[int, ...], list[int]] | None, dict[tuple[int, ...], list[int]] | None]:
     """SENDRIER - p_stab_classical.py"""
     def _symplectic_to_gf4(symplectic: np.ndarray) -> np.ndarray:
         """
@@ -236,9 +236,9 @@ def preserved_punctured_hull_weight_enumerator(c1: np.ndarray, c2: np.ndarray) -
     partition_c2 = _partition_columns_by_invariants(signatures_c2)
 
     if partition_c1.keys() != partition_c2.keys():
-        return False
+        return False, None, None
     if any(len(partition_c1[k]) != len(partition_c2[k]) for k in partition_c1):
-        return False
+        return False, None, None
 
     for key1, key2 in zip(partition_c1.keys(), partition_c2.keys()):
         if key1 != key2:
@@ -266,7 +266,7 @@ def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> None | list[int]:
 
     return None
 
-def _sat(c1: np.ndarray, partition1: dict[int, list[int]], c2: np.ndarray, partition2: dict[int, list[int]]) -> None | list[int]:
+def _sat(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.ndarray, partition2: dict[tuple[int, ...], list[int]]) -> None | list[int]:
     """p_stab_sat.py"""
     def _elementwise_map(normal_bool, variables):
         return z3.And([
@@ -297,7 +297,7 @@ def _sat(c1: np.ndarray, partition1: dict[int, list[int]], c2: np.ndarray, parti
     for j in range(n):
         solver.add(_exactly_one([ var for (_, tgt), var in permutation_variables.items() if tgt == j]))
 
-    for (i,j), permutation_variable in permutation_variables:
+    for (i,j), permutation_variable in permutation_variables.items():
             x_column_original = c1[:, i]
             z_column_original = c1[:, i + n]
 

@@ -1392,7 +1392,7 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
         return
     
     print()
-    print(f"Benchmark statistics:\n")
+    print("Benchmark statistics:\n")
 
     for stat in [s for s in statistics if s.meta.positive] + [s for s in statistics if not s.meta.positive]:
         mean = "--" if np.isnan(stat.mean) else f"{stat.mean:.6f}s"
@@ -1410,7 +1410,7 @@ def print_results(results: Sequence[Result]) -> None:
         print("No cases ran, no results to show.")
         return
 
-    print(f"Benchmark results:\n")
+    print("Benchmark results:\n")
 
     for result in results:
         print(
@@ -1548,7 +1548,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     
     if args.mode == "inv":
-        print(f"INVARIANT BENCHMARKS")
+        print("INVARIANT BENCHMARKS")
             
         pm_output = prefixed_output_path(args.output, "pm")
         lc_output = prefixed_output_path(args.output, "lc")
