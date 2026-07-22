@@ -17,8 +17,7 @@ The following problems are benchmarked. They are expressed using the repository'
 $$
 \exists P \in \mathfrak{S}_n,\ \exists R \in \mathrm{GL}(r, \mathbb{F}_2):
 \qquad
-\text{S}(C')
-=
+\text{S}(C') =
 R \cdot \text{S}(C) \cdot
 \begin{bmatrix}
 P & 0 \\
