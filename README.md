@@ -14,29 +14,78 @@ The following problems are benchmarked. They are expressed using the repository'
 
 - **PM-STB**: Are two given stabilizer codes $C$ and $C'$ equivalent up to a permutation of the output qubits?
 
-$$ \exists P \in \mathfrak{S}_n : \enspace \exists R \in \mathrm{GL}(r, \mathbb{F}_2) : \quad \text{S}(\text{C}') = R \cdot \text{S}(\text{C}) \cdot \left[\begin{smallmatrix} P & 0 \\ 0 & P\end{smallmatrix}\right] $$
+$$
+\exists P \in \mathfrak{S}_n,\ \exists R \in \mathrm{GL}(r, \mathbb{F}_2):
+\qquad
+\text{S}(C')
+=
+R \cdot \text{S}(C) \cdot
+\begin{bmatrix}
+P & 0 \\
+0 & P
+\end{bmatrix}
+$$
 
 - **PM-CSS**: Are two given CSS codes $C$ and $C'$ equivalent up to a permutation of the output qubits?
 
-$$ \exists P \in \mathfrak{S}_n : \enspace \exists R_x \in \mathrm{GL}(r_x, \mathbb{F}_2), R_z \in \mathrm{GL}(r_z, \mathbb{F}_2): \enspace
- \text{H}_x(\text{C}') = R_x \cdot \text{H}_x(\text{C}) \cdot P \enspace , \enspace \text{H}_z(\text{C}') = R_z \cdot \text{H}_z(\text{C}) \cdot P $$
+$$
+\begin{aligned}
+&\exists P \in \mathfrak{S}_n,\quad
+\exists R_x \in \mathrm{GL}(r_x, \mathbb{F}_2),\quad
+\exists R_z \in \mathrm{GL}(r_z, \mathbb{F}_2): \\
+&\text{H}_x(C') = R_x \text{H}_x(C) P \enspace \text{ and } \enspace\text{H}_z(C') = R_z \cdot \text{H}_z(C) \cdot P
+\end{aligned}
+$$
 
 ### Local-Clifford Equivalence
 
 - **LC-STB**: Are two given stabilizer codes $C$ and $C'$ local-Clifford equivalent, meaning that they define the same codespace up to local Clifford gates on the output qubits?
 
-$$\exists Q = \left[\begin{smallmatrix} A & B \\ C & D \end{smallmatrix}\right] \in \text{Sp}(2n, \mathbb{F}_2): Q_i = \left[\begin{smallmatrix} a_{ii} & b_{ii} \\ c_{ii} & d_{ii} \end{smallmatrix}\right] \in \text{Sp}(2, \mathbb{F}_2): \enspace \exists R \in \mathrm{GL}(r, \mathbb{F}_2): \enspace \text{S}(\text{C}')  = R \cdot \text{S}(\text{C}) \cdot Q$$
+$$
+\begin{aligned}
+&\exists Q =
+\begin{bmatrix}
+A & B \\
+C & D
+\end{bmatrix}
+\in \text{Sp}(2n, \mathbb{F}_2), \quad
+Q_i =
+\begin{bmatrix}
+a_{ii} & b_{ii} \\
+c_{ii} & d_{ii}
+\end{bmatrix}
+\in \text{Sp}(2, \mathbb{F}_2), \quad
+\exists R \in \mathrm{GL}(r, \mathbb{F}_2):\\
+&\text{S}(C') = R \cdot \text{S}(C) \cdot Q
+\end{aligned}
+$$
 
 - **LC-CSS**: Is a given stabilizer code $C$ local-Clifford equivalent to a CSS code?
 
-$$ \exists \text{C}' \enspace \text{with} \enspace
-  \text{S}(\text{C}') =
-  \left[\begin{smallmatrix}
-     \text{H}_x(\text{C}') & 0 \\
-    0 &  \text{H}_z(\text{C}')
-  \end{smallmatrix}\right]:$$
 $$
-\exists Q = \left[\begin{smallmatrix} A & B \\ C & D \end{smallmatrix}\right] \in \text{Sp}(2n, \mathbb{F}_2): Q_i = \left[\begin{smallmatrix} a_{ii} & b_{ii} \\ c_{ii} & d_{ii} \end{smallmatrix}\right] \in \text{Sp}(2, \mathbb{F}_2): \enspace \exists R \in \mathrm{GL}(r, \mathbb{F}_2): \enspace \text{S}(\text{C}') = R \cdot \text{S}(\text{C})\cdot Q
+\begin{aligned}
+&\exists C' \text{ with }
+\enspace
+\text{S}(C') =
+\begin{bmatrix}
+\text{H}_x(C') & 0 \\
+0 & \text{H}_z(C')
+\end{bmatrix}:\\
+&\exists Q =
+\begin{bmatrix}
+A & B \\
+C & D
+\end{bmatrix}
+\in \text{Sp}(2n, \mathbb{F}_2), \quad
+Q_i =
+\begin{bmatrix}
+a_{ii} & b_{ii} \\
+c_{ii} & d_{ii}
+\end{bmatrix}
+\in \text{Sp}(2, \mathbb{F}_2), \quad
+\exists R \in \mathrm{GL}(r, \mathbb{F}_2):\\
+&\text{S}(C') = R \cdot \text{S}(C) \cdot Q
+\end{aligned}
 $$
 
 ## Approaches
