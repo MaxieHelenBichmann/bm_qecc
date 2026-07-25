@@ -46,19 +46,32 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
     if reduced_Hx1.shape[0] == 0 and reduced_Hz1.shape[0] == 0:
         return None
     
-    if c1.n <= 4:
+    if c1.n <= 4: # TODO
         return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
     
-    if not preserved_linear_dependencies(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2):
-        return None
+    partition1 = {0: list(range(c1.n))}
+    partition2 = {0: list(range(c2.n))}
+    if c1.n >= 20: # TODO
+        if not preserved_linear_dependencies(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2):
+            return None
+        result, refined_partition1, refined_partition2 = preserved_punctured_hull_weight_enumerator(
+            reduced_Hx1,
+            reduced_Hz1,
+            reduced_Hx2,
+            reduced_Hz2,
+        )
+        if not result:
+            return None
+        partition1 = refined_partition1
+        partition2 = refined_partition2
     
-    result, partition1, partition2 = preserved_punctured_hull_weight_enumerator(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
-
-    if not result:
-        return None
-    
-    return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
-    return _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
+    if c1.n <= 17:
+        return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
+    elif c1.n < 30:
+        r = reduced_Hx1.shape[0] + reduced_Hz1.shape[0]
+        return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2) if r < 10 else _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
+    else:
+        return _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -400,7 +413,7 @@ def _sat(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2
     for j in range(n):
         solver.add(_exactly_one([ var for (_, tgt), var in permutation_variables.items() if tgt == j]))
 
-    for (i,j), permutation_variable in permutation_variables:
+    for (i,j), permutation_variable in permutation_variables.items():
         x_column_original = Hx1[:, i]
         z_column_original = Hz1[:, i]
 
@@ -486,4 +499,3 @@ def _row_basis(M: np.ndarray) -> np.ndarray:
     if B.ndim == 1:
         B = B.reshape(1, -1)
     return B
-
