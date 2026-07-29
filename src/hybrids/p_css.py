@@ -51,7 +51,7 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
     
     partition1 = {0: list(range(c1.n))}
     partition2 = {0: list(range(c2.n))}
-    if c1.n >= 30:
+    if c1.n >= 20:
         if not preserved_linear_dependencies(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2):
             return None
         result, refined_partition1, refined_partition2 = preserved_punctured_hull_weight_enumerator(
