@@ -224,6 +224,13 @@ ALGORITHMS: dict[str, Algorithm] = {
     "lc_css_hybrid": is_lceq_css,
 }
 
+HYBRID_ALGORITHMS = (
+    "pm_css_hybrid",
+    "pm_stb_hybrid",
+    "lc_stb_hybrid",
+    "lc_css_hybrid",
+)
+
 LC_INVARIANTS: dict[str, Algorithm] = {
     "lc_local_weight_distribution": preserved_local_weight_distribution,
     "lc_local_weight_distribution_s2": partial(preserved_local_weight_distribution, max_subset_size=2),
@@ -1501,6 +1508,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Run statistical benchmarks on seeded fixed or random cases.",
     )
     modes.add_argument(
+        "--structured-hybrid-stats",
+        "--hybrid-stats",
+        action="store_const",
+        const="structured_hybrid_stats",
+        dest="mode",
+        help=(
+            "Run statistical benchmarks on the structured/named codes, using only hybrid "
+            "algorithms. Select a hybrid with --algorithm; all hybrids are used by default."
+        ),
+    )
+    modes.add_argument(
         "--inv",
         action="store_const",
         const="inv",
@@ -1509,16 +1527,34 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.set_defaults(mode="raw")
     args = parser.parse_args(argv)
+    algorithm_selectors = args.algorithm
     if args.mode == "inv" and args.algorithm:
         parser.error("--algorithm can only be used with raw or stats benchmarks.")
-    if args.mode == "inv" and args.random:
-        parser.error("--random can only be used with raw or stats benchmarks.")
+    if args.mode in {"inv", "structured_hybrid_stats"} and args.random:
+        parser.error("--random cannot be used with invariant or structured hybrid benchmarks.")
     if args.mode == "inv" and (args.nmin is not None or args.nmax is not None):
         parser.error("--nmin and --nmax can only be used with raw or stats benchmarks.")
     try:
-        args.algorithm = resolve_algorithm_names(args.algorithm)
+        args.algorithm = (
+            list(HYBRID_ALGORITHMS)
+            if args.mode == "structured_hybrid_stats" and algorithm_selectors is None
+            else resolve_algorithm_names(algorithm_selectors)
+        )
     except ValueError as exc:
         parser.error(str(exc))
+    if args.mode == "structured_hybrid_stats":
+        non_hybrids = sorted(set(args.algorithm) - set(HYBRID_ALGORITHMS))
+        if non_hybrids:
+            parser.error(
+                "--structured-hybrid-stats only accepts hybrid algorithms: "
+                + ", ".join(HYBRID_ALGORITHMS)
+            )
+    if args.nmin is not None and args.nmin < 1:
+        parser.error("--nmin must be at least 1.")
+    if args.nmax is not None and args.nmax < 1:
+        parser.error("--nmax must be at least 1.")
+    if args.nmin is not None and args.nmax is not None and args.nmin > args.nmax:
+        parser.error("--nmin cannot be greater than --nmax.")
     return args
 
 
@@ -1528,8 +1564,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.timeout is not None and args.timeout <= 0:
         raise ValueError("--timeout must be greater than 0.")
 
-    if args.mode == "stats":
-        s = "random" if args.random else "known"
+    if args.mode in {"stats", "structured_hybrid_stats"}:
+        s = (
+            "structured"
+            if args.mode == "structured_hybrid_stats" or not args.random
+            else "random"
+        )
         print(f"STATISTICAL BENCHMARKS for {s} cases")
         if args.output.exists():
             args.output.unlink()
@@ -1541,7 +1581,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.timeout,
             args.memory_limit,
             args.verbose,
-            args.random,
+            False if args.mode == "structured_hybrid_stats" else args.random,
             args.nmin,
             args.nmax,
         )
@@ -1559,7 +1599,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_inv_benchmarks(False, args.seed, lc_output, args.timeout, args.memory_limit, args.verbose)
         return 0
  
-    print(f"RAW BENCHMARKS for {"random" if args.random else "known"} cases")
+    raw_case_kind = "random" if args.random else "structured"
+    print(f"RAW BENCHMARKS for {raw_case_kind} cases")
     results = run_raw_benchmarks(
         default_cases(seed=args.seed, random=args.random, nmin=args.nmin, nmax=args.nmax),
         args.algorithm,
