@@ -67,6 +67,7 @@ from src.core.css_code import CSSCode
 
 from .utils import (
     lc_equivalent_code,
+    non_lc_css_code,
     non_lc_equivalent_code,
     non_permutation_equivalent_css_code,
     non_permutation_equivalent_stabilizer_code,
@@ -552,7 +553,7 @@ def non_lcc_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCod
 
     return Case(
         name=f"non_lcc_css_{n}_{k}_{seed}",
-        inputs=(non_lc_equivalent_code(code, seed=seed + 69),),
+        inputs=(non_lc_css_code(code, seed=seed + 69),),
         expected_p=None,
         expected_lc=False,
     )

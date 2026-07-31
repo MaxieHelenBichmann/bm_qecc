@@ -413,6 +413,119 @@ def non_lc_equivalent_code(
 
     raise RandomizeError("Could not find a candidate with a different LC support-rank invariant.")
 
+
+def non_lc_css_code(
+    code: StabilizerCode,
+    seed: int | None = None,
+    *,
+    max_attempts: int = 10_000,
+    max_exact_rank: int = 16,
+) -> StabilizerCode:
+    """Return a same-``[[n,k]]`` code certified outside every CSS LC orbit.
+
+    A locally rank-one stabilizer subspace has, on each qubit, at most one
+    nonidentity Pauli type among all its elements.  Local Cliffords preserve
+    this property.  A rank-``r`` CSS stabilizer is the direct sum of its pure-X
+    and pure-Z subspaces, so at least one locally rank-one subspace has dimension
+    ``ceil(r / 2)``.  Absence of such a subspace is therefore a sound negative
+    certificate independent of the LC-CSS decision algorithms.
+
+    Up to ``max_exact_rank`` the invariant is checked exactly.  Above that, the
+    generator uses an additive upper bound from invariant-certified disjoint
+    components, avoiding enumeration of the full stabilizer group.
+    """
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be positive.")
+    if max_exact_rank < 1:
+        raise ValueError("max_exact_rank must be positive.")
+
+    stabilizer_rank = code.n - code.k
+    if stabilizer_rank < 3:
+        raise RandomizeError(
+            "The locally-rank-one invariant cannot certify negatives below stabilizer rank 3."
+        )
+    rng = np.random.default_rng(seed)
+    target_dimension = (stabilizer_rank + 1) // 2
+    for _ in range(max_attempts):
+        candidate, dimension_upper_bound = _structured_non_lc_css_candidate(
+            code.n, code.k, rng=rng
+        )
+        certified = dimension_upper_bound < target_dimension
+        if not certified and stabilizer_rank <= max_exact_rank:
+            certified = not _has_locally_rank_one_subspace(candidate, target_dimension)
+        if certified:
+            lc_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+            return lc_equivalent_code(candidate, seed=lc_seed)
+
+    raise RandomizeError(
+        "Could not find a candidate excluded from every CSS LC orbit by the "
+        "locally-rank-one invariant."
+    )
+
+
+def _structured_non_lc_css_candidate(
+    n: int,
+    k: int,
+    *,
+    rng: np.random.Generator,
+) -> tuple[StabilizerCode, int]:
+    """Build a candidate and an upper bound on its locally rank-one dimension."""
+    blocks: list[StabilizerCode] = []
+    dimension_upper_bound = 0
+    remaining_n = n
+    remaining_k = k
+    remaining_rank = n - k
+
+    perfect = StabilizerCode(["XZZXI", "IXZZX", "XIXZZ", "ZXIXZ"])
+    cycle_state = StabilizerCode(["XZIIZ", "ZXZII", "IZXZI", "IIZXZ", "ZIIZX"])
+
+    while remaining_n >= 5 and remaining_k >= 1 and remaining_rank >= 4:
+        blocks.append(perfect)
+        # Exhaustive five-qubit calculation: its maximum dimension is one.
+        dimension_upper_bound += 1
+        remaining_n -= 5
+        remaining_k -= 1
+        remaining_rank -= 4
+
+    while remaining_n >= 5 and remaining_rank >= 5:
+        blocks.append(cycle_state)
+        # Exhaustive five-qubit calculation: its maximum dimension is two.
+        dimension_upper_bound += 2
+        remaining_n -= 5
+        remaining_rank -= 5
+
+    if remaining_n:
+        remainder_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        blocks.append(random_stabilizer_code(remaining_n, remaining_k, seed=remainder_seed))
+        # The stabilizer rank is always a valid (possibly loose) upper bound.
+        dimension_upper_bound += remaining_rank
+
+    if not blocks:
+        candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        return random_stabilizer_code(n, k, seed=candidate_seed), n - k
+    return _direct_sum_stabilizer_codes(blocks), dimension_upper_bound
+
+
+def _direct_sum_stabilizer_codes(codes: Sequence[StabilizerCode]) -> StabilizerCode:
+    """Return the tensor product of stabilizer codes on disjoint qubits."""
+    total_n = sum(code.n for code in codes)
+    total_rank = sum(code.n - code.k for code in codes)
+    matrix = np.zeros((total_rank, 2 * total_n), dtype=np.int8)
+    row_offset = 0
+    qubit_offset = 0
+    for code in codes:
+        rows = code.n - code.k
+        matrix[row_offset : row_offset + rows, qubit_offset : qubit_offset + code.n] = (
+            code.symplectic[:, : code.n]
+        )
+        matrix[
+            row_offset : row_offset + rows,
+            total_n + qubit_offset : total_n + qubit_offset + code.n,
+        ] = code.symplectic[:, code.n :]
+        row_offset += rows
+        qubit_offset += code.n
+    return StabilizerCode(StabilizerTableau(matrix))
+
 def lc_equivalent_code_and_log_ops(
     code: StabilizerCode,
     seed: int | None = None,
@@ -998,6 +1111,100 @@ def _lc_projection_rank_invariant(code: StabilizerCode, max_w: int = 3) -> tuple
         )
         for w in range(1, min(max_w, n) + 1)
     )
+
+
+def _has_locally_rank_one_subspace(code: StabilizerCode, target_dimension: int) -> bool:
+    """Exactly test for a locally rank-one subspace of the requested dimension.
+
+    Nonzero stabilizers are vertices of an implicit compatibility graph.  Two
+    vertices are compatible precisely when they never contain two different
+    nonidentity Paulis on the same qubit.  A linearly independent clique is a
+    basis of a locally rank-one subspace.  The graph is generated lazily to
+    avoid a quadratic compatibility matrix.
+    """
+    matrix = np.asarray(mod2.row_basis(code.symplectic), dtype=np.uint8) % 2
+    if matrix.ndim == 1:
+        matrix = matrix.reshape(1, -1)
+    rank = matrix.shape[0]
+    if target_dimension <= 0:
+        return True
+    if target_dimension > rank:
+        return False
+
+    n = code.n
+    row_x = [_binary_row_to_int(row[:n]) for row in matrix]
+    row_z = [_binary_row_to_int(row[n:]) for row in matrix]
+    count = 1 << rank
+    xs = [0] * count
+    zs = [0] * count
+    for coefficient in range(1, count):
+        bit = coefficient & -coefficient
+        index = bit.bit_length() - 1
+        previous = coefficient ^ bit
+        xs[coefficient] = xs[previous] ^ row_x[index]
+        zs[coefficient] = zs[previous] ^ row_z[index]
+
+    def compatible(left: int, right: int) -> bool:
+        left_support = xs[left] | zs[left]
+        right_support = xs[right] | zs[right]
+        different = (xs[left] ^ xs[right]) | (zs[left] ^ zs[right])
+        return (left_support & right_support & different) == 0
+
+    def add_to_basis(vector: int, basis: tuple[int, ...]) -> tuple[int, ...] | None:
+        reduced = vector
+        mutable = list(basis)
+        for pivot in mutable:
+            reduced = min(reduced, reduced ^ pivot)
+        if reduced == 0:
+            return None
+        for i, pivot in enumerate(mutable):
+            mutable[i] = min(pivot, pivot ^ reduced)
+        mutable.append(reduced)
+        mutable.sort(reverse=True)
+        return tuple(mutable)
+
+    def candidate_rank(candidates: list[int], basis: tuple[int, ...], needed: int) -> int:
+        working = basis
+        gained = 0
+        for vector in candidates:
+            extended = add_to_basis(vector, working)
+            if extended is not None:
+                working = extended
+                gained += 1
+                if gained >= needed:
+                    break
+        return gained
+
+    def search(candidates: list[int], basis: tuple[int, ...]) -> bool:
+        needed = target_dimension - len(basis)
+        if needed <= 0:
+            return True
+        if candidate_rank(candidates, basis, needed) < needed:
+            return False
+
+        while candidates:
+            vector = candidates.pop()
+            extended = add_to_basis(vector, basis)
+            if extended is None:
+                continue
+            compatible_candidates = [
+                other for other in candidates if compatible(vector, other)
+            ]
+            if search(compatible_candidates, extended):
+                return True
+            if candidate_rank(candidates, basis, needed) < needed:
+                return False
+        return False
+
+    return search(list(range(1, count)), ())
+
+
+def _binary_row_to_int(row: np.ndarray) -> int:
+    """Pack a little-endian binary row into a Python integer."""
+    value = 0
+    for index in np.flatnonzero(row):
+        value |= 1 << int(index)
+    return value
 
 def _cheap_invariant(code: StabilizerCode) -> tuple[int, int, int, int, Any]:
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1
