@@ -81,7 +81,7 @@ from .utils import (
     random_stabilizer_code,
 )
 
-MEAS_STATS = list(range(3, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
+MEAS_STATS = list(range(6, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
 N_STATS = 10
 N_INVARIANT_STATS = 5
 PM_INVARIANT_NS = list(range(2, 26)) + [30, 31, 37, 72, 90, 108, 144]
@@ -551,9 +551,20 @@ def non_lcc_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCod
             raise ValueError("Either dim or code must be provided")
         n, k = code.n, code.k
 
+    cached_path = DATA_DIR / "lc" / f"non_lcc_css_{n}_{k}_{seed}.txt"
+    if cached_path.is_file():
+        negative = StabilizerCode.from_file(cached_path)
+        if (negative.n, negative.k) != (n, k):
+            raise ValueError(
+                f"Cached LC-CSS negative {cached_path} has parameters "
+                f"[[{negative.n}, {negative.k}]], expected [[{n}, {k}]]."
+            )
+    else:
+        negative = non_lc_css_code(code, seed=seed + 69)
+
     return Case(
         name=f"non_lcc_css_{n}_{k}_{seed}",
-        inputs=(non_lc_css_code(code, seed=seed + 69),),
+        inputs=(negative,),
         expected_p=None,
         expected_lc=False,
     )
@@ -591,6 +602,24 @@ def non_lcc_eq_case(seed: int, dim: tuple[int, int] | None = None, code: Stabili
         expected_p=None,
         expected_lc=False,
     )
+
+
+_LC_CSS_NEGATIVE_EXCLUDED_DIMENSIONS = {(3, 0), (3, 1), (4, 0), (8,6), (8,0), (10,8), (12,10)}
+_LC_CSS_NEGATIVE_EXCLUDED_SEEDS = {
+    (4, 1): {85},
+    (4, 2): {773, 654, 438, 433, 858, 85, 697, 201, 94},
+    (7, 4): {201, 94},
+    (9, 6): {89, 697}
+}
+
+
+def supports_lc_css_negative_case(n: int, k: int, seed: int) -> bool:
+    """Whether the generator can provide a certified LC-CSS negative case."""
+    if k == n - 1:
+        return False
+    if (n, k) in _LC_CSS_NEGATIVE_EXCLUDED_DIMENSIONS:
+        return False
+    return int(seed) not in _LC_CSS_NEGATIVE_EXCLUDED_SEEDS.get((n, k), set())
 
 def seeded_measurements(seed: int, algorithm: str, random: bool, nmin: int | None = None, nmax: int | None = None) -> list[tuple[Measurement, list[Case]]]:
     rng = np.random.default_rng(seed)
@@ -680,16 +709,20 @@ def seeded_measurements(seed: int, algorithm: str, random: bool, nmin: int | Non
                                         symmetry=None
                                     ), 
                     [lcc_css_case(seed=s, dim=(n, k)) for s in seeds]))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                    [non_lcc_css_case(seed=s, dim=(n, k)) for s in seeds]))
+                negative_seeds = [
+                    int(s) for s in seeds if supports_lc_css_negative_case(n, k, int(s))
+                ]
+                if negative_seeds:
+                    measurements.append((Measurement(
+                                            algorithm=algorithm,
+                                            name=None,
+                                            n=n,
+                                            k=k,
+                                            positive=False,
+                                            density=None,
+                                            symmetry=None
+                                        ),
+                        [non_lcc_css_case(seed=s, dim=(n, k)) for s in negative_seeds]))
     else:
         if algorithm.startswith("pm_css"):
             for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:

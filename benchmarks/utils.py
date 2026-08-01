@@ -439,6 +439,22 @@ def non_lc_css_code(
     if max_exact_rank < 1:
         raise ValueError("max_exact_rank must be positive.")
 
+    if code.n <= 6:
+        # At these sizes the exact 6^n LC orbit is small enough to use as the
+        # generator certificate, so every constructed candidate is checked.
+        from src.algorithms.lc_css.lc_css_bruteforce import is_lceq_css_bruteforce
+
+        rng = np.random.default_rng(seed)
+        for _ in range(max_attempts):
+            candidate, _ = _structured_non_lc_css_candidate(code.n, code.k, rng=rng)
+            lc_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+            candidate = lc_equivalent_code(candidate, seed=lc_seed)
+            if not is_lceq_css_bruteforce(candidate):
+                return candidate
+        raise RandomizeError(
+            "Could not find a brute-force-certified non-LC-CSS candidate."
+        )
+
     stabilizer_rank = code.n - code.k
     if stabilizer_rank < 3:
         raise RandomizeError(
