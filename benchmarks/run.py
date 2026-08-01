@@ -82,7 +82,7 @@ from .utils import (
     random_stabilizer_code,
 )
 
-MEAS_STATS = list(range(6, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
+MEAS_STATS = list(range(3, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
 N_STATS = 10
 N_INVARIANT_STATS = 5
 PM_INVARIANT_NS = list(range(2, 26)) + [30, 31, 37, 72, 90, 108, 144]
