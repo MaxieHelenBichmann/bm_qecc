@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import z3
 from collections import deque
 from itertools import product
 
@@ -21,30 +22,26 @@ def is_lceq_css(code: StabilizerCode) -> None | list[str]:
 
     Returns: None if it is not local-clifford-equivalent, otherwise returns a list of local clifford operations
     """
-    if code.n <= 5:
-        return _bruteforce(code)
-    
     if code.n < 1:
         return ["I"] * code.n
     
     reduced_symplectic = _row_basis(code.symplectic)
+
+    if code.n < 4:
+        return _bruteforce(code)
     
-    if code.k < 2:
-        return _lc_orbit(code, reduced_symplectic)
-    
-    return None # TODO: k >= 2
+    return _sat(reduced_symplectic)
 
 # ----------------------------------------------------------------------------------------------------
 # algorithms
 # ----------------------------------------------------------------------------------------------------
 LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
 
-def _bruteforce(code: StabilizerCode) -> None | list[str]:
+def _bruteforce(tableau) -> None | list[str]:
     """lc_css_bruteforce.py"""
-    n = code.n
-    r = _rank(code.symplectic)
+    r, n = tableau.shape[0], tableau.shape[1] // 2
 
-    def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int) -> npt.NDArray[np.int8]:
+    def apply_lc(tableau: npt.NDArray[np.int8], lc: str, qubit: int):
         if lc == "I":
             pass
         elif lc  == "H":
@@ -59,213 +56,108 @@ def _bruteforce(code: StabilizerCode) -> None | list[str]:
             tableau[:, [qubit, qubit + n]] = tableau[:, [qubit + n, qubit]]
         elif lc == "HSH":
             tableau[:, qubit] ^= tableau[:, qubit + n]
-        return tableau
 
     for action in product(LOCAL_CLIFFORDS, repeat=n):
-        lc_tableau = code.symplectic.copy()
+        lc_tableau = tableau.copy()
 
         for qubit, lc in enumerate(action):
-            lc_tableau = apply_lc(lc_tableau, lc, qubit)
+            apply_lc(lc_tableau, lc, qubit)
 
         if _rank(lc_tableau[:, :n]) + _rank(lc_tableau[:, n:]) == r:
             return list(action)
 
     return None
 
-def _lc_orbit(code: StabilizerCode, reduced_symplectic: np.ndarray) -> None | list[str]:
-    """lc_css_lc_orbit.py"""
 
-    def _stab_code_to_stab_state(code: StabilizerCode, reduced_symplectic: np.ndarray) -> np.ndarray:
-        """Convert a stabilizer code into a stabilizer state using the Choi-Jamiolkowski isomorphism.
-        Return only stabilizer tableau of the resulting stabilizer state.
-        
-        S = [S_x | S_z] ; Lx = [Lx_x | Lx_z] ; Lz = [Lz_x | Lz_z]
+def _sat(tableau: npt.NDArray[np.int8]) -> bool:
+    """lc_css_sat.py"""
+    def _elementwise_map(normal_bool, variables):
+        return z3.And([
+            v if bit == 1 else z3.Not(v)
+            for bit, v in zip(normal_bool, variables)
+        ])
 
-        S_choi = [S_x  | 0 | S_z  | 0]
-                [Lx_x | I | Lx_z | 0]
-                [Lz_x | 0 | Lz_z | I]
-        """
-        if code.k == 0:
-            return reduced_symplectic
+    def _exactly_one(variables):
+        return z3.PbEq([(v, 1) for v in variables], 1)
 
-        n = code.n
-        r = reduced_symplectic.shape[0]
-        k = code.k
+    def _xor_list(variables):
+        acc = z3.BoolVal(False)
+        for v in variables:
+            acc = z3.Xor(acc, v)
+        return acc
 
-        stab_x = reduced_symplectic[:, :n]
-        stab_z = reduced_symplectic[:, n:]
+    solver = z3.Solver()
 
-        log_x_x = code.x_logicals.tableau.matrix[:, :n]
-        log_x_z = code.x_logicals.tableau.matrix[:, n:]
+    r, n = tableau.shape[0], tableau.shape[1] // 2
+    k = n - r
 
-        log_z_x = code.z_logicals.tableau.matrix[:, :n]
-        log_z_z = code.z_logicals.tableau.matrix[:, n:]
+    # cliffords
+    aux_tableau = [z3.Bool(f'aux_{row}_{col}') for row in range(r) for col in range(2*n)]
 
-        stabilizer_part = np.hstack([stab_x,np.zeros((r, k), dtype=np.int8), stab_z, np.zeros((r, k), dtype=np.int8)])
-        logical_x_part = np.hstack([log_x_x,np.eye(k, dtype=np.int8),log_x_z,np.zeros((k, k), dtype=np.int8)])
-        logical_z_part = np.hstack([log_z_x,np.zeros((k, k), dtype=np.int8),log_z_z,np.eye(k, dtype=np.int8)])
 
-        return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
+    local_clifford_variables = [
+        {
+            operation: z3.Bool(f"lc_{qubit}_{operation}")
+            for operation in LOCAL_CLIFFORDS
+        }
+        for qubit in range(n)
+    ]
 
-    def _stab_state_to_graph_state(tableau: np.ndarray) -> np.ndarray:
-        """Convert a stabilizer state into a graph state under local Clifford operations.
-        Returns the adjacency matrix of the graph state."""
-        n = tableau.shape[1] // 2
+    for qubit_variables in local_clifford_variables:
+        solver.add(_exactly_one(qubit_variables.values()))
 
-        def _make_X_invertible(t: np.ndarray) -> np.ndarray:
-            old_x_rank = _rank(t[:, :n])
-            while old_x_rank < n:
-                improved = False
+    for i in range(n):
+        x_column_original = tableau[:, i]
+        z_column_original = tableau[:, i + n]
+        x_z_column_original = (x_column_original + z_column_original) % 2
+        zero_column_original = np.zeros_like(x_column_original)
 
-                for q in range(n):
-                    if old_x_rank == n:
-                        break
+        x_column_aux = [aux_tableau[row * (2*n) + i] for row in range(r)]
+        z_column_aux = [aux_tableau[row * (2*n) + i + n] for row in range(r)]
 
-                    best_rank = old_x_rank
-                    best_choice = (None, None)
+        # I^(-1) P_x I : (x, z) -> (x, 0)
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 0], z3.And(_elementwise_map(x_column_original, x_column_aux), _elementwise_map(zero_column_original, z_column_aux))))
 
-                    x_col = t[:, q].copy()
-                    z_col = t[:, q + n].copy()
+        # H^(-1) P_x H : (x, z) -> (0, z)
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 1], z3.And(_elementwise_map(zero_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux))))
 
-                    for new_x, new_z in [ (x_col, z_col), (z_col, x_col), ((x_col + z_col) % 2, x_col) ]:
-                        t[:, q] = new_x
-                        new_x_rank = _rank(t[:, :n])
-                        if new_x_rank > best_rank:
-                            best_rank = new_x_rank
-                            best_choice = (new_x, new_z)
+        # S^(-1) P_x S : (x, z) -> (x, x)
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 2], z3.And(_elementwise_map(x_column_original, x_column_aux), _elementwise_map(x_column_original, z_column_aux))))
 
-                    if best_choice[0] is not None:
-                        t[:, q] = best_choice[0]
-                        t[:, q + n] = best_choice[1]
-                        old_x_rank = best_rank
-                        improved = True
-                    else:
-                        t[:, q] = x_col
-                        t[:, q + n] = z_col
+        # (HS)^(-1) P_x (HS)  : (x, z) -> (z, z)
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 3], z3.And(_elementwise_map(z_column_original, x_column_aux), _elementwise_map(z_column_original, z_column_aux))))
 
-                if not improved:
-                    break
+        # (SH)^(-1) P_x (SH) : (x, z) -> (0, x + z)
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 4], z3.And(_elementwise_map(zero_column_original, x_column_aux), _elementwise_map(x_z_column_original, z_column_aux))))
 
-            return t
+        # (HSH)^(-1) P_x (HSH) : (x, z) -> (x + z, 0)
+        solver.add(z3.Implies(local_clifford_variables[i * 6 + 5], z3.And(_elementwise_map(x_z_column_original, x_column_aux), _elementwise_map(zero_column_original, z_column_aux))))
 
-        def _extract_adjacency_matrix(tableau: np.ndarray) -> np.ndarray:
-            """Extract the adjacency matrix from the stabilizer state."""
-            def _rref_no_column_swaps(matrix: np.ndarray) -> tuple[np.ndarray, int]:
-                n_rows, n_cols = matrix.shape
-                pivot_row = 0
-                for col in range(n_cols // 2):
-                    if pivot_row >= n_rows:
-                        break
+    # row operations
+    row_operation_coefficients = [z3.Bool(f'r_{i}_{j}') for i in range(r) for j in range(r)]
 
-                    tail = matrix[pivot_row:, col]
-                    pivot_offset = int(np.argmax(tail))
+    for row in range(r):
+        for q in range(2 * n):
 
-                    if not tail[pivot_offset]:
-                        continue
+            row_contributions = []
+            for contribution in range(r):
+                if tableau[contribution, q] == 1:
+                    row_contributions.append(row_operation_coefficients[row * r + contribution])
 
-                    pivot = pivot_row + pivot_offset
+            solver.add(aux_tableau[row * (2*n) + q] == _xor_list(row_contributions))
 
-                    if pivot != pivot_row:
-                        matrix[[pivot_row, pivot], :] = matrix[[pivot, pivot_row], :]
+    if solver.check() != z3.sat:
+        return None
 
-                    for r in range(n_rows):
-                        if r != pivot_row and matrix[r, col]:
-                            matrix[r, :] ^= matrix[pivot_row, :]
-                    pivot_row += 1
-
-                return matrix, pivot_row
-
-            rre, rank_x = _rref_no_column_swaps(tableau)
-
-            if rank_x != n:
-                raise ValueError("X part of the tableau is not full rank, something went wrong.")
-
-            return rre[:, n:]
-
-        def _remove_diagonal(tableau: np.ndarray) -> None:
-            """Basically apply S gate on all qubits to remove self-loops in the graph state."""
-            np.fill_diagonal(tableau, 0)
-
-        state = _make_X_invertible(tableau)
-        gamma = _extract_adjacency_matrix(state)
-        _remove_diagonal(gamma)
-
-        if not np.array_equal(gamma, gamma.T):
-            raise ValueError("Extracted adjacency matrix is not symmetric, something went wrong.")
-
-        return gamma
-
-    def _traverse_lc_orbit(graph: np.ndarray) -> bool:
-        def _lc(graph: np.ndarray, q: int) -> np.ndarray | None:
-            neighbors = np.flatnonzero(graph[q])
-
-            if neighbors.size < 2:
-                return None
-            
-            new_graph = graph.copy()
-
-            new_graph[np.ix_(neighbors, neighbors)] ^= 1
-            new_graph[neighbors, neighbors] = 0
-            return new_graph
-
-        def _canonical_key(graph: np.ndarray) -> bytes:
-            return np.asarray(graph, dtype=np.uint8).tobytes()
-
-        def _is_bipartite(graph: np.ndarray) -> bool:
-            graph = np.asarray(graph, dtype=bool)
-            n = graph.shape[0]
-            colors = np.full(n, -1, dtype=np.int8)
-
-            for start in range(n):
-                if colors[start] != -1:
-                    continue
-
-                colors[start] = 0
-                frontier = np.array([start], dtype=int)
-
-                while frontier.size:
-                    current_color = colors[frontier[0]]
-                    next_color = 1 - current_color
-
-                    neighbors = np.flatnonzero(graph[frontier].any(axis=0))
-
-                    if np.any(colors[neighbors] == current_color):
-                        return False
-
-                    new = neighbors[colors[neighbors] == -1]
-                    colors[new] = next_color
-                    frontier = new
-
-            return True
-
-        n = graph.shape[0]
-        start = graph.copy()
-        seen = {_canonical_key(start)}
-        queue = deque([start])
-
-        while queue:
-            current_graph = queue.popleft()
-            if _is_bipartite(current_graph):
-                return True
-
-            for q in range(n):
-                new_graph = _lc(current_graph, q)
-                
-                if new_graph is None:
-                    continue
-
-                key = _canonical_key(new_graph)
-
-                if key not in seen:
-                    queue.append(new_graph)
-                    seen.add(key)
-
-        return False
-    
-    stab_state = _stab_code_to_stab_state(code, reduced_symplectic)
-    graph_state = _stab_state_to_graph_state(stab_state)
-    return _traverse_lc_orbit(graph_state)
-
+    model = solver.model()
+    return [
+        next(
+            operation
+            for operation, variable in qubit_variables.items()
+            if z3.is_true(model.eval(variable, model_completion=True))
+        )
+        for qubit_variables in local_clifford_variables
+    ]
 
 # ----------------------------------------------------------------------------------------------------
 # small helpers
