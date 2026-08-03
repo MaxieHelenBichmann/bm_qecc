@@ -5,6 +5,7 @@ from __future__ import annotations
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import pytest
+import src.hybrids.p_stab as p_stab
 
 from benchmarks.utils import (
     RandomizeError,
@@ -82,6 +83,82 @@ def test_are_peq_stab_witness_handles_row_basis_change() -> None:
     code2 = permutation_equivalent_code(code1, seed=5678)
 
     permutation = are_peq_stab(code1, code2)
+
+    assert permutation is not None
+    _assert_maps_rowspace(code1, code2, permutation)
+
+
+def test_hybrid_routes_small_codes_to_bruteforce(monkeypatch: pytest.MonkeyPatch) -> None:
+    code = StabilizerCode(["XXXXX"])
+    sentinel = [4, 3, 2, 1, 0]
+    calls = 0
+
+    def fake_bruteforce(c1: np.ndarray, c2: np.ndarray) -> list[int]:
+        nonlocal calls
+        calls += 1
+        assert c1.shape[1] == 2 * code.n
+        assert c2.shape[1] == 2 * code.n
+        return sentinel
+
+    monkeypatch.setattr(p_stab, "_bruteforce", fake_bruteforce)
+    monkeypatch.setattr(
+        p_stab,
+        "_sat",
+        lambda *_args: pytest.fail("SAT backend must not run for n <= 5"),
+    )
+
+    assert are_peq_stab(code, code) == sentinel
+    assert calls == 1
+
+
+def test_hybrid_routes_large_codes_to_sat(monkeypatch: pytest.MonkeyPatch) -> None:
+    code = StabilizerCode(["XXXXXX"])
+    sentinel = list(range(code.n))
+    partition = {(): list(range(code.n))}
+    calls = 0
+
+    monkeypatch.setattr(
+        p_stab,
+        "_bruteforce",
+        lambda *_args: pytest.fail("brute-force backend must not run for n > 5"),
+    )
+    monkeypatch.setattr(p_stab, "preserved_linear_dependencies", lambda *_args: True)
+    monkeypatch.setattr(
+        p_stab,
+        "preserved_punctured_hull_weight_enumerator",
+        lambda *_args: (True, partition, partition),
+    )
+
+    def fake_sat(
+        c1: np.ndarray,
+        partition1: dict[tuple[int, ...], list[int]],
+        c2: np.ndarray,
+        partition2: dict[tuple[int, ...], list[int]],
+    ) -> list[int]:
+        nonlocal calls
+        calls += 1
+        assert c1.shape == (1, 2 * code.n)
+        assert c2.shape == (1, 2 * code.n)
+        assert partition1 == partition2 == partition
+        return sentinel
+
+    monkeypatch.setattr(p_stab, "_sat", fake_sat)
+
+    assert are_peq_stab(code, code) == sentinel
+    assert calls == 1
+
+
+def test_sat_backend_accepts_six_qubit_permutation() -> None:
+    code1 = random_stabilizer_code(6, 3, seed=1234)
+    code2 = permutation_equivalent_code(code1, seed=5678)
+    partition = {(): list(range(code1.n))}
+
+    permutation = p_stab._sat(
+        p_stab._row_basis(code1.symplectic),
+        partition,
+        p_stab._row_basis(code2.symplectic),
+        partition,
+    )
 
     assert permutation is not None
     _assert_maps_rowspace(code1, code2, permutation)

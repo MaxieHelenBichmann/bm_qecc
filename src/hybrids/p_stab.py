@@ -285,7 +285,7 @@ def _sat(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.nd
     
     solver = z3.Solver()
 
-    r, n = c1.shape
+    r, n = c1.shape[0], c1.shape[1] // 2
 
     # permutations
     aux_tableau = [z3.Bool(f'aux_{row}_{col}') for row in range(r) for col in range(2*n)]
