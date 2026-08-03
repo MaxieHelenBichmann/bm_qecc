@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import src.hybrids.p_css as p_css
 
 from benchmarks.utils import RandomizeError, random_non_permuted_css_pair, random_permuted_css_pair
 from src.core.css_code import CSSCode
 from src.hybrids.p_css import are_peq_css
+
+
+def _ranked_x_code(n: int, rank: int) -> CSSCode:
+    hx = np.zeros((rank, n), dtype=np.int8)
+    hx[:, :rank] = np.eye(rank, dtype=np.int8)
+    return CSSCode(Hx=hx)
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_css
@@ -31,6 +38,52 @@ def test_are_peq_css_preserves_x_and_z_ranks() -> None:
     assert code1.n == code2.n
     assert code1.k == code2.k
     assert are_peq_css(code1, code2) is None
+
+
+@pytest.mark.parametrize(
+    ("n", "rank", "expected_backend"),
+    [
+        pytest.param(5, 1, "bruteforce", id="small-bruteforce"),
+        pytest.param(6, 1, "graph", id="small-matroid-graph"),
+        pytest.param(18, 1, "graph", id="medium-low-rank-matroid-graph"),
+        pytest.param(18, 10, "sat", id="medium-high-rank-sat"),
+        pytest.param(30, 1, "sat", id="large-sat"),
+    ],
+)
+def test_hybrid_routes_to_expected_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    n: int,
+    rank: int,
+    expected_backend: str,
+) -> None:
+    code = _ranked_x_code(n, rank)
+    sentinel = list(range(n))
+    calls: list[str] = []
+    partition = {0: list(range(n))}
+
+    if n >= 20:
+        monkeypatch.setattr(p_css, "preserved_linear_dependencies", lambda *_args: True)
+        monkeypatch.setattr(
+            p_css,
+            "preserved_punctured_hull_weight_enumerator",
+            lambda *_args: (True, partition, partition),
+        )
+
+    def backend(name: str):
+        def run(*_args: object) -> list[int]:
+            calls.append(name)
+            if name != expected_backend:
+                pytest.fail(f"{name} backend ran; expected {expected_backend}")
+            return sentinel
+
+        return run
+
+    monkeypatch.setattr(p_css, "_bruteforce", backend("bruteforce"))
+    monkeypatch.setattr(p_css, "_matroid_graph_iso", backend("graph"))
+    monkeypatch.setattr(p_css, "_sat", backend("sat"))
+
+    assert are_peq_css(code, code) == sentinel
+    assert calls == [expected_backend]
 
 
 def test_are_peq_css_hardcoded_positive() -> None:

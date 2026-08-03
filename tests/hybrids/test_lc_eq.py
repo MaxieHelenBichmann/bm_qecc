@@ -5,6 +5,7 @@ from __future__ import annotations
 import ldpc.mod2.mod2_numpy as mod2
 import numpy as np
 import pytest
+import src.hybrids.lc_stb as lc_stb
 
 from benchmarks.utils import (
     RandomizeError,
@@ -59,6 +60,45 @@ def test_are_lceq_preserves_k() -> None:
     code2 = StabilizerCode(["ZII"])
 
     assert are_lceq(code1, code2) is None
+
+
+def test_hybrid_routes_small_k_to_lse(monkeypatch: pytest.MonkeyPatch) -> None:
+    code = StabilizerCode(["ZIII", "IZII", "IIZI", "IIIZ"])
+    assert code.k < 2
+    sentinel = ["I"] * code.n
+    calls = 0
+
+    def fake_lse(*_args: object) -> list[str]:
+        nonlocal calls
+        calls += 1
+        return sentinel
+
+    monkeypatch.setattr(lc_stb, "_lse", fake_lse)
+    monkeypatch.setattr(lc_stb, "_sat", lambda *_args: pytest.fail("SAT must not run for k < 2"))
+
+    assert are_lceq(code, code) == sentinel
+    assert calls == 1
+
+
+def test_hybrid_routes_large_k_to_sat(monkeypatch: pytest.MonkeyPatch) -> None:
+    code = StabilizerCode(["XIII"])
+    assert code.k >= 2
+    sentinel = ["I"] * code.n
+    calls = 0
+
+    monkeypatch.setattr(lc_stb, "_lse", lambda *_args: pytest.fail("LSE must not run for k >= 2"))
+    monkeypatch.setattr(lc_stb, "preserved_low_degree_local_invariant", lambda *_args: True)
+
+    def fake_sat(c1: StabilizerCode, c2: StabilizerCode) -> list[str]:
+        nonlocal calls
+        calls += 1
+        assert c1 is code and c2 is code
+        return sentinel
+
+    monkeypatch.setattr(lc_stb, "_sat", fake_sat)
+
+    assert are_lceq(code, code) == sentinel
+    assert calls == 1
 
 
 @pytest.mark.parametrize(

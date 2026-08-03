@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import src.hybrids.lc_css as lc_css
 
 from benchmarks.utils import lc_equivalent_code, random_css_code, random_stabilizer_code
 from src.core.css_code import CSSCode
@@ -25,6 +26,40 @@ def test_is_lceq_css_accepts_css_code() -> None:
     )
 
     assert is_lceq_css(code) is True
+
+
+def test_hybrid_routes_small_codes_to_bruteforce(monkeypatch: pytest.MonkeyPatch) -> None:
+    code = StabilizerCode(["XXX"])
+    calls = 0
+
+    def fake_bruteforce(tableau: np.ndarray) -> bool:
+        nonlocal calls
+        calls += 1
+        assert tableau.shape == (1, 2 * code.n)
+        return True
+
+    monkeypatch.setattr(lc_css, "_bruteforce", fake_bruteforce)
+    monkeypatch.setattr(lc_css, "_sat", lambda *_args: pytest.fail("SAT must not run for n < 4"))
+
+    assert is_lceq_css(code) is True
+    assert calls == 1
+
+
+def test_hybrid_routes_large_codes_to_sat(monkeypatch: pytest.MonkeyPatch) -> None:
+    code = StabilizerCode(["XXXX"])
+    calls = 0
+
+    def fake_sat(tableau: np.ndarray) -> bool:
+        nonlocal calls
+        calls += 1
+        assert tableau.shape == (1, 2 * code.n)
+        return True
+
+    monkeypatch.setattr(lc_css, "_bruteforce", lambda *_args: pytest.fail("brute force must not run for n >= 4"))
+    monkeypatch.setattr(lc_css, "_sat", fake_sat)
+
+    assert is_lceq_css(code) is True
+    assert calls == 1
 
 
 def test_is_lceq_css_hardcoded_lc_positive() -> None:
