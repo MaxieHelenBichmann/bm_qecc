@@ -37,7 +37,7 @@ def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:
         if not preserved_low_degree_local_invariant(reduced_symplectic_1, reduced_symplectic_2):
             return None
     
-    return are_lceq_sat(c1, c2)
+    return _sat(c1, c2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
@@ -425,7 +425,7 @@ def _lse(c1: StabilizerCode, c2: StabilizerCode, reduced_symplectic_1: np.ndarra
     return _simplify_lc_operations(result[:c1.n])
 
 
-def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:
+def _sat(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:
     """lc_stb_sat.py"""
     def _elementwise_map(normal_bool, variables):
         return z3.And([
@@ -518,6 +518,7 @@ def are_lceq_sat(c1: StabilizerCode, c2: StabilizerCode) -> None | list[str]:
 # ----------------------------------------------------------------------------------------------------
 # small helpers
 # ----------------------------------------------------------------------------------------------------
+
 def _rank(matrix: np.ndarray) -> int:
     if matrix.shape[0] == 0:
         return 0
