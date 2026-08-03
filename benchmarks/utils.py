@@ -162,14 +162,52 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
     rng = np.random.default_rng(seed)
     rx = _rank_binary(code.Hx)
     rz = _rank_binary(code.Hz)
+    use_additive_invariant = rx + rz > 20 and _is_sparse_css(code.Hx, code.Hz)
     if (rx, rz) in {(0, 0), (code.n, 0), (0, code.n)}:
         raise RandomizeError("No non-equivalent CSS code exists with these small invariants.")
 
     visible_invariant = _visible_css_invariant(code)
-    if rx + rz > 20:
+    if use_additive_invariant:
+        invariant = _css_additive_collision_invariant_matrices(code.Hx, code.Hz)
+    elif rx + rz > 20:
         invariant = _css_support_rank_invariant_matrices(code.Hx, code.Hz)
     else:
         invariant = _css_stabilizer_weight_enumerator_matrices(code.Hx, code.Hz)
+
+    # Coupled CNOT column operations preserve CSS orthogonality, dimensions,
+    # and much of the source code's structure. For large structured codes this
+    # produces substantially more representative negatives than replacing the
+    # code with an unrelated dense random sample.
+    if use_additive_invariant:
+        for _ in range(10):
+            candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(code, rng=rng)
+            if _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant:
+                continue
+            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            if other_invariant != invariant:
+                return CSSCode(
+                    candidate_hx,
+                    candidate_hz,
+                    distance=code.distance,
+                    x_distance=code.x_distance,
+                    z_distance=code.z_distance,
+                )
+
+        # Some highly symmetric codes (notably BB [[90,8]]) have repeated
+        # column multiplicities that essentially no nontrivial CNOT preserves.
+        # Prefer a nearby CNOT-derived negative over an unrelated random code;
+        # it retains the exact dimensions, check ranks, and CSS orthogonality.
+        for _ in range(100):
+            candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(code, rng=rng)
+            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            if other_invariant != invariant:
+                return CSSCode(
+                    candidate_hx,
+                    candidate_hz,
+                    distance=code.distance,
+                    x_distance=code.x_distance,
+                    z_distance=code.z_distance,
+                )
 
     if rx and rz:
         for _ in range(500):
@@ -177,7 +215,9 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
             if candidate is None:
                 continue
 
-            if rx + rz > 20:
+            if use_additive_invariant:
+                other_invariant = _css_additive_collision_invariant_matrices(candidate.Hx, candidate.Hz)
+            elif rx + rz > 20:
                 other_invariant = _css_support_rank_invariant_matrices(candidate.Hx, candidate.Hz)
             else:
                 other_invariant = _css_stabilizer_weight_enumerator_matrices(candidate.Hx, candidate.Hz)
@@ -190,12 +230,14 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
         candidate_hx, candidate_hz = _random_css_check_matrices(code.n, code.k, rx=rx, seed=candidate_seed)
 
         if (
-            attempt < 1_000
+            (use_additive_invariant or attempt < 1_000)
             and _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant
         ):
             continue
 
-        if rx + rz > 20:
+        if use_additive_invariant:
+            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+        elif rx + rz > 20:
             other_invariant = _css_support_rank_invariant_matrices(candidate_hx, candidate_hz)
         else:
             other_invariant = _css_stabilizer_weight_enumerator_matrices(candidate_hx, candidate_hz)
@@ -1026,6 +1068,29 @@ def _duplicate_column_multiplicities(matrix: np.ndarray) -> tuple[int, ...]:
     columns = [tuple(matrix[:, j].tolist()) for j in range(matrix.shape[1])]
     return tuple(sorted(Counter(columns).values()))
 
+
+def _random_css_cnot_candidate_matrices(
+    code: CSSCode,
+    *,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Apply a small random network of physical CNOTs to a CSS code.
+
+    For a CNOT ``control -> target``, X columns transform as
+    ``target ^= control`` and Z columns contragrediently as
+    ``control ^= target``. This preserves ``Hx @ Hz.T == 0`` and both check
+    ranks, while generally leaving the physical-permutation orbit.
+    """
+    hx = np.asarray(code.Hx, dtype=np.int8).copy() % 2
+    hz = np.asarray(code.Hz, dtype=np.int8).copy() % 2
+    steps = int(rng.integers(1, min(9, code.n) + 1))
+    for _ in range(steps):
+        control, target = (int(q) for q in rng.choice(code.n, size=2, replace=False))
+        hx[:, target] ^= hx[:, control]
+        hz[:, control] ^= hz[:, target]
+    return hx, hz
+
+
 def _decoupled_css_column_permutation_candidate(
     code: CSSCode,
     *,
@@ -1055,6 +1120,78 @@ def _decoupled_css_column_permutation_candidate(
 def _css_support_rank_invariant(code: CSSCode, max_w: int = 3) -> tuple[Any, ...]:
     """Return a polynomial CSS invariant under physical-qubit permutations."""
     return _css_support_rank_invariant_matrices(code.Hx, code.Hz, max_w=max_w)
+
+
+def _binary_columns_as_ints(matrix: np.ndarray) -> tuple[int, ...]:
+    """Pack the columns of a binary matrix into basis-independent labels."""
+    matrix = np.asarray(matrix, dtype=np.uint8) & 1
+    values = [0] * matrix.shape[1]
+    for row_index, row in enumerate(matrix):
+        bit = 1 << row_index
+        for column in np.flatnonzero(row):
+            values[int(column)] |= bit
+    return tuple(values)
+
+
+def _additive_collision_profile(
+    matrix: np.ndarray,
+) -> tuple[tuple[int, ...], tuple[int, ...], tuple[int, ...]]:
+    """Return multiplicities of columns and two-/three-column sums.
+
+    An invertible row-basis change maps every column through the same injective
+    linear map, so it preserves both equality of columns and equality of their
+    GF(2) pairwise sums. A column permutation merely reorders the pairs. The
+    sorted multiplicities are therefore a classical-code permutation
+    invariant. Triple sums also capture dependencies involving up to six
+    columns, which occur frequently in sparse BB constructions.
+    """
+    columns = _binary_columns_as_ints(matrix)
+    column_counts = Counter(columns)
+    sum_counts: Counter[int] = Counter()
+    for left in range(len(columns)):
+        left_column = columns[left]
+        for right in range(left + 1, len(columns)):
+            sum_counts[left_column ^ columns[right]] += 1
+    triple_sum_counts: Counter[int] = Counter()
+    for left in range(len(columns)):
+        left_column = columns[left]
+        for middle in range(left + 1, len(columns)):
+            partial_sum = left_column ^ columns[middle]
+            for right in range(middle + 1, len(columns)):
+                triple_sum_counts[partial_sum ^ columns[right]] += 1
+    return (
+        tuple(sorted(column_counts.values())),
+        tuple(sorted(sum_counts.values())),
+        tuple(sorted(triple_sum_counts.values())),
+    )
+
+
+def _css_additive_collision_invariant_matrices(
+    hx: np.ndarray,
+    hz: np.ndarray,
+) -> tuple[Any, ...]:
+    """Return a fast CSS permutation invariant for large sparse codes.
+
+    X and Z stabilizer row spaces may undergo independent basis changes, while
+    a physical permutation acts identically on their columns. Keeping the two
+    additive profiles ordered is consequently invariant under CSS code
+    permutation equivalence. It is especially effective for quasi-cyclic LDPC
+    codes, whose repeated pair-sum collisions differ sharply from dense random
+    codes with the same ranks and cheap visible invariants.
+    """
+    hx = np.asarray(mod2.row_basis(np.asarray(hx, dtype=np.uint8) & 1), dtype=np.uint8)
+    hz = np.asarray(mod2.row_basis(np.asarray(hz, dtype=np.uint8) & 1), dtype=np.uint8)
+    return _additive_collision_profile(hx), _additive_collision_profile(hz)
+
+
+def _is_sparse_css(hx: np.ndarray, hz: np.ndarray, max_density: float = 0.2) -> bool:
+    """Return whether both supplied check matrices have LDPC-like density."""
+    matrices = (np.asarray(hx), np.asarray(hz))
+    return all(
+        matrix.size == 0 or np.count_nonzero(matrix) / matrix.size <= max_density
+        for matrix in matrices
+    )
+
 
 def _css_support_rank_invariant_matrices(
     hx: np.ndarray,
