@@ -49,21 +49,19 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
     if c1.n <= 5:
         return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
     
-    partition1 = {0: list(range(c1.n))}
-    partition2 = {0: list(range(c2.n))}
     if c1.n >= 20:
         if not preserved_linear_dependencies(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2):
             return None
-        result, refined_partition1, refined_partition2 = preserved_punctured_hull_weight_enumerator(
-            reduced_Hx1,
-            reduced_Hz1,
-            reduced_Hx2,
-            reduced_Hz2,
-        )
-        if not result:
-            return None
-        partition1 = refined_partition1
-        partition2 = refined_partition2
+        
+    result, partition1, partition2 = preserved_punctured_hull_weight_enumerator(
+        reduced_Hx1,
+        reduced_Hz1,
+        reduced_Hx2,
+        reduced_Hz2,
+    )
+    
+    if not result:
+        return None
     
     if c1.n <= 17:
         return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
