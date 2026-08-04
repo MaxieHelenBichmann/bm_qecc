@@ -103,7 +103,7 @@ MAX_TOL_TIMEOUTS = 3
 MAX_TOL_MEMORY_ERRORS = 2
 MEMORY_POLL_INTERVAL_SECONDS = 0.2
 
-bell_pair = CSSCode(Hz=np.array([[1, 1]], dtype=np.int8))
+bell_pair = CSSCode(Hx=np.array([1, 1], dtype=np.int8), Hz=np.array([[1, 1]], dtype=np.int8))
 three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
 steane = CSSCode.from_file("data/steane")
 carbon = CSSCode.from_file("data/carbon")
