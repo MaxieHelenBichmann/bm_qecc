@@ -153,10 +153,11 @@ def permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> C
 def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> CSSCode:
     """Return a CSS code certified non-equivalent by permutation invariants.
 
-    The separating certificate for large sparse codes is a four-column
-    dependency count.  The CSS hybrid only tabulates ranks of subsets through
-    size three, so this does not deliberately manufacture an input rejected by
-    the exact invariant used at the start of the hybrid.
+    For small stabilizer ranks this uses the exact stabilizer weight enumerator.
+    For larger ranks it uses a polynomial-time CSS support-rank profile. In both
+    cases candidates must preserve the very cheap invariants used as early
+    filters by the benchmark solvers, so random negative pairs are not rejected
+    just because of zero columns or duplicate-column multiplicities.
     """
     rng = np.random.default_rng(seed)
     rx = _rank_binary(code.Hx)
@@ -167,7 +168,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
 
     visible_invariant = _visible_css_invariant(code)
     if use_additive_invariant:
-        invariant = _css_four_column_dependency_invariant(code.Hx, code.Hz)
+        invariant = _css_additive_collision_invariant_matrices(code.Hx, code.Hz)
     elif rx + rz > 20:
         invariant = _css_support_rank_invariant_matrices(code.Hx, code.Hz)
     else:
@@ -189,7 +190,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
             )
             if _visible_css_invariant(candidate) != visible_invariant:
                 continue
-            other_invariant = _css_four_column_dependency_invariant(candidate_hx, candidate_hz)
+            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
             if other_invariant != invariant:
                 return candidate
 
@@ -207,7 +208,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
             )
             if _visible_css_invariant(candidate) != visible_invariant:
                 continue
-            other_invariant = _css_four_column_dependency_invariant(candidate_hx, candidate_hz)
+            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
             if other_invariant != invariant:
                 return candidate
 
@@ -218,7 +219,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
                 continue
 
             if use_additive_invariant:
-                other_invariant = _css_four_column_dependency_invariant(candidate.Hx, candidate.Hz)
+                other_invariant = _css_additive_collision_invariant_matrices(candidate.Hx, candidate.Hz)
             elif rx + rz > 20:
                 other_invariant = _css_support_rank_invariant_matrices(candidate.Hx, candidate.Hz)
             else:
@@ -242,7 +243,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
             z_distance=code.z_distance,
         )
         if use_additive_invariant:
-            other_invariant = _css_four_column_dependency_invariant(candidate_hx, candidate_hz)
+            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
         elif rx + rz > 20:
             other_invariant = _css_support_rank_invariant_matrices(candidate_hx, candidate_hz)
         else:
@@ -1193,39 +1194,6 @@ def _css_additive_collision_invariant_matrices(
     hx = np.asarray(mod2.row_basis(np.asarray(hx, dtype=np.uint8) & 1), dtype=np.uint8)
     hz = np.asarray(mod2.row_basis(np.asarray(hz, dtype=np.uint8) & 1), dtype=np.uint8)
     return _additive_collision_profile(hx), _additive_collision_profile(hz)
-
-
-def _four_column_dependency_count(matrix: np.ndarray) -> int:
-    """Count four-element column subsets whose GF(2) sum is zero.
-
-    Equal pair sums identify a dependent quadruple.  Every quadruple is seen
-    through its three partitions into two pairs, hence the final division by
-    three.  Unlike the hybrid's dependency profile, this probes subsets of size
-    four.
-    """
-    columns = _binary_columns_as_ints(
-        np.asarray(mod2.row_basis(np.asarray(matrix, dtype=np.uint8) & 1), dtype=np.uint8)
-    )
-    pairs_by_sum: dict[int, list[tuple[int, int]]] = {}
-    for left in range(len(columns)):
-        for right in range(left + 1, len(columns)):
-            pairs_by_sum.setdefault(columns[left] ^ columns[right], []).append((left, right))
-
-    disjoint_pair_pairs = 0
-    for pairs in pairs_by_sum.values():
-        for first_index, (a, b) in enumerate(pairs):
-            for c, d in pairs[first_index + 1 :]:
-                if a != c and a != d and b != c and b != d:
-                    disjoint_pair_pairs += 1
-    return disjoint_pair_pairs // 3
-
-
-def _css_four_column_dependency_invariant(
-    hx: np.ndarray,
-    hz: np.ndarray,
-) -> tuple[int, int]:
-    """Return ordered X/Z counts of dependent four-column subsets."""
-    return _four_column_dependency_count(hx), _four_column_dependency_count(hz)
 
 
 def _is_sparse_css(hx: np.ndarray, hz: np.ndarray, max_density: float = 0.2) -> bool:

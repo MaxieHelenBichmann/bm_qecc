@@ -339,17 +339,33 @@ def _terminate_process_group(process: mp.Process) -> None:
         process.join()
 
 
-def generated_stabilizer_pair(n: int, k: int, suffix: str) -> tuple[StabilizerCode, StabilizerCode] | None:
+def generated_stabilizer_pair(
+    n: int,
+    k: int,
+    suffix: str,
+    seed: int | None = None,
+) -> tuple[StabilizerCode, StabilizerCode] | None:
     """Load a generated stabilizer pair from data/ if both files exist."""
     base = f"random_stab_{n}_{k}"
-    paths = (
-        DATA_DIR / f"{base}1_{suffix}.txt",
-        DATA_DIR / f"{base}2_{suffix}.txt",
-    )
-    if not all(path.exists() for path in paths):
-        return None
-    code1_path, code2_path = paths
-    return StabilizerCode.from_file(code1_path), StabilizerCode.from_file(code2_path)
+    candidate_paths = [
+        (
+            DATA_DIR / f"{base}1_{suffix}.txt",
+            DATA_DIR / f"{base}2_{suffix}.txt",
+        )
+    ]
+    if seed is not None:
+        candidate_paths.insert(
+            0,
+            (
+                DATA_DIR / f"random_stab_{suffix}_{n}_{k}_{seed}_1.txt",
+                DATA_DIR / f"random_stab_{suffix}_{n}_{k}_{seed}_2.txt",
+            ),
+        )
+    for paths in candidate_paths:
+        if all(path.exists() for path in paths):
+            code1_path, code2_path = paths
+            return StabilizerCode.from_file(code1_path), StabilizerCode.from_file(code2_path)
+    return None
 
 def generated_css_pair(n: int, k: int, suffix: str, seed: int | None = None) -> tuple[CSSCode, CSSCode] | None:
     """Load a generated CSS pair from data/ if both files exist."""
@@ -487,7 +503,7 @@ def non_permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, 
     if dim is not None:
         n, k = dim
         if use_cached:
-            pair = generated_stabilizer_pair(n, k, "non_peq")
+            pair = generated_stabilizer_pair(n, k, "non_peq", seed=seed)
             code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=seed)
         else:
             code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=seed)
@@ -495,8 +511,12 @@ def non_permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, 
         if code is None:
             raise ValueError("Either dim or code must be provided")
         n, k = code.n, code.k
-        code1 = code
-        code2 = non_permutation_equivalent_stabilizer_code(code1, seed=seed)
+        pair = generated_stabilizer_pair(n, k, "non_peq", seed=seed) if use_cached else None
+        if pair is None:
+            code1 = code
+            code2 = non_permutation_equivalent_stabilizer_code(code1, seed=seed)
+        else:
+            code1, code2 = pair
 
     return Case(
         name=f"non_permuted_stb_{n}_{k}_{seed}",
