@@ -270,6 +270,12 @@ def non_permutation_equivalent_stabilizer_code(
     generated cases; avoiding that exhaustively would make large-instance
     generation prohibitively expensive.
     """
+    if isinstance(code, CSSCode):
+        # A qubit permutation maps the pure-X and pure-Z subspaces separately.
+        # Thus a CSS-certified negative is also a certified negative when both
+        # inputs are viewed as general stabilizer codes.
+        return non_permutation_equivalent_css_code(code, seed=seed)
+
     rng = np.random.default_rng(seed)
     if code.k == code.n:
         raise RandomizeError("No non-equivalent stabilizer code exists with these small invariants.")

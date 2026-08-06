@@ -499,24 +499,16 @@ def permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCo
         expected_lc=None,
     )
 
-def non_permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None, use_cached: bool = True) -> Case:
+def non_permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None, use_cached: bool = False) -> Case:
     if dim is not None:
         n, k = dim
-        if use_cached:
-            pair = generated_stabilizer_pair(n, k, "non_peq", seed=seed)
-            code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=seed)
-        else:
-            code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=seed)
+        code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=seed)
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
         n, k = code.n, code.k
-        pair = generated_stabilizer_pair(n, k, "non_peq", seed=seed) if use_cached else None
-        if pair is None:
-            code1 = code
-            code2 = non_permutation_equivalent_stabilizer_code(code1, seed=seed)
-        else:
-            code1, code2 = pair
+        code1 = code
+        code2 = non_permutation_equivalent_stabilizer_code(code1, seed=seed)
 
     return Case(
         name=f"non_permuted_stb_{n}_{k}_{seed}",
