@@ -153,11 +153,10 @@ def permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> C
 def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> CSSCode:
     """Return a CSS code certified non-equivalent by permutation invariants.
 
-    For small stabilizer ranks this uses the exact stabilizer weight enumerator.
-    For larger ranks it uses a polynomial-time CSS support-rank profile. In both
-    cases candidates must preserve the very cheap invariants used as early
-    filters by the benchmark solvers, so random negative pairs are not rejected
-    just because of zero columns or duplicate-column multiplicities.
+    The separating certificate for large sparse codes is a four-column
+    dependency count.  The CSS hybrid only tabulates ranks of subsets through
+    size three, so this does not deliberately manufacture an input rejected by
+    the exact invariant used at the start of the hybrid.
     """
     rng = np.random.default_rng(seed)
     rx = _rank_binary(code.Hx)
@@ -168,7 +167,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
 
     visible_invariant = _visible_css_invariant(code)
     if use_additive_invariant:
-        invariant = _css_additive_collision_invariant_matrices(code.Hx, code.Hz)
+        invariant = _css_four_column_dependency_invariant(code.Hx, code.Hz)
     elif rx + rz > 20:
         invariant = _css_support_rank_invariant_matrices(code.Hx, code.Hz)
     else:
@@ -181,33 +180,36 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
     if use_additive_invariant:
         for _ in range(10):
             candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(code, rng=rng)
-            if _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant:
+            candidate = CSSCode(
+                candidate_hx,
+                candidate_hz,
+                distance=code.distance,
+                x_distance=code.x_distance,
+                z_distance=code.z_distance,
+            )
+            if _visible_css_invariant(candidate) != visible_invariant:
                 continue
-            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            other_invariant = _css_four_column_dependency_invariant(candidate_hx, candidate_hz)
             if other_invariant != invariant:
-                return CSSCode(
-                    candidate_hx,
-                    candidate_hz,
-                    distance=code.distance,
-                    x_distance=code.x_distance,
-                    z_distance=code.z_distance,
-                )
+                return candidate
 
         # Some highly symmetric codes (notably BB [[90,8]]) have repeated
         # column multiplicities that essentially no nontrivial CNOT preserves.
-        # Prefer a nearby CNOT-derived negative over an unrelated random code;
-        # it retains the exact dimensions, check ranks, and CSS orthogonality.
+        # Prefer a nearby CNOT-derived negative over an unrelated random code.
         for _ in range(100):
             candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(code, rng=rng)
-            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            candidate = CSSCode(
+                candidate_hx,
+                candidate_hz,
+                distance=code.distance,
+                x_distance=code.x_distance,
+                z_distance=code.z_distance,
+            )
+            if _visible_css_invariant(candidate) != visible_invariant:
+                continue
+            other_invariant = _css_four_column_dependency_invariant(candidate_hx, candidate_hz)
             if other_invariant != invariant:
-                return CSSCode(
-                    candidate_hx,
-                    candidate_hz,
-                    distance=code.distance,
-                    x_distance=code.x_distance,
-                    z_distance=code.z_distance,
-                )
+                return candidate
 
     if rx and rz:
         for _ in range(500):
@@ -216,7 +218,7 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
                 continue
 
             if use_additive_invariant:
-                other_invariant = _css_additive_collision_invariant_matrices(candidate.Hx, candidate.Hz)
+                other_invariant = _css_four_column_dependency_invariant(candidate.Hx, candidate.Hz)
             elif rx + rz > 20:
                 other_invariant = _css_support_rank_invariant_matrices(candidate.Hx, candidate.Hz)
             else:
@@ -229,27 +231,25 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
         candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
         candidate_hx, candidate_hz = _random_css_check_matrices(code.n, code.k, rx=rx, seed=candidate_seed)
 
-        if (
-            (use_additive_invariant or attempt < 1_000)
-            and _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant
-        ):
+        if _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant:
             continue
 
+        candidate = CSSCode(
+            candidate_hx,
+            candidate_hz,
+            distance=code.distance,
+            x_distance=code.x_distance,
+            z_distance=code.z_distance,
+        )
         if use_additive_invariant:
-            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            other_invariant = _css_four_column_dependency_invariant(candidate_hx, candidate_hz)
         elif rx + rz > 20:
             other_invariant = _css_support_rank_invariant_matrices(candidate_hx, candidate_hz)
         else:
             other_invariant = _css_stabilizer_weight_enumerator_matrices(candidate_hx, candidate_hz)
 
         if other_invariant != invariant:
-            return CSSCode(
-                candidate_hx,
-                candidate_hz,
-                distance=code.distance,
-                x_distance=code.x_distance,
-                z_distance=code.z_distance,
-            )
+            return candidate
 
     raise RandomizeError("Could not find a same-cheap-invariant candidate with a different CSS invariant.")
 
@@ -260,37 +260,30 @@ def non_permutation_equivalent_stabilizer_code(
     *,
     clifford_steps: int | None = None,
 ) -> StabilizerCode:
-    """Return a same-[[n,k]] stabilizer code certified non-equivalent by projection ranks.
+    """Return a non-permutation-equivalent partner that passes hybrid filters.
 
-    The certificate is the rank triple of the X projection, Z projection, and
-    X+Z projection of the stabilizer row space. Physical-qubit permutations only
-    permute the columns inside each projection, so these ranks are invariant.
+    The certificate is the rank of the X+Z projection.  Unlike the separate X
+    and Z ranks, this invariant is not inspected by the stabilizer hybrid.  A
+    candidate is returned only after the hybrid's cheap shape/rank/column
+    filters accept the pair.  Later polynomial invariants may still reject some
+    generated cases; avoiding that exhaustively would make large-instance
+    generation prohibitively expensive.
     """
     rng = np.random.default_rng(seed)
     if code.k == code.n:
         raise RandomizeError("No non-equivalent stabilizer code exists with these small invariants.")
 
-    invariant = _projection_rank_invariant(code)
-    # Use a stronger separation than PEQ strictly needs so color-symmetric
-    # benchmark reductions do not collapse X-only and Z-only negatives.
-    xz_swapped_invariant = (invariant[1], invariant[0], invariant[2])
-    base_code = _random_anchor_base_code(code.n, code.k, rng=rng, clifford_steps=clifford_steps)
-    base_invariant = (0, 0, 0) if base_code is None else _projection_rank_invariant(base_code)
+    invariant = _projection_rank_invariant(code)[2]
+    for _ in range(1_000):
+        candidate = lc_equivalent_code(code, seed=int(rng.integers(0, np.iinfo(np.int32).max)))
+        if not _passes_stabilizer_hybrid_cheap_invariants(code, candidate):
+            continue
+        if _projection_rank_invariant(candidate)[2] != invariant:
+            return candidate
 
-    anchors = ["X", "Z", "Y"]
-    rng.shuffle(anchors)
-    for anchor in anchors:
-        candidate_invariant = _anchor_projection_rank_invariant(base_invariant, anchor)
-        if candidate_invariant not in {invariant, xz_swapped_invariant}:
-            return _random_anchored_stabilizer_code(
-                code.n,
-                code.k,
-                anchor,
-                base_code=base_code,
-                rng=rng,
-            )
-
-    raise RandomizeError("Could not construct a candidate with a different projection-rank invariant.")
+    raise RandomizeError(
+        "Could not find a cheap-filter-preserving candidate with a different X+Z projection rank."
+    )
 
 def random_permuted_stabilizer_pair(
     n: int,
@@ -1039,6 +1032,24 @@ def _visible_css_invariant(code: CSSCode) -> tuple[int, int, int, int, int, tupl
     """Return the cheap CSS invariants used as early benchmark filters."""
     return _visible_css_invariant_matrices(code.Hx, code.Hz, k=code.k)
 
+
+def _passes_stabilizer_hybrid_cheap_invariants(
+    source: StabilizerCode,
+    candidate: StabilizerCode,
+) -> bool:
+    """Return whether the stabilizer hybrid passes its constant-cost filters."""
+    from src.hybrids import p_stab
+
+    cheap_invariants = (
+        p_stab.preserved_n,
+        p_stab.preserved_k,
+        p_stab.preserved_d,
+        p_stab.preserved_rank,
+        p_stab.preserved_number_zero_columns,
+        p_stab.preserved_number_duplicate_columns,
+    )
+    return all(invariant(source, candidate) for invariant in cheap_invariants)
+
 def _visible_css_invariant_matrices(
     hx: np.ndarray,
     hz: np.ndarray,
@@ -1182,6 +1193,39 @@ def _css_additive_collision_invariant_matrices(
     hx = np.asarray(mod2.row_basis(np.asarray(hx, dtype=np.uint8) & 1), dtype=np.uint8)
     hz = np.asarray(mod2.row_basis(np.asarray(hz, dtype=np.uint8) & 1), dtype=np.uint8)
     return _additive_collision_profile(hx), _additive_collision_profile(hz)
+
+
+def _four_column_dependency_count(matrix: np.ndarray) -> int:
+    """Count four-element column subsets whose GF(2) sum is zero.
+
+    Equal pair sums identify a dependent quadruple.  Every quadruple is seen
+    through its three partitions into two pairs, hence the final division by
+    three.  Unlike the hybrid's dependency profile, this probes subsets of size
+    four.
+    """
+    columns = _binary_columns_as_ints(
+        np.asarray(mod2.row_basis(np.asarray(matrix, dtype=np.uint8) & 1), dtype=np.uint8)
+    )
+    pairs_by_sum: dict[int, list[tuple[int, int]]] = {}
+    for left in range(len(columns)):
+        for right in range(left + 1, len(columns)):
+            pairs_by_sum.setdefault(columns[left] ^ columns[right], []).append((left, right))
+
+    disjoint_pair_pairs = 0
+    for pairs in pairs_by_sum.values():
+        for first_index, (a, b) in enumerate(pairs):
+            for c, d in pairs[first_index + 1 :]:
+                if a != c and a != d and b != c and b != d:
+                    disjoint_pair_pairs += 1
+    return disjoint_pair_pairs // 3
+
+
+def _css_four_column_dependency_invariant(
+    hx: np.ndarray,
+    hz: np.ndarray,
+) -> tuple[int, int]:
+    """Return ordered X/Z counts of dependent four-column subsets."""
+    return _four_column_dependency_count(hx), _four_column_dependency_count(hz)
 
 
 def _is_sparse_css(hx: np.ndarray, hz: np.ndarray, max_density: float = 0.2) -> bool:
