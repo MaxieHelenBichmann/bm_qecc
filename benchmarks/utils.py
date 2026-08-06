@@ -232,7 +232,10 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
         candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
         candidate_hx, candidate_hz = _random_css_check_matrices(code.n, code.k, rx=rx, seed=candidate_seed)
 
-        if _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant:
+        if (
+            (use_additive_invariant or attempt < 1_000)
+            and _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant
+        ):
             continue
 
         candidate = CSSCode(
