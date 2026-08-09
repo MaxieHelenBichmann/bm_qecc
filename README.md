@@ -174,6 +174,7 @@ data/                # non-randomized case inputs
 results/             # plotting tools; generated result artifacts are ignored by git
   visualize_named.py
   visualize_random.py
+  visualize_heatmap.py
   visualize_invariants.py
 ```
 
@@ -193,13 +194,14 @@ Run benchmarks from the repository root:
 python3 -m benchmarks.run
 ```
 
-The benchmark runner has three mutually exclusive modes:
+The benchmark runner has four mutually exclusive modes:
 
 - `--raw`, the default when no mode is specified, benchmarks the default known or random cases. It is useful for flamegraphs and profiling.
 - `--stats` benchmarks multiple seeded instances with fixed dimensions and calculates aggregate statistics. It is useful for broader algorithm evaluation and detecting edge cases.
+- `--structured-hybrid-stats` (alias `--hybrid-stats`) benchmarks the named/structured cases using only hybrid algorithms.
 - `--inv` runs a fixed suite for all invariant-checking algorithms. It is useful for comparing invariants.
 
-The `--random`, `--algorithm`, `--nmin`, and `--nmax` arguments can only be used in raw or statistics mode, not with `--inv`.
+The `--algorithm`, `--nmin`, and `--nmax` arguments can be used in raw, statistics, and structured-hybrid statistics mode. The `--random` argument is available only in raw and statistics mode. None of these arguments can be used with `--inv`.
 
 For each algorithm, the range of benchmarked instance sizes can be customized with `--nmin` and `--nmax`.
 
@@ -217,7 +219,10 @@ python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_stb_lse
 python3 -m benchmarks.run --algorithm 'pm_css*'
 
 python3 -m benchmarks.run --raw --random --nmin 5 --nmax 8
-python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose
+python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose \
+  --output results/pm_css_sat_random.csv
+python3 -m benchmarks.run --stats --algorithm pm_css_matroid \
+  --output results/pm_css_matroid_structured.csv
 python3 -m benchmarks.run --inv --verbose --output results/invariants.csv --timeout 20 --memory-limit 512M
 ```
 
@@ -234,18 +239,22 @@ The Bash scripts `run_invariants.sh` and `run_multiple.sh` run customizable benc
 
 ### Evaluation
 
-The visualization scripts in `results/` create plots that provide a quick overview of performance and bottlenecks; they are not intended as a finalized analysis. Use `visualize_named.py` for known or structured benchmark cases, `visualize_random.py` for randomized benchmark statistics (`--stats` mode), and `visualize_invariants.py` for invariant timings (`--inv` mode).
+The visualization scripts in `results/` create plots that provide a quick overview of performance and bottlenecks; they are not intended as a finalized analysis. Use `visualize_named.py` for known or structured benchmark cases, `visualize_random.py` for randomized benchmark statistics (`--stats` mode), `visualize_heatmap.py` for randomized n-by-k/n-by-r heatmaps, and `visualize_invariants.py` for invariant timings (`--inv` mode).
 
 For example:
 
 ```bash
-python3 results/visualize_named.py results/statistics.csv --x r \
+python3 results/visualize_named.py results/pm_css_matroid_structured.csv --x r \
   --algorithm pm_css_matroid \
-  --output results/matroid_plot_n17.png
+  --output results/matroid_structured.png
 
-python3 results/visualize_random.py results/statistics.csv --x n --k 1 \
+python3 results/visualize_random.py results/pm_css_sat_random.csv --x n --k 1 \
   --algorithm pm_css_sat \
   --output results/sat_plot_k1.png
+
+python3 results/visualize_heatmap.py results/pm_css_sat_random.csv --y k \
+  --algorithm pm_css_sat \
+  --output results/sat_heatmap.png
 
 python3 results/visualize_random.py results/statistics.csv --x n --k 2 \
   --algorithm pm_stb_bruteforce --algorithm pm_stb_classical \
@@ -277,3 +286,10 @@ export GAP_EXECUTABLE=/path/to/gap
 ```
 
 This approach is expected to be less efficient than the alternatives and is included primarily for comparative measurements.
+
+### AI Transparency
+
+While I used coding agents in my workflow, I kept that usage and especially AI-generated code to a minimum. 
+It is limited to small/fine-grained library-specific functions, i.e. my helper functions calling certain library functions with some additional checks (see `_kernel_basis` or `_row_basis`). Broader-scope algorithms and algorithm components are written by me.  
+Some basic tests are generated as well.
+The only relevant files where I used AI more than that are `benchmarks/run.py`, `benchmarks/utils.py` and `benchmarks/run_*.sh`, for infrastructure, resource restrictions and instance generation (reviewed by me). While the `results/visual*.py` are also heavily AI generated, I did not use them for anything really, so they are probably even removed from the Repo.
