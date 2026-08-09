@@ -10,17 +10,15 @@ import os
 import re
 import signal
 import subprocess
+import importlib
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 from queue import Empty
 from time import perf_counter
-
-try:
-    import resource
-except ImportError:  # pragma: no cover - resource is Unix-only
-    resource = None
+from multiprocessing.process import BaseProcess
+from types import ModuleType
 
 import numpy as np
 
@@ -81,6 +79,12 @@ from .utils import (
     random_css_code,
     random_stabilizer_code,
 )
+
+resource: ModuleType | None
+try:
+    resource = importlib.import_module("resource")
+except ImportError:  # pragma: no cover - resource is Unix-only
+    resource = None
 
 MEAS_STATS = list(range(3, 26)) + list(range(26, 31, 2)) + list(range(32, 51, 5))
 N_STATS = 10
@@ -335,7 +339,7 @@ def _read_process_group_rss_bytes(process_group_id: int) -> int | None:
     return sum(rss_values_kib) * 1024 if rss_values_kib else None
 
 
-def _terminate_process_group(process: mp.Process) -> None:
+def _terminate_process_group(process: BaseProcess) -> None:
     """Terminate a benchmark worker and any subprocesses it spawned."""
     if process.pid is None:
         return
@@ -1011,7 +1015,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds, lambda s: permuted_css_case(seed=s, code=code)
+                            seeds, partial(permuted_css_case, code=code)
                         ),
                     )
                 )
@@ -1027,7 +1031,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds, lambda s: non_permuted_css_case(seed=s, code=code)
+                            seeds, partial(non_permuted_css_case, code=code)
                         ),
                     )
                 )
@@ -1152,11 +1156,11 @@ def seeded_measurements(
 def invariant_dimensions(pm: bool) -> list[tuple[int, int]]:
     """Return a regular, bounded (n, k) grid for invariant benchmarks."""
     ns = PM_INVARIANT_NS if pm else LC_INVARIANT_NS
-    dimensions = []
+    dimensions: list[tuple[int, int]] = []
 
     for n in ns:
         if n > 50:
-            ks = KNOWN_INVARIANT_KS.get(n, set())
+            ks: set[int] | range = KNOWN_INVARIANT_KS.get(n, set())
         elif n < 7:
             ks = range(0, n)
         elif n < 15:
@@ -1454,6 +1458,7 @@ def _run_algorithm_once(
         if deadline is not None and now >= deadline:
             _terminate_process_group(process)
             queue.close()
+            assert timeout is not None
             return timeout, None, "timeout"
 
         # The worker starts a new process group to enable resource monitoring

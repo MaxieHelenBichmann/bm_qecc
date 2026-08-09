@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import z3
-from collections import deque
 from itertools import product
 
 from typing import TYPE_CHECKING
@@ -86,8 +85,6 @@ def _sat(tableau: npt.NDArray[np.int8]) -> bool:
     solver = z3.Solver()
 
     r, n = tableau.shape[0], tableau.shape[1] // 2
-    k = n - r
-
     # cliffords
     aux_tableau = [z3.Bool(f'aux_{row}_{col}') for row in range(r) for col in range(2*n)]
 

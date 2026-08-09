@@ -40,14 +40,20 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> None | list[int]:
     if not preserved_linear_dependencies(reduced_symplectic_1, reduced_symplectic_2):
         return None
 
-    partition1 = {0: list(range(c1.n))}
-    partition2 = {0: list(range(c2.n))}
+    partition1: dict[tuple[int, ...], list[int]] = {
+        (0,): list(range(c1.n))
+    }
+    partition2: dict[tuple[int, ...], list[int]] = {
+        (0,): list(range(c2.n))
+    }
     if c1.n <= 20:
         result, refined_partition1, refined_partition2 = preserved_punctured_hull_weight_enumerator(reduced_symplectic_1, reduced_symplectic_2)
 
         if not result:
             return None
 
+        assert refined_partition1 is not None
+        assert refined_partition2 is not None
         partition1 = refined_partition1
         partition2 = refined_partition2
         

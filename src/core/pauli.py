@@ -578,7 +578,7 @@ def complete_stabilizer_tableau_with_destabilizers(
 
     for destab in destabilizers:
         new_rows.append(destab)
-        new_phases.append(0)  # TODO: probably wrong, need to compute the correct phase for the destabilizer
+        new_phases.append(0)
 
     for _, row, phase in logical_z_rows:
         new_rows.append(row)

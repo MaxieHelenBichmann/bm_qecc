@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Automated Equivalence Checking of Stabilizer Codes"
+type: software
+authors:
+  - family-names: "Bichmann"
+    given-names: "Maxie Helen"
+repository-code: "https://github.com/MaxieHelenBichmann/bm_qecc"
+license: MIT
+abstract: >-
+  Implementations and benchmarks for checking permutation and local-Clifford
+  equivalence of stabilizer and CSS quantum error-correcting codes.
+keywords:
+  - quantum error correction
+  - stabilizer codes
+  - CSS codes
+  - code equivalence
+  - local Clifford equivalence
+  - permutation equivalence

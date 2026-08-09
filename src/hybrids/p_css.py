@@ -5,8 +5,6 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 import hashlib
 from itertools import permutations
-from typing import Any
-
 import numpy as np
 import numpy.typing as npt
 
@@ -62,6 +60,9 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
     
     if not result:
         return None
+
+    assert partition1 is not None
+    assert partition2 is not None
     
     if c1.n <= 17:
         return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
@@ -230,7 +231,7 @@ def _bruteforce(Hx1, Hz1, Hx2, Hz2) -> list[int] | None:
 
     return None
 
-def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[Any, list[int]], Hx2: np.ndarray, Hz2: np.ndarray, partition2: dict[Any, list[int]]) -> list[int] | None:
+def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2: np.ndarray, Hz2: np.ndarray, partition2: dict[int, list[int]]) -> list[int] | None:
     """pm_css_matroid.py + p_css_graph_iso.py"""
     def _circuits_binary_matroid(A: npt.NDArray[np.int8]) -> list[int]:
         def _row_support_as_mask(row: npt.NDArray[np.uint8]) -> int:

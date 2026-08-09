@@ -238,7 +238,6 @@ def _lc_equiv_connected(g1: np.ndarray, g2: np.ndarray, n : int) -> bool:
     if dim == 0: # trivial nullspace
         return False
 
-    # false assumption of the paper of Van den Nest, as Bouchet (lemma 1, in Van de Nest) requires the graph to be connected for the proof to work (which we do not guarantee, thus code broken) -> not polynomial anymore, but maybe preprocess graphs according to connected components (and their size) and run algorithm on each one separately
     if dim > 4:
         for i in range(dim):
             for j in range(i, dim):

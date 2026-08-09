@@ -252,9 +252,12 @@ def non_permutation_equivalent_css_code(
 
     if rx and rz:
         for _ in range(500):
-            candidate = _decoupled_css_column_permutation_candidate(code, rng=rng)
-            if candidate is None:
+            decoupled_candidate = _decoupled_css_column_permutation_candidate(
+                code, rng=rng
+            )
+            if decoupled_candidate is None:
                 continue
+            candidate = decoupled_candidate
 
             if use_additive_invariant:
                 other_invariant = _css_additive_collision_invariant_matrices(
@@ -1210,7 +1213,7 @@ def _apply_local_clifford(
 def _apply_random_clifford_gate(
     tableau: StabilizerTableau, rng: np.random.Generator
 ) -> None:
-    """Apply one seeded random Clifford gate (not only generators, to make more random hopefully) to a tableau in-place."""
+    """Apply one seeded random Clifford gate (not only generators) to a tableau in-place."""
     if tableau.n == 1:
         gate = rng.choice(("h", "s", "sdg", "x", "y", "z"))
     else:

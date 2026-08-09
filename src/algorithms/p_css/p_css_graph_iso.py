@@ -215,11 +215,9 @@ def are_peq_css_graph_iso(c1: CSSCode, c2: CSSCode) -> bool:
     if hx_rank != _rank(c2.Hx) or hz_rank != _rank(c2.Hz):
         return False
 
-    # TODO: add more invariants
     invariants_c1 = [_compute_invariant_a(c1), _compute_invariant_b(c1)]
     invariants_c2 = [_compute_invariant_a(c2), _compute_invariant_b(c2)]
 
-    # TODO: use the fact that invariants are the actual same for permutation, aka use one color for each invariant value (and not only invariant-patterns/partitions), but keep the coloring consistent between the two graphs
     graph_c1 = _graph_from_invariants(c1.n, invariants_c1)
     graph_c2 = _graph_from_invariants(c2.n, invariants_c2)
 

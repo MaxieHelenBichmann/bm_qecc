@@ -821,8 +821,6 @@ def is_lceq_css_kls(code: StabilizerCode) -> bool:
     2b.) Convert the HK normal form into KLS normal form, treating the input vertices as inputs again.
     2c.) Check if the resulting graph state is bipartite, which means that the code is LC-equivalent to a CSS code.
 
-    I think I have misinterpreted the Fact 1 in the KLS paper, which I thought states that a code is **LC-equivalent to** a CSS code iff the corresponding KLS normal form is bipartite, but as this can be disproven easily, they probably did not intend their previous definition of "CSS Code = any Code LC-eq to a CSS Code". Thus oen simple bipartite-check of the KLS normal form is not sufficient, but we need to check the entire LC orbit.
-
     Even tough we need to check the entire LC Orbit, with the KLS we at least remove the degrees of freedom that the logical basis choice adds for k > 1, which would add the ARBITRARY Clifford orbit on input/reference qubits.
     """
     graph = _code_to_graph(code)
