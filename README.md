@@ -12,7 +12,7 @@ The following problems are benchmarked. They are expressed using the repository'
 
 ### Permutation Equivalence
 
-- **PM-STB**: Are two given stabilizer codes $C$ and $C'$ equivalent up to a permutation of the output qubits?
+- **PM-STB**: Are two given stabilizer codes $C$ and $C'$ equivalent up to a permutation of the physical qubits?
 
 $$
 \exists P \in \mathfrak{S}_n,\ \exists R \in \mathrm{GL}(r, \mathbb{F}_2):
@@ -25,7 +25,7 @@ P & 0 \\
 \end{bmatrix}
 $$
 
-- **PM-CSS**: Are two given CSS codes $C$ and $C'$ equivalent up to a permutation of the output qubits?
+- **PM-CSS**: Are two given CSS codes $C$ and $C'$ equivalent up to a permutation of the physical qubits?
 
 $$
 \begin{aligned}
@@ -146,7 +146,7 @@ src/
     lc_css/
     lc_stb/
     p_css/
-    p_stab/
+    p_stb/
   invariants/        # invariants under the equivalence relations
   hybrids/           # hybrid solutions combining best aspects of the algorithms
     lc_css.py
@@ -155,8 +155,9 @@ src/
     p_stab.py
 
 tests/               # partially randomized tests and edge-case tests
+  hybrids/
+  inv/
   lc_css/
-  lc_eq/
   lc_stb/
   p_css/
   p_stab/
@@ -164,18 +165,13 @@ tests/               # partially randomized tests and edge-case tests
 benchmarks/
   run.py             # cases, timing, and CSV output
   utils.py           # randomization utilities
+  run_hybrids.sh
   run_invariants.sh
   run_multiple.sh
 
-data/                # non-randomized case inputs
-  convert.py
-  generate.py
+data/                # structured case inputs
 
 results/             # plotting tools; generated result artifacts are ignored by git
-  visualize_named.py
-  visualize_random.py
-  visualize_heatmap.py
-  visualize_invariants.py
 ```
 
 ## Running the benchmarks
@@ -237,36 +233,6 @@ py-spy record \
 
 The Bash scripts `run_invariants.sh` and `run_multiple.sh` run customizable benchmark suites in parallel on the benchmark server.
 
-### Evaluation
-
-The visualization scripts in `results/` create plots that provide a quick overview of performance and bottlenecks; they are not intended as a finalized analysis. Use `visualize_named.py` for known or structured benchmark cases, `visualize_random.py` for randomized benchmark statistics (`--stats` mode), `visualize_heatmap.py` for randomized n-by-k/n-by-r heatmaps, and `visualize_invariants.py` for invariant timings (`--inv` mode).
-
-For example:
-
-```bash
-python3 results/visualize_named.py results/pm_css_matroid_structured.csv --x r \
-  --algorithm pm_css_matroid \
-  --output results/matroid_structured.png
-
-python3 results/visualize_random.py results/pm_css_sat_random.csv --x n --k 1 \
-  --algorithm pm_css_sat \
-  --output results/sat_plot_k1.png
-
-python3 results/visualize_heatmap.py results/pm_css_sat_random.csv --y k \
-  --algorithm pm_css_sat \
-  --output results/sat_heatmap.png
-
-python3 results/visualize_random.py results/statistics.csv --x n --k 2 \
-  --algorithm pm_stb_bruteforce --algorithm pm_stb_classical \
-  --output results/compare.png
-
-python3 results/visualize_random.py results/sat.csv results/matroid.csv --x n --k 1 \
-  --output results/compare_csvs.png
-
-python3 results/visualize_invariants.py results/lc_invariants.csv --x n \
-  --output results/lc_invariants_plot.png
-```
-
 ### Tests
 
 [![Tests](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml/badge.svg)](https://github.com/MaxieHelenBichmann/bm_qecc/actions/workflows/tests.yml)
@@ -292,4 +258,4 @@ This approach is expected to be less efficient than the alternatives and is incl
 While I used coding agents in my workflow, I kept that usage and especially AI-generated code to a minimum. 
 It is limited to small/fine-grained library-specific functions, i.e. my helper functions calling certain library functions with some additional checks (see `_kernel_basis` or `_row_basis`). Broader-scope algorithms and algorithm components are written by me.  
 Some basic tests are generated as well.
-The only relevant files where I used AI more than that are `benchmarks/run.py`, `benchmarks/utils.py` and `benchmarks/run_*.sh`, for infrastructure, resource restrictions and instance generation (reviewed by me). While the `results/visual*.py` are also heavily AI generated, I did not use them for anything really, so they are probably even removed from the Repo.
+The only relevant files where I used AI more than that are `benchmarks/run.py`, `benchmarks/utils.py` and `benchmarks/run_*.sh`, for infrastructure, resource restrictions and instance generation (reviewed by me).

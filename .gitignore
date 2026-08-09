@@ -13,11 +13,13 @@ results/*
 *sandbox*
 
 data/random*.txt
+data/*/random*.txt
 data/*/non_lcc_css*.txt
 */*/*.log
 data/*.py
 results/conversion.py
 results/extraction.py
+results/visual*.py
 
 .DS_Store
 
