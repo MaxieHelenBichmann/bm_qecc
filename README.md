@@ -176,7 +176,7 @@ results/             # plotting tools; generated result artifacts are ignored by
 
 ## Running the benchmarks
 
-Install the local runtime dependencies first:
+Requires Python 3.10 or newer. Python 3.11 is the primary tested version. Install the local runtime dependencies first:
 
 ```bash
 python3 -m venv .venv
