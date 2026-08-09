@@ -1,4 +1,11 @@
-"""Small helpers for constructing benchmark inputs."""
+"""Deterministic constructors for randomized benchmark codes and pairs.
+
+The public helpers in this module generate reproducible benchmark inputs from
+an optional NumPy seed. They are deliberately *not* uniform samplers over code
+equivalence classes. Negative-pair constructors return only candidates
+separated by a documented invariant and raise `RandomizeError` when no
+such candidate is found within their search budget.
+"""
 
 from __future__ import annotations
 
@@ -14,11 +21,13 @@ from src.core.pauli import StabilizerTableau
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 
+
 class RandomizeError(ValueError):
     """Raised when a randomization helper fails to find a suitable code."""
 
     def __init__(self, message: str) -> None:
         super().__init__(message)
+
 
 def random_stabilizer_code(
     n: int,
@@ -42,7 +51,11 @@ def random_stabilizer_code(
 
     num_stabilizers = n - k
     generators = ["I" * q + "Z" + "I" * (n - q - 1) for q in range(num_stabilizers)]
-    tableau = StabilizerTableau.from_pauli_strings(generators) if generators else StabilizerTableau.empty(n)
+    tableau = (
+        StabilizerTableau.from_pauli_strings(generators)
+        if generators
+        else StabilizerTableau.empty(n)
+    )
 
     rng = np.random.default_rng(seed)
     steps = clifford_steps if clifford_steps is not None else 4 * n
@@ -62,11 +75,16 @@ def random_css_code(
     rx: int | None = None,
     seed: int | None = None,
 ) -> CSSCode:
-    """
-    Generate random CSS parity-check matrices Hx, Hz over GF(2).
+    """Return a seeded random-looking CSS code with parameters ``[[n, k]]``.
+
+    ``rx`` fixes the X-check rank; by default the ``n-k`` checks are split as
+    evenly as possible between X and Z. The matrices are full row rank and
+    satisfy ``Hx @ Hz.T == 0`` over GF(2). Sampling is intended for benchmark
+    construction rather than uniform sampling from all CSS codes.
     """
     Hx, Hz = _random_css_check_matrices(n, k, rx=rx, seed=seed)
     return CSSCode(Hx=Hx, Hz=Hz)
+
 
 def _random_css_check_matrices(
     n: int,
@@ -121,19 +139,26 @@ def _random_css_check_matrices(
 
     return Hx, Hz
 
-def permutation_equivalent_code(code: StabilizerCode, seed: int | None = None) -> StabilizerCode:
-    """Return a permuted equivalent code to the given code."""
+
+def permutation_equivalent_code(
+    code: StabilizerCode, seed: int | None = None
+) -> StabilizerCode:
+    """Return ``code`` after a seeded qubit permutation and row-basis change."""
     rng = np.random.default_rng(seed)
     permutation_seed = int(rng.integers(0, np.iinfo(np.int32).max))
     row_seed = int(rng.integers(0, np.iinfo(np.int32).max))
 
     permutation = _random_permutation(code.n, seed=permutation_seed)
-    base_changed_tableau = _random_tableau_row_space_base_change(code.generators, seed=row_seed)
-    return StabilizerCode(_permute_tableau(base_changed_tableau, permutation), distance=code.distance)
+    base_changed_tableau = _random_tableau_row_space_base_change(
+        code.generators, seed=row_seed
+    )
+    return StabilizerCode(
+        _permute_tableau(base_changed_tableau, permutation), distance=code.distance
+    )
 
 
 def permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> CSSCode:
-    """Return a permuted equivalent CSS code to the given code."""
+    """Return ``code`` after a seeded qubit permutation and CSS basis changes."""
     rng = np.random.default_rng(seed)
     permutation_seed = int(rng.integers(0, np.iinfo(np.int32).max))
     x_row_seed = int(rng.integers(0, np.iinfo(np.int32).max))
@@ -150,7 +175,10 @@ def permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> C
         z_distance=code.z_distance,
     )
 
-def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) -> CSSCode:
+
+def non_permutation_equivalent_css_code(
+    code: CSSCode, seed: int | None = None
+) -> CSSCode:
     """Return a CSS code certified non-equivalent by permutation invariants.
 
     For small stabilizer ranks this uses the exact stabilizer weight enumerator.
@@ -164,7 +192,9 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
     rz = _rank_binary(code.Hz)
     use_additive_invariant = rx + rz > 20 and _is_sparse_css(code.Hx, code.Hz)
     if (rx, rz) in {(0, 0), (code.n, 0), (0, code.n)}:
-        raise RandomizeError("No non-equivalent CSS code exists with these small invariants.")
+        raise RandomizeError(
+            "No non-equivalent CSS code exists with these small invariants."
+        )
 
     visible_invariant = _visible_css_invariant(code)
     if use_additive_invariant:
@@ -180,7 +210,9 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
     # code with an unrelated dense random sample.
     if use_additive_invariant:
         for _ in range(10):
-            candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(code, rng=rng)
+            candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(
+                code, rng=rng
+            )
             candidate = CSSCode(
                 candidate_hx,
                 candidate_hz,
@@ -190,7 +222,9 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
             )
             if _visible_css_invariant(candidate) != visible_invariant:
                 continue
-            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            other_invariant = _css_additive_collision_invariant_matrices(
+                candidate_hx, candidate_hz
+            )
             if other_invariant != invariant:
                 return candidate
 
@@ -198,7 +232,9 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
         # column multiplicities that essentially no nontrivial CNOT preserves.
         # Prefer a nearby CNOT-derived negative over an unrelated random code.
         for _ in range(100):
-            candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(code, rng=rng)
+            candidate_hx, candidate_hz = _random_css_cnot_candidate_matrices(
+                code, rng=rng
+            )
             candidate = CSSCode(
                 candidate_hx,
                 candidate_hz,
@@ -208,7 +244,9 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
             )
             if _visible_css_invariant(candidate) != visible_invariant:
                 continue
-            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            other_invariant = _css_additive_collision_invariant_matrices(
+                candidate_hx, candidate_hz
+            )
             if other_invariant != invariant:
                 return candidate
 
@@ -219,23 +257,32 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
                 continue
 
             if use_additive_invariant:
-                other_invariant = _css_additive_collision_invariant_matrices(candidate.Hx, candidate.Hz)
+                other_invariant = _css_additive_collision_invariant_matrices(
+                    candidate.Hx, candidate.Hz
+                )
             elif rx + rz > 20:
-                other_invariant = _css_support_rank_invariant_matrices(candidate.Hx, candidate.Hz)
+                other_invariant = _css_support_rank_invariant_matrices(
+                    candidate.Hx, candidate.Hz
+                )
             else:
-                other_invariant = _css_stabilizer_weight_enumerator_matrices(candidate.Hx, candidate.Hz)
+                other_invariant = _css_stabilizer_weight_enumerator_matrices(
+                    candidate.Hx, candidate.Hz
+                )
 
             if other_invariant != invariant:
                 return candidate
-        
+
     for attempt in range(10_000):
         candidate_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-        candidate_hx, candidate_hz = _random_css_check_matrices(code.n, code.k, rx=rx, seed=candidate_seed)
+        candidate_hx, candidate_hz = _random_css_check_matrices(
+            code.n, code.k, rx=rx, seed=candidate_seed
+        )
 
         if (
-            (use_additive_invariant or attempt < 1_000)
-            and _visible_css_invariant_matrices(candidate_hx, candidate_hz, k=code.k) != visible_invariant
-        ):
+            use_additive_invariant or attempt < 1_000
+        ) and _visible_css_invariant_matrices(
+            candidate_hx, candidate_hz, k=code.k
+        ) != visible_invariant:
             continue
 
         candidate = CSSCode(
@@ -246,16 +293,24 @@ def non_permutation_equivalent_css_code(code: CSSCode, seed: int | None = None) 
             z_distance=code.z_distance,
         )
         if use_additive_invariant:
-            other_invariant = _css_additive_collision_invariant_matrices(candidate_hx, candidate_hz)
+            other_invariant = _css_additive_collision_invariant_matrices(
+                candidate_hx, candidate_hz
+            )
         elif rx + rz > 20:
-            other_invariant = _css_support_rank_invariant_matrices(candidate_hx, candidate_hz)
+            other_invariant = _css_support_rank_invariant_matrices(
+                candidate_hx, candidate_hz
+            )
         else:
-            other_invariant = _css_stabilizer_weight_enumerator_matrices(candidate_hx, candidate_hz)
+            other_invariant = _css_stabilizer_weight_enumerator_matrices(
+                candidate_hx, candidate_hz
+            )
 
         if other_invariant != invariant:
             return candidate
 
-    raise RandomizeError("Could not find a same-cheap-invariant candidate with a different CSS invariant.")
+    raise RandomizeError(
+        "Could not find a same-cheap-invariant candidate with a different CSS invariant."
+    )
 
 
 def non_permutation_equivalent_stabilizer_code(
@@ -281,11 +336,15 @@ def non_permutation_equivalent_stabilizer_code(
 
     rng = np.random.default_rng(seed)
     if code.k == code.n:
-        raise RandomizeError("No non-equivalent stabilizer code exists with these small invariants.")
+        raise RandomizeError(
+            "No non-equivalent stabilizer code exists with these small invariants."
+        )
 
     invariant = _projection_rank_invariant(code)[2]
     for _ in range(1_000):
-        candidate = lc_equivalent_code(code, seed=int(rng.integers(0, np.iinfo(np.int32).max)))
+        candidate = lc_equivalent_code(
+            code, seed=int(rng.integers(0, np.iinfo(np.int32).max))
+        )
         if not _passes_stabilizer_hybrid_cheap_invariants(code, candidate):
             continue
         if _projection_rank_invariant(candidate)[2] != invariant:
@@ -294,6 +353,7 @@ def non_permutation_equivalent_stabilizer_code(
     raise RandomizeError(
         "Could not find a cheap-filter-preserving candidate with a different X+Z projection rank."
     )
+
 
 def random_permuted_stabilizer_pair(
     n: int,
@@ -311,23 +371,8 @@ def random_permuted_stabilizer_pair(
     permutation = _random_permutation(n, seed=permutation_seed)
     return code, _permute_stabilizer_code(code, permutation)
 
-def random_permuted_stabilizer_pair_and_log_ops(
-    n: int,
-    k: int,
-    *,
-    seed: int | None = None,
-    clifford_steps: int | None = None,
-) -> tuple[StabilizerCode, StabilizerCode]:
-    """Return a seeded random code together with a permuted equivalent copy."""
-    rng = np.random.default_rng(seed)
-    code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-    permutation_seed = int(rng.integers(0, np.iinfo(np.int32).max))
 
-    code = random_stabilizer_code(n, k, seed=code_seed, clifford_steps=clifford_steps)
-    permutation = _random_permutation(n, seed=permutation_seed)
-    return code, _permute_stabilizer_code_and_log_ops(code, permutation)
-
-def random_non_permuted_stabilizer_pair(    
+def random_non_permuted_stabilizer_pair(
     n: int,
     k: int,
     *,
@@ -335,7 +380,11 @@ def random_non_permuted_stabilizer_pair(
     clifford_steps: int | None = None,
     max_attempts: int = 10_000,
 ) -> tuple[StabilizerCode, StabilizerCode]:
-    """Return a seeded random stabilizer code together with another random stabilizer code that is guaranteed to be non-permuted."""
+    """Return a seeded stabilizer pair certified non-permutation-equivalent.
+
+    Candidate bases are retried up to ``max_attempts`` because the invariant
+    certificate is not available for every randomly sampled code.
+    """
     if max_attempts < 1:
         raise ValueError("max_attempts must be positive.")
 
@@ -344,7 +393,9 @@ def random_non_permuted_stabilizer_pair(
     for _ in range(max_attempts):
         code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
         other_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-        code = random_stabilizer_code(n, k, seed=code_seed, clifford_steps=clifford_steps)
+        code = random_stabilizer_code(
+            n, k, seed=code_seed, clifford_steps=clifford_steps
+        )
         try:
             return code, non_permutation_equivalent_stabilizer_code(
                 code,
@@ -354,16 +405,23 @@ def random_non_permuted_stabilizer_pair(
         except RandomizeError:
             continue
 
-    raise RandomizeError(f"Could not generate non-permuted stabilizer pair after {max_attempts} attempts.")
+    raise RandomizeError(
+        f"Could not generate non-permuted stabilizer pair after {max_attempts} attempts."
+    )
 
-def random_non_permuted_css_pair(    
+
+def random_non_permuted_css_pair(
     n: int,
     k: int,
     *,
     seed: int | None = None,
     max_attempts: int = 10_000,
 ) -> tuple[CSSCode, CSSCode]:
-    """Return a seeded random css code together with another random css code that is guaranteed to be non-permuted."""
+    """Return a seeded CSS pair certified non-permutation-equivalent.
+
+    Candidate bases are retried up to ``max_attempts`` because the invariant
+    certificate is not available for every randomly sampled code.
+    """
     if max_attempts < 1:
         raise ValueError("max_attempts must be positive.")
 
@@ -383,7 +441,10 @@ def random_non_permuted_css_pair(
         except RandomizeError:
             continue
 
-    raise RandomizeError(f"Could not generate non-permuted CSS pair after {max_attempts} attempts.")
+    raise RandomizeError(
+        f"Could not generate non-permuted CSS pair after {max_attempts} attempts."
+    )
+
 
 def random_permuted_css_pair(
     n: int,
@@ -391,7 +452,7 @@ def random_permuted_css_pair(
     *,
     seed: int | None = None,
 ) -> tuple[CSSCode, CSSCode]:
-    """Return a seeded random css code together with a permuted equivalent copy."""
+    """Return a seeded random CSS code and a permutation-equivalent copy."""
     rng = np.random.default_rng(seed)
     code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
     permutation_seed = int(rng.integers(0, np.iinfo(np.int32).max))
@@ -401,25 +462,37 @@ def random_permuted_css_pair(
     code = random_css_code(n, k, rx, seed=code_seed)
     return code, permutation_equivalent_css_code(code, permutation_seed)
 
+
 def lc_equivalent_code(
     code: StabilizerCode,
     seed: int | None = None,
     *,
     row_steps: int | None = None,
 ) -> StabilizerCode:
-    """Return an LC-equivalent code."""
+    """Return an LC-equivalent copy after local Cliffords and row operations.
+
+    At least one nonidentity local Clifford is applied when the code has qubits.
+    ``row_steps`` controls the subsequent seeded generator-basis randomization.
+    """
     rng = np.random.default_rng(seed)
     tableau = code.generators.copy()
     local_cliffords = [str(rng.choice(_LOCAL_CLIFFORDS)) for _ in range(tableau.n)]
 
-    if tableau.n > 0 and all(local_clifford == "I" for local_clifford in local_cliffords):
-        local_cliffords[int(rng.integers(0, tableau.n))] = str(rng.choice(_LOCAL_CLIFFORDS[1:]))
+    if tableau.n > 0 and all(
+        local_clifford == "I" for local_clifford in local_cliffords
+    ):
+        local_cliffords[int(rng.integers(0, tableau.n))] = str(
+            rng.choice(_LOCAL_CLIFFORDS[1:])
+        )
 
     for qubit, local_clifford in enumerate(local_cliffords):
         _apply_local_clifford(tableau, local_clifford, qubit)
 
-    base_changed_tableau = _random_tableau_row_space_base_change(tableau, rng=rng, steps=row_steps)
+    base_changed_tableau = _random_tableau_row_space_base_change(
+        tableau, rng=rng, steps=row_steps
+    )
     return StabilizerCode(base_changed_tableau, distance=code.distance)
+
 
 def non_lc_equivalent_code(
     code: StabilizerCode,
@@ -438,7 +511,9 @@ def non_lc_equivalent_code(
         msg = "max_attempts must be positive."
         raise ValueError(msg)
     if code.k == code.n:
-        raise RandomizeError("No non-LC-equivalent stabilizer code exists for the trivial code.")
+        raise RandomizeError(
+            "No non-LC-equivalent stabilizer code exists for the trivial code."
+        )
     if code.n == 1:
         raise RandomizeError("No non-LC-equivalent one-qubit stabilizer code exists.")
 
@@ -453,10 +528,14 @@ def non_lc_equivalent_code(
             if row_steps is None:
                 return candidate
             return StabilizerCode(
-                _random_tableau_row_space_base_change(candidate.generators, rng=rng, steps=row_steps)
+                _random_tableau_row_space_base_change(
+                    candidate.generators, rng=rng, steps=row_steps
+                )
             )
 
-    raise RandomizeError("Could not find a candidate with a different LC support-rank invariant.")
+    raise RandomizeError(
+        "Could not find a candidate with a different LC support-rank invariant."
+    )
 
 
 def non_lc_css_code(
@@ -557,7 +636,9 @@ def _structured_non_lc_css_candidate(
 
     if remaining_n:
         remainder_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-        blocks.append(random_stabilizer_code(remaining_n, remaining_k, seed=remainder_seed))
+        blocks.append(
+            random_stabilizer_code(remaining_n, remaining_k, seed=remainder_seed)
+        )
         # The stabilizer rank is always a valid (possibly loose) upper bound.
         dimension_upper_bound += remaining_rank
 
@@ -587,126 +668,46 @@ def _direct_sum_stabilizer_codes(codes: Sequence[StabilizerCode]) -> StabilizerC
         qubit_offset += code.n
     return StabilizerCode(StabilizerTableau(matrix))
 
+
 def lc_equivalent_code_and_log_ops(
     code: StabilizerCode,
     seed: int | None = None,
     *,
     row_steps: int | None = None,
 ) -> StabilizerCode:
-    """Return an LC-equivalent code, where the logical operators are transferred with the same local cliffords."""
+    """Return an LC-equivalent copy while transforming logical operators too.
+
+    Unlike :func:`lc_equivalent_code`, this helper applies the same local
+    Cliffords to the stored logical X and Z operators instead of recomputing
+    them from the transformed stabilizer generators.
+    """
     rng = np.random.default_rng(seed)
     tableau = code.generators.copy()
     x_logicals = code.x_logicals.copy()
     z_logicals = code.z_logicals.copy()
     local_cliffords = [str(rng.choice(_LOCAL_CLIFFORDS)) for _ in range(tableau.n)]
 
-    if tableau.n > 0 and all(local_clifford == "I" for local_clifford in local_cliffords):
-        local_cliffords[int(rng.integers(0, tableau.n))] = str(rng.choice(_LOCAL_CLIFFORDS[1:]))
+    if tableau.n > 0 and all(
+        local_clifford == "I" for local_clifford in local_cliffords
+    ):
+        local_cliffords[int(rng.integers(0, tableau.n))] = str(
+            rng.choice(_LOCAL_CLIFFORDS[1:])
+        )
 
     for qubit, local_clifford in enumerate(local_cliffords):
         _apply_local_clifford(tableau, local_clifford, qubit)
         _apply_local_clifford(x_logicals, local_clifford, qubit)
         _apply_local_clifford(z_logicals, local_clifford, qubit)
 
-    base_changed_tableau = _random_tableau_row_space_base_change(tableau, rng=rng, steps=row_steps)
-    return StabilizerCode(generators=base_changed_tableau, distance=code.distance, x_logicals=x_logicals, z_logicals=z_logicals)
-
-
-# ------------------------------------------------------------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------------------------------------------------------------
-
-def random_density_stabilizer_code(
-        n: int,
-        k: int,
-        ones_fraction: float = 0.1,
-        seed: int | None = None,
-) -> StabilizerCode:
-    """Return a seeded random ``[[n, k]]`` code with controlled tableau density.
-
-    Rows are sampled directly as random symplectic vectors and accepted only
-    when they commute with the rows already chosen and increase the row rank.
-    The total number of ones is targeted from ``ones_fraction`` up to rounding,
-    so the resulting generators mix X/Z/Y positions without using a special
-    structured construction.
-    """
-    if n < 1:
-        msg = "n must be at least 1."
-        raise ValueError(msg)
-    if not 0 <= k <= n:
-        msg = f"k must satisfy 0 <= k <= n, got n={n}, k={k}."
-        raise ValueError(msg)
-    if not 0 <= ones_fraction <= 1:
-        msg = f"ones_fraction must satisfy 0 <= ones_fraction <= 1, got {ones_fraction}."
-        raise ValueError(msg)
-
-    num_stabilizers = n - k
-    if num_stabilizers == 0:
-        return StabilizerCode(StabilizerTableau.empty(n))
-
-    num_entries = num_stabilizers * 2 * n
-    min_ones = num_stabilizers
-    target_ones = max(min_ones, int(np.ceil(ones_fraction * num_entries)))
-
-    rng = np.random.default_rng(seed)
-    tableau = _random_commuting_full_rank_tableau_with_weight(
-        num_stabilizers=num_stabilizers,
-        n=n,
-        target_ones=target_ones,
-        rng=rng,
+    base_changed_tableau = _random_tableau_row_space_base_change(
+        tableau, rng=rng, steps=row_steps
     )
-    return StabilizerCode(StabilizerTableau(tableau))
-
-def random_symmetry_stabilizer_code(
-        n: int,
-        k: int,
-        symmetry_fraction: float = 0.1,
-        seed: int | None = None,
-) -> StabilizerCode:
-    """Return a seeded random ``[[n, k]]`` code with controlled tableau symmetry.
-
-    At least ``ceil(symmetry_fraction * n)`` physical qubits are made symmetric
-    by giving them identical X and Z columns in the stabilizer tableau. Rows are
-    otherwise sampled randomly under this column-equality constraint and are
-    accepted only when they commute and increase the stabilizer rank.
-    """
-    if n < 1:
-        msg = "n must be at least 1."
-        raise ValueError(msg)
-    if not 0 <= k <= n:
-        msg = f"k must satisfy 0 <= k <= n, got n={n}, k={k}."
-        raise ValueError(msg)
-    if not 0 <= symmetry_fraction <= 1:
-        msg = f"symmetry_fraction must satisfy 0 <= symmetry_fraction <= 1, got {symmetry_fraction}."
-        raise ValueError(msg)
-
-    num_stabilizers = n - k
-    if num_stabilizers == 0:
-        return StabilizerCode(StabilizerTableau.empty(n))
-
-    num_symmetric_qubits = int(np.ceil(symmetry_fraction * n))
-    if num_symmetric_qubits <= 1:
-        return random_stabilizer_code(n, k, seed=seed)
-
-    max_rank = _max_rank_with_same_column_block(n, num_symmetric_qubits)
-    if num_stabilizers > max_rank:
-        msg = (
-            f"Cannot construct a [[{n}, {k}]] code with {num_symmetric_qubits} "
-            f"same-column symmetric qubits; maximum stabilizer rank is {max_rank}."
-        )
-        raise RandomizeError(msg)
-
-    rng = np.random.default_rng(seed)
-    symmetric_qubits = tuple(int(q) for q in rng.choice(n, size=num_symmetric_qubits, replace=False))
-    tableau = _random_symmetric_full_rank_tableau(
-        num_stabilizers=num_stabilizers,
-        n=n,
-        symmetric_qubits=symmetric_qubits,
-        rng=rng,
+    return StabilizerCode(
+        generators=base_changed_tableau,
+        distance=code.distance,
+        x_logicals=x_logicals,
+        z_logicals=z_logicals,
     )
-    return StabilizerCode(StabilizerTableau(tableau))
-
-# ------------------------------------------------------------------------------------------------------------------------------------------------
-# ------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 _LOCAL_CLIFFORDS = ("I", "H", "S", "HS", "SH", "HSH")
@@ -725,171 +726,6 @@ def _rank_binary(matrix: np.ndarray) -> int:
     matrix = np.asarray(matrix, dtype=np.int8) % 2
     return 0 if matrix.size == 0 or matrix.shape[0] == 0 else int(mod2.rank(matrix))
 
-def _random_commuting_full_rank_tableau_with_weight(
-    *,
-    num_stabilizers: int,
-    n: int,
-    target_ones: int,
-    rng: np.random.Generator,
-) -> np.ndarray:
-    """Return a random full-rank commuting tableau with exactly ``target_ones`` ones."""
-    row_width = 2 * n
-    for _ in range(200):
-        rows = np.zeros((0, row_width), dtype=np.int8)
-        remaining_ones = target_ones
-
-        for row_idx in range(num_stabilizers):
-            remaining_rows = num_stabilizers - row_idx
-            min_weight = max(1, remaining_ones - (remaining_rows - 1) * row_width)
-            max_weight = min(row_width, remaining_ones - (remaining_rows - 1))
-            if min_weight > max_weight:
-                break
-
-            row = _sample_commuting_independent_row(
-                rows,
-                n=n,
-                min_weight=min_weight,
-                max_weight=max_weight,
-                target_fraction=target_ones / (num_stabilizers * row_width),
-                rng=rng,
-            )
-            if row is None:
-                break
-
-            rows = np.vstack((rows, row))
-            remaining_ones -= int(np.count_nonzero(row))
-        else:
-            if remaining_ones == 0 and _rank_binary(rows) == num_stabilizers:
-                return rows
-
-    msg = (
-        f"Could not construct a random commuting full-rank tableau with "
-        f"{target_ones} ones."
-    )
-    raise RandomizeError(msg)
-
-def _sample_commuting_independent_row(
-    rows: np.ndarray,
-    *,
-    n: int,
-    min_weight: int,
-    max_weight: int,
-    target_fraction: float,
-    rng: np.random.Generator,
-) -> np.ndarray | None:
-    """Sample one row that commutes with ``rows`` and increases their rank."""
-    row_width = 2 * n
-    for _ in range(10_000):
-        weight = int(rng.binomial(row_width, target_fraction))
-        weight = min(max(weight, min_weight), max_weight)
-        candidate = np.zeros(row_width, dtype=np.int8)
-        candidate[rng.choice(row_width, size=weight, replace=False)] = 1
-
-        if rows.shape[0] == 0:
-            return candidate
-        commutations = (rows[:, :n] @ candidate[n:] + rows[:, n:] @ candidate[:n]) % 2
-        if np.any(commutations):
-            continue
-        if _rank_binary(np.vstack((rows, candidate))) == rows.shape[0] + 1:
-            return candidate
-
-    return None
-
-def _max_rank_with_same_column_block(n: int, block_size: int) -> int:
-    """Return the largest commuting row rank possible with one identical-column block."""
-    if block_size <= 1:
-        return n
-    if block_size % 2 == 1:
-        return n - block_size + 1
-    return n - block_size + 2
-
-def _random_symmetric_full_rank_tableau(
-    *,
-    num_stabilizers: int,
-    n: int,
-    symmetric_qubits: Sequence[int],
-    rng: np.random.Generator,
-) -> np.ndarray:
-    """Return a random full-rank commuting tableau with identical columns on a qubit block."""
-    symmetric_qubits = tuple(int(q) for q in symmetric_qubits)
-    symmetric_set = set(symmetric_qubits)
-    ordinary_qubits = tuple(q for q in range(n) if q not in symmetric_set)
-    effective_n = len(ordinary_qubits) + 1
-
-    for _ in range(200):
-        rows = np.zeros((0, 2 * n), dtype=np.int8)
-
-        for _row_idx in range(num_stabilizers):
-            row = _sample_symmetric_commuting_independent_row(
-                rows,
-                n=n,
-                effective_n=effective_n,
-                symmetric_qubits=symmetric_qubits,
-                ordinary_qubits=ordinary_qubits,
-                rng=rng,
-            )
-            if row is None:
-                break
-
-            rows = np.vstack((rows, row))
-        else:
-            if _rank_binary(rows) == num_stabilizers:
-                return rows
-
-    msg = "Could not construct a random commuting full-rank tableau with the requested symmetry."
-    raise RandomizeError(msg)
-
-def _sample_symmetric_commuting_independent_row(
-    rows: np.ndarray,
-    *,
-    n: int,
-    effective_n: int,
-    symmetric_qubits: Sequence[int],
-    ordinary_qubits: Sequence[int],
-    rng: np.random.Generator,
-) -> np.ndarray | None:
-    """Sample one constrained row that commutes with ``rows`` and increases rank."""
-    for _ in range(10_000):
-        effective_row = rng.integers(0, 2, size=2 * effective_n, dtype=np.int8)
-        if not np.any(effective_row):
-            continue
-
-        candidate = _expand_symmetric_effective_row(
-            effective_row,
-            n=n,
-            symmetric_qubits=symmetric_qubits,
-            ordinary_qubits=ordinary_qubits,
-        )
-        commutations = (rows[:, :n] @ candidate[n:] + rows[:, n:] @ candidate[:n]) % 2
-        if np.any(commutations):
-            continue
-        if _rank_binary(np.vstack((rows, candidate))) == rows.shape[0] + 1:
-            return candidate
-
-    return None
-
-def _expand_symmetric_effective_row(
-    effective_row: np.ndarray,
-    *,
-    n: int,
-    symmetric_qubits: Sequence[int],
-    ordinary_qubits: Sequence[int],
-) -> np.ndarray:
-    """Expand one effective row, copying one column pair onto the symmetric block."""
-    effective_n = len(ordinary_qubits) + 1
-    row = np.zeros(2 * n, dtype=np.int8)
-
-    block_x = effective_row[0]
-    block_z = effective_row[effective_n]
-    for qubit in symmetric_qubits:
-        row[qubit] = block_x
-        row[qubit + n] = block_z
-
-    for effective_idx, qubit in enumerate(ordinary_qubits, start=1):
-        row[qubit] = effective_row[effective_idx]
-        row[qubit + n] = effective_row[effective_idx + effective_n]
-
-    return row
 
 def _projection_rank_invariant(code: StabilizerCode) -> tuple[int, int, int]:
     """Return permutation-invariant ranks of X, Z, and X+Z projections."""
@@ -901,144 +737,10 @@ def _projection_rank_invariant(code: StabilizerCode) -> tuple[int, int, int]:
         _rank_binary(M[:, :n] ^ M[:, n:]),
     )
 
-def _anchor_projection_rank_invariant(
-    base_invariant: tuple[int, int, int],
-    anchor: str,
-) -> tuple[int, int, int]:
-    """Return the projection-rank invariant after appending one anchor row."""
-    if anchor not in {"X", "Z", "Y"}:
-        msg = f"Unknown anchor {anchor!r}."
-        raise ValueError(msg)
 
-    rank_x, rank_z, rank_x_plus_z = base_invariant
-    return (
-        rank_x + int(anchor in {"X", "Y"}),
-        rank_z + int(anchor in {"Z", "Y"}),
-        rank_x_plus_z + int(anchor in {"X", "Z"}),
-    )
-
-def _random_anchor_base_code(
-    n: int,
-    k: int,
-    *,
-    rng: np.random.Generator,
-    clifford_steps: int | None = None,
-) -> StabilizerCode | None:
-    """Return the random shared part for an anchored ``[[n, k]]`` code."""
-    r = n - k
-    if r < 1:
-        msg = "Anchored construction requires at least one stabilizer."
-        raise ValueError(msg)
-    if r == 1:
-        return None
-
-    base_seed = int(rng.integers(0, np.iinfo(np.int32).max))
-    return random_stabilizer_code(n - 1, k, seed=base_seed, clifford_steps=clifford_steps)
-
-def _random_anchored_stabilizer_code(
-    n: int,
-    k: int,
-    anchor: str,
-    *,
-    base_code: StabilizerCode | None,
-    rng: np.random.Generator,
-) -> StabilizerCode:
-    """Return a randomized direct sum of ``base_code`` with a one-qubit anchor."""
-    tableau = _anchored_stabilizer_tableau(n, k, anchor, base_code=base_code)
-    permutation = tuple(int(q) for q in rng.permutation(n))
-    permuted = _permute_tableau(tableau, permutation)
-    randomized = _random_tableau_row_space_base_change(permuted, rng=rng)
-    return StabilizerCode(randomized)
-
-def _anchored_stabilizer_tableau(
-    n: int,
-    k: int,
-    anchor: str,
-    *,
-    base_code: StabilizerCode | None,
-) -> StabilizerTableau:
-    """Append an X/Z/Y one-qubit stabilizer to a base ``[[n-1, k]]`` code."""
-    if anchor not in {"X", "Z", "Y"}:
-        msg = f"Unknown anchor {anchor!r}."
-        raise ValueError(msg)
-
-    r = n - k
-    if r < 1:
-        msg = "Anchored construction requires at least one stabilizer."
-        raise ValueError(msg)
-
-    matrix = np.zeros((r, 2 * n), dtype=np.int8)
-    if base_code is not None:
-        base_n = n - 1
-        if base_code.n != base_n or base_code.k != k:
-            msg = f"Expected a base [[{base_n}, {k}]] code, got [[{base_code.n}, {base_code.k}]]."
-            raise ValueError(msg)
-
-        base_matrix = np.asarray(base_code.symplectic, dtype=np.int8) % 2
-        expected_base_rows = r - 1
-        base_rank = _rank_binary(base_matrix)
-        if base_rank != expected_base_rows:
-            msg = f"Expected base rank {expected_base_rows}, got {base_rank}."
-            raise ValueError(msg)
-
-        base_basis = np.asarray(mod2.row_basis(base_matrix), dtype=np.int8) % 2
-        matrix[:expected_base_rows, :base_n] = base_basis[:, :base_n]
-        matrix[:expected_base_rows, n : n + base_n] = base_basis[:, base_n:]
-    elif r != 1:
-        msg = "A base code is required when the anchored construction has more than one stabilizer."
-        raise ValueError(msg)
-
-    anchor_row = r - 1
-    anchor_qubit = n - 1
-    if anchor in {"X", "Y"}:
-        matrix[anchor_row, anchor_qubit] = 1
-    if anchor in {"Z", "Y"}:
-        matrix[anchor_row, anchor_qubit + n] = 1
-
-    return StabilizerTableau(matrix)
-
-def _support_rank_invariant(code: StabilizerCode, max_w: int = 3):
-    M = np.asarray(code.symplectic, dtype=np.uint8) & 1
-    n = code.n
-    r = _rank_binary(M)
-
-    profile = []
-
-    for w in range(1, max_w + 1):
-        projection_ranks : Counter[int] = Counter()
-        normalizer_support_dims : Counter[int] = Counter()
-        stabilizer_support_dims : Counter[int] = Counter()
-
-        for qubits in combinations(range(n), w):
-            qubits_set : set[int] = set(qubits)
-
-            cols = [c for q in qubits_set for c in (q, q + n)]
-            proj_rank = _rank_binary(M[:, cols])
-
-            projection_ranks[proj_rank] += 1
-
-            # Dimension of normalizer elements supported inside this subset.
-            normalizer_support_dims[2 * w - proj_rank] += 1
-
-            complement_cols = [
-                c
-                for q in range(n)
-                if q not in qubits_set
-                for c in (q, q + n)
-            ]
-
-            # Dimension of stabilizers supported inside this subset.
-            stabilizer_support_dims[r - _rank_binary(M[:, complement_cols])] += 1
-
-        profile.append((
-            tuple(sorted(projection_ranks.items())),
-            tuple(sorted(normalizer_support_dims.items())),
-            tuple(sorted(stabilizer_support_dims.items())),
-        ))
-
-    return tuple(profile)
-
-def _visible_css_invariant(code: CSSCode) -> tuple[int, int, int, int, int, tuple[int, ...]]:
+def _visible_css_invariant(
+    code: CSSCode,
+) -> tuple[int, int, int, int, int, tuple[int, ...]]:
     """Return the cheap CSS invariants used as early benchmark filters."""
     return _visible_css_invariant_matrices(code.Hx, code.Hz, k=code.k)
 
@@ -1060,6 +762,7 @@ def _passes_stabilizer_hybrid_cheap_invariants(
     )
     return all(invariant(source, candidate) for invariant in cheap_invariants)
 
+
 def _visible_css_invariant_matrices(
     hx: np.ndarray,
     hz: np.ndarray,
@@ -1078,12 +781,14 @@ def _visible_css_invariant_matrices(
         _duplicate_column_multiplicities(symplectic),
     )
 
+
 def _css_symplectic_matrix(hx: np.ndarray, hz: np.ndarray) -> np.ndarray:
     hx = np.asarray(hx, dtype=np.int8) % 2
     hz = np.asarray(hz, dtype=np.int8) % 2
     x_padded = np.hstack([hx, np.zeros_like(hx)])
     z_padded = np.hstack([np.zeros_like(hz), hz])
     return np.vstack((x_padded, z_padded))
+
 
 def _duplicate_column_multiplicities(matrix: np.ndarray) -> tuple[int, ...]:
     columns = [tuple(matrix[:, j].tolist()) for j in range(matrix.shape[1])]
@@ -1137,10 +842,6 @@ def _decoupled_css_column_permutation_candidate(
         x_distance=code.x_distance,
         z_distance=code.z_distance,
     )
-
-def _css_support_rank_invariant(code: CSSCode, max_w: int = 3) -> tuple[Any, ...]:
-    """Return a polynomial CSS invariant under physical-qubit permutations."""
-    return _css_support_rank_invariant_matrices(code.Hx, code.Hz, max_w=max_w)
 
 
 def _binary_columns_as_ints(matrix: np.ndarray) -> tuple[int, ...]:
@@ -1244,12 +945,15 @@ def _css_support_rank_invariant_matrices(
             hz_support_dim = rz - _rank_binary(hz[:, complement_cols])
             subset_support_dims[(hx_support_dim, hz_support_dim)] += 1
 
-        profile.append((
-            tuple(sorted(subset_ranks.items())),
-            tuple(sorted(subset_support_dims.items())),
-        ))
+        profile.append(
+            (
+                tuple(sorted(subset_ranks.items())),
+                tuple(sorted(subset_support_dims.items())),
+            )
+        )
 
     return (rx, rz, tuple(profile))
+
 
 def _css_stabilizer_weight_enumerator_matrices(
     hx: np.ndarray,
@@ -1273,7 +977,10 @@ def _css_stabilizer_weight_enumerator_matrices(
 
     return tuple(sorted(enumerator.items()))
 
-def _lc_projection_rank_invariant(code: StabilizerCode, max_w: int = 3) -> tuple[tuple[int, ...], ...]:
+
+def _lc_projection_rank_invariant(
+    code: StabilizerCode, max_w: int = 3
+) -> tuple[tuple[int, ...], ...]:
     """Return ordered subset projection ranks preserved by local Cliffords."""
     M = np.asarray(code.symplectic, dtype=np.uint8) & 1
     n = code.n
@@ -1337,7 +1044,9 @@ def _has_locally_rank_one_subspace(code: StabilizerCode, target_dimension: int) 
         mutable.sort(reverse=True)
         return tuple(mutable)
 
-    def candidate_rank(candidates: list[int], basis: tuple[int, ...], needed: int) -> int:
+    def candidate_rank(
+        candidates: list[int], basis: tuple[int, ...], needed: int
+    ) -> int:
         working = basis
         gained = 0
         for vector in candidates:
@@ -1379,28 +1088,6 @@ def _binary_row_to_int(row: np.ndarray) -> int:
     for index in np.flatnonzero(row):
         value |= 1 << int(index)
     return value
-
-def _cheap_invariant(code: StabilizerCode) -> tuple[int, int, int, int, Any]:
-    M = np.asarray(code.symplectic, dtype=np.uint8) & 1
-    n = code.n
-    return (
-        _rank_binary(M),
-        _rank_binary(M[:, :n]),
-        _rank_binary(M[:, n:]),
-        _rank_binary(M[:, :n] ^ M[:, n:]),
-        _support_rank_invariant(code, max_w=3)
-    )
-
-def _stabilizer_weight_enumerator(code: StabilizerCode) -> tuple[tuple[tuple[int, int, int, int], int], ...]:
-    enumerator: dict[tuple[int, int, int, int], int] = {}
-    for word in _row_space_words(code.symplectic):
-        x_word, z_word = word[: code.n], word[code.n :]
-        both = int(np.count_nonzero(x_word & z_word))
-        x_only = int(np.count_nonzero(x_word)) - both
-        z_only = int(np.count_nonzero(z_word)) - both
-        key = (code.n - x_only - z_only - both, x_only, z_only, both)
-        enumerator[key] = enumerator.get(key, 0) + 1
-    return tuple(sorted(enumerator.items()))
 
 
 def _row_space_words(matrix: np.ndarray) -> np.ndarray:
@@ -1476,7 +1163,9 @@ def _random_tableau_row_space_base_change(
     if rng is None:
         rng = np.random.default_rng(seed)
 
-    changed = _random_row_space_base_change(tableau.tableau.matrix, rng=rng, steps=steps)
+    changed = _random_row_space_base_change(
+        tableau.tableau.matrix, rng=rng, steps=steps
+    )
     return StabilizerTableau(changed)
 
 
@@ -1485,23 +1174,27 @@ def _without_phases(tableau: StabilizerTableau) -> StabilizerTableau:
     return StabilizerTableau(tableau.tableau.matrix.copy())
 
 
-def _permute_tableau(tableau: StabilizerTableau, permutation: Sequence[int]) -> StabilizerTableau:
+def _permute_tableau(
+    tableau: StabilizerTableau, permutation: Sequence[int]
+) -> StabilizerTableau:
     """Return a copy of ``tableau`` with physical qubits permuted."""
     permutation = _checked_permutation(tableau.n, permutation)
     columns = list(permutation) + [q + tableau.n for q in permutation]
     return StabilizerTableau(tableau.tableau.matrix[:, columns].copy())
 
 
-def _permute_stabilizer_code(code: StabilizerCode, permutation: Sequence[int]) -> StabilizerCode:
+def _permute_stabilizer_code(
+    code: StabilizerCode, permutation: Sequence[int]
+) -> StabilizerCode:
     """Return a copy of ``code`` with physical qubits permuted in generators, but logical operators are recomputed."""
-    return StabilizerCode(_permute_tableau(code.generators.copy(), permutation), distance=code.distance)
-
-def _permute_stabilizer_code_and_log_ops(code: StabilizerCode, permutation: Sequence[int]) -> StabilizerCode:
-    """Return a copy of ``code`` with physical qubits permuted in generators and logical operators."""
-    return StabilizerCode(_permute_tableau(code.generators.copy(), permutation), x_logicals=_permute_tableau(code.x_logicals.copy(), permutation), z_logicals=_permute_tableau(code.z_logicals.copy(), permutation), distance=code.distance)
+    return StabilizerCode(
+        _permute_tableau(code.generators.copy(), permutation), distance=code.distance
+    )
 
 
-def _apply_local_clifford(tableau: StabilizerTableau, local_clifford: str, qubit: int) -> None:
+def _apply_local_clifford(
+    tableau: StabilizerTableau, local_clifford: str, qubit: int
+) -> None:
     """Apply one single-qubit Clifford representative to ``qubit`` in-place."""
     if local_clifford not in _LOCAL_CLIFFORDS:
         msg = f"Unknown local Clifford {local_clifford!r}."
@@ -1514,7 +1207,9 @@ def _apply_local_clifford(tableau: StabilizerTableau, local_clifford: str, qubit
             tableau.apply_s(qubit)
 
 
-def _apply_random_clifford_gate(tableau: StabilizerTableau, rng: np.random.Generator) -> None:
+def _apply_random_clifford_gate(
+    tableau: StabilizerTableau, rng: np.random.Generator
+) -> None:
     """Apply one seeded random Clifford gate (not only generators, to make more random hopefully) to a tableau in-place."""
     if tableau.n == 1:
         gate = rng.choice(("h", "s", "sdg", "x", "y", "z"))
@@ -1540,8 +1235,8 @@ def _apply_random_clifford_gate(tableau: StabilizerTableau, rng: np.random.Gener
         ctrl, target = rng.choice(tableau.n, size=2, replace=False)
         tableau.apply_cz(int(ctrl), int(target))
     elif gate == "swap":
-         ctrl, target = rng.choice(tableau.n, size=2, replace=False)
-         tableau.apply_swap(int(ctrl), int(target))
+        ctrl, target = rng.choice(tableau.n, size=2, replace=False)
+        tableau.apply_swap(int(ctrl), int(target))
     else:
         ctrl, target = rng.choice(tableau.n, size=2, replace=False)
         tableau.apply_cx(int(ctrl), int(target))

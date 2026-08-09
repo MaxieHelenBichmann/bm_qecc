@@ -52,7 +52,7 @@ from src.hybrids.lc_css import is_lceq_css
 
 from src.invariants.lc_invariants import (
     preserved_local_weight_distribution,
-    preserved_low_degree_local_invariant
+    preserved_low_degree_local_invariant,
 )
 
 from src.invariants.pm_invariants import (
@@ -103,7 +103,9 @@ MAX_TOL_TIMEOUTS = 3
 MAX_TOL_MEMORY_ERRORS = 2
 MEMORY_POLL_INTERVAL_SECONDS = 0.2
 
-bell_pair = CSSCode(Hx=np.array([[1, 1]], dtype=np.int8), Hz=np.array([[1, 1]], dtype=np.int8))
+bell_pair = CSSCode(
+    Hx=np.array([[1, 1]], dtype=np.int8), Hz=np.array([[1, 1]], dtype=np.int8)
+)
 three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
 steane = CSSCode.from_file("data/steane")
 carbon = CSSCode.from_file("data/carbon")
@@ -114,8 +116,8 @@ rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
 shor = CSSCode.from_file("data/shor")
 tetrahedral = CSSCode.from_file("data/tetrahedral")
 bring = CSSCode.from_file("data/bring")
-coco_488 = CSSCode.from_file("data/coco_488") 
-coco_666 = CSSCode.from_file("data/coco_666") 
+coco_488 = CSSCode.from_file("data/coco_488")
+coco_666 = CSSCode.from_file("data/coco_666")
 bb_72 = CSSCode.from_file("data/bb_72")
 bb_90 = CSSCode.from_file("data/bb_90")
 bb_108 = CSSCode.from_file("data/bb_108")
@@ -126,27 +128,28 @@ gottesman = StabilizerCode.from_file("data/eight_qubit_gottesman")
 fifteen_qubit_optimal = StabilizerCode.from_file("data/fifteen_qubit_optimal")
 
 NAMED_CODES = [
-            ("bell", bell_pair), # n = 2 , k = 0
-            ("3q_rep", three_bit_repetition), # n = 3 , k = 1
-            ("5q_prf", five_qubit_perfect), # n = 5 , k = 1
-            ("steane", steane), # n = 7 , k = 1
-            ("gottesman", gottesman), # n = 8 , k = 3
-            ("shor", shor),  # n = 9 , k = 1
-            ("carbon", carbon), # n = 12 , k = 2
-            ("tetrahedral", tetrahedral), # n = 15 , k = 1
-            ("15q_optimal", fifteen_qubit_optimal), # n = 15 , k = 3
-            ("hamming_15", hamming_15), # n = 15 , k = 7
-            ("golay", golay),  # n = 23 , k = 1
-            ("rot_surf_d5", rotated_surface_d5), # n = 25 , k = 1
-            ("bring", bring), # n = 30 , k = 8
-            ("coco_488", coco_488), # n = 31 , k = 1
-            ("hamming_31", hamming_31), # n = 31 , k = 21
-            ("coco_666", coco_666), # n = 37 , k = 1
-            ("bb_72", bb_72), # n = 72, k = 12
-            ("bb_90", bb_90), # n = 90, k = 8
-            ("bb_108", bb_108), # n = 108, k = 8
-            ("bb_144", bb_144) # n = 144 , k = 12
-            ]
+    ("bell", bell_pair),  # n = 2 , k = 0
+    ("3q_rep", three_bit_repetition),  # n = 3 , k = 1
+    ("5q_prf", five_qubit_perfect),  # n = 5 , k = 1
+    ("steane", steane),  # n = 7 , k = 1
+    ("gottesman", gottesman),  # n = 8 , k = 3
+    ("shor", shor),  # n = 9 , k = 1
+    ("carbon", carbon),  # n = 12 , k = 2
+    ("tetrahedral", tetrahedral),  # n = 15 , k = 1
+    ("15q_optimal", fifteen_qubit_optimal),  # n = 15 , k = 3
+    ("hamming_15", hamming_15),  # n = 15 , k = 7
+    ("golay", golay),  # n = 23 , k = 1
+    ("rot_surf_d5", rotated_surface_d5),  # n = 25 , k = 1
+    ("bring", bring),  # n = 30 , k = 8
+    ("coco_488", coco_488),  # n = 31 , k = 1
+    ("hamming_31", hamming_31),  # n = 31 , k = 21
+    ("coco_666", coco_666),  # n = 37 , k = 1
+    ("bb_72", bb_72),  # n = 72, k = 12
+    ("bb_90", bb_90),  # n = 90, k = 8
+    ("bb_108", bb_108),  # n = 108, k = 8
+    ("bb_144", bb_144),  # n = 144 , k = 12
+]
+
 
 @dataclass(frozen=True)
 class Case:
@@ -161,6 +164,7 @@ class Case:
 @dataclass(frozen=True)
 class Result:
     """One benchmark measurement."""
+
     algorithm: str
     case: str
     n: int
@@ -170,9 +174,11 @@ class Result:
     expected: bool | None
     status: str = "ok"
 
+
 @dataclass(frozen=True)
 class Measurement:
     """All meta-data for a seeded measurement. Later usable for statistics."""
+
     algorithm: str
     name: str | None
     n: int
@@ -181,9 +187,11 @@ class Measurement:
     density: float | None
     symmetry: float | None
 
+
 @dataclass(frozen=True)
 class Statistic:
     """One statistic result."""
+
     meta: Measurement
     times: list[float]
     mean: float
@@ -219,7 +227,6 @@ ALGORITHMS: dict[str, Algorithm] = {
     "lc_css_cliff_orbit": is_lceq_css_cliff_orbit,
     "lc_css_lc_orbit": is_lceq_css_lc_orbit,
     "lc_css_sat": is_lceq_css_sat,
-
     "pm_css_hybrid": are_peq_css,
     "pm_stb_hybrid": are_peq_stab,
     "lc_stb_hybrid": are_lceq,
@@ -235,11 +242,19 @@ HYBRID_ALGORITHMS = (
 
 LC_INVARIANTS: dict[str, Algorithm] = {
     "lc_local_weight_distribution": preserved_local_weight_distribution,
-    "lc_local_weight_distribution_s2": partial(preserved_local_weight_distribution, max_subset_size=2),
-    "lc_local_weight_distribution_s4": partial(preserved_local_weight_distribution, max_subset_size=4),
+    "lc_local_weight_distribution_s2": partial(
+        preserved_local_weight_distribution, max_subset_size=2
+    ),
+    "lc_local_weight_distribution_s4": partial(
+        preserved_local_weight_distribution, max_subset_size=4
+    ),
     "lc_low_degree_local_invariant": preserved_low_degree_local_invariant,
-    "lc_low_degree_local_invariant_s2": partial(preserved_low_degree_local_invariant, max_subset_size=2),
-    "lc_low_degree_local_invariant_s4": partial(preserved_low_degree_local_invariant, max_subset_size=4),
+    "lc_low_degree_local_invariant_s2": partial(
+        preserved_low_degree_local_invariant, max_subset_size=2
+    ),
+    "lc_low_degree_local_invariant_s4": partial(
+        preserved_low_degree_local_invariant, max_subset_size=4
+    ),
 }
 
 PM_INVARIANTS: dict[str, Algorithm] = {
@@ -249,6 +264,7 @@ PM_INVARIANTS: dict[str, Algorithm] = {
 }
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+
 
 def _algorithm_worker(
     algorithm: Algorithm,
@@ -274,8 +290,16 @@ def _set_memory_limit(memory_limit_bytes: int) -> None:
     if resource is None or not hasattr(resource, "RLIMIT_AS"):
         return
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    new_hard = memory_limit_bytes if hard == resource.RLIM_INFINITY else min(hard, memory_limit_bytes)
-    new_soft = memory_limit_bytes if soft == resource.RLIM_INFINITY else min(soft, memory_limit_bytes)
+    new_hard = (
+        memory_limit_bytes
+        if hard == resource.RLIM_INFINITY
+        else min(hard, memory_limit_bytes)
+    )
+    new_soft = (
+        memory_limit_bytes
+        if soft == resource.RLIM_INFINITY
+        else min(soft, memory_limit_bytes)
+    )
     if new_hard != resource.RLIM_INFINITY:
         new_soft = min(new_soft, new_hard)
     try:
@@ -364,10 +388,15 @@ def generated_stabilizer_pair(
     for paths in candidate_paths:
         if all(path.exists() for path in paths):
             code1_path, code2_path = paths
-            return StabilizerCode.from_file(code1_path), StabilizerCode.from_file(code2_path)
+            return StabilizerCode.from_file(code1_path), StabilizerCode.from_file(
+                code2_path
+            )
     return None
 
-def generated_css_pair(n: int, k: int, suffix: str, seed: int | None = None) -> tuple[CSSCode, CSSCode] | None:
+
+def generated_css_pair(
+    n: int, k: int, suffix: str, seed: int | None = None
+) -> tuple[CSSCode, CSSCode] | None:
     """Load a generated CSS pair from data/ if both files exist."""
     candidate_paths = [
         (
@@ -398,17 +427,61 @@ def generated_css_pair(n: int, k: int, suffix: str, seed: int | None = None) -> 
 
     return None
 
+
+def generated_lc_css_code(
+    n: int, k: int, *, positive: bool, seed: int
+) -> StabilizerCode | None:
+    """Load a cached LC-CSS classification case, if one exists.
+
+    LC-CSS cases contain a single general stabilizer code. Negative caches use
+    the historical ``non_lcc_css`` prefix; positive caches, when provided, use
+    ``lcc_css``. A malformed cache is rejected instead of silently benchmarking
+    the wrong dimension.
+    """
+    prefix = "lcc_css" if positive else "non_lcc_css"
+    path = DATA_DIR / "lc" / f"{prefix}_{n}_{k}_{seed}.txt"
+    if not path.is_file():
+        return None
+
+    cached = StabilizerCode.from_file(path)
+    if (cached.n, cached.k) != (n, k):
+        raise ValueError(
+            f"Cached LC-CSS case {path} has parameters [[{cached.n}, {cached.k}]], "
+            f"expected [[{n}, {k}]]."
+        )
+    return cached
+
+
 def case_supports_algorithm(case: Case, algorithm_name: str) -> bool:
     """Return whether a case has an expectation and compatible inputs for an algorithm."""
-    if algorithm_name.startswith("pm_css") and all(isinstance(code, CSSCode) for code in case.inputs)and len(case.inputs) == 2 and case.expected_p is not None:
+    if (
+        algorithm_name.startswith("pm_css")
+        and all(isinstance(code, CSSCode) for code in case.inputs)
+        and len(case.inputs) == 2
+        and case.expected_p is not None
+    ):
         return True
-    if algorithm_name.startswith("pm_stb") and len(case.inputs) == 2 and case.expected_p is not None:
+    if (
+        algorithm_name.startswith("pm_stb")
+        and len(case.inputs) == 2
+        and case.expected_p is not None
+    ):
         return True
-    if algorithm_name.startswith("lc_stb") and len(case.inputs) == 2 and case.expected_lc is not None:
+    if (
+        algorithm_name.startswith("lc_stb")
+        and len(case.inputs) == 2
+        and case.expected_lc is not None
+    ):
         if algorithm_name == "lc_stb_graph_state":
-            return all(isinstance(code, StabilizerCode) and code.k < 2 for code in case.inputs)
+            return all(
+                isinstance(code, StabilizerCode) and code.k < 2 for code in case.inputs
+            )
         return True
-    if algorithm_name.startswith("lc_css") and len(case.inputs) == 1 and case.expected_lc is not None:
+    if (
+        algorithm_name.startswith("lc_css")
+        and len(case.inputs) == 1
+        and case.expected_lc is not None
+    ):
         if algorithm_name == "lc_css_lc_orbit":
             return case.inputs[0].k < 2
         return True
@@ -434,7 +507,9 @@ def resolve_algorithm_names(selectors: Sequence[str] | None) -> list[str]:
             selected_names.add(selector)
             continue
 
-        matches = [name for name in algorithm_names if fnmatch.fnmatchcase(name, selector)]
+        matches = [
+            name for name in algorithm_names if fnmatch.fnmatchcase(name, selector)
+        ]
         if not matches:
             try:
                 pattern = re.compile(selector)
@@ -451,11 +526,20 @@ def resolve_algorithm_names(selectors: Sequence[str] | None) -> list[str]:
     if invalid_selectors:
         available = ", ".join(algorithm_names)
         invalid = ", ".join(invalid_selectors)
-        raise ValueError(f"Unknown algorithm selector(s): {invalid}. Available algorithms: {available}")
+        raise ValueError(
+            f"Unknown algorithm selector(s): {invalid}. Available algorithms: {available}"
+        )
 
     return sorted(selected_names)
 
-def non_permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None, use_cached: bool = True) -> Case:
+
+def non_permuted_css_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: CSSCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a negative CSS permutation case, preferring a seeded cache."""
     if dim is not None:
         n, k = dim
         if use_cached:
@@ -477,7 +561,14 @@ def non_permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: C
         expected_lc=None,
     )
 
-def permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None, use_cached: bool = True) -> Case:
+
+def permuted_css_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: CSSCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a positive CSS permutation case, preferring a seeded cache."""
     if dim is not None:
         n, k = dim
         if use_cached:
@@ -499,10 +590,22 @@ def permuted_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCo
         expected_lc=None,
     )
 
-def non_permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None, use_cached: bool = False) -> Case:
+
+def non_permuted_stabilizer_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: StabilizerCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a negative stabilizer permutation case, preferring a seeded cache."""
     if dim is not None:
         n, k = dim
-        code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=seed)
+        pair = (
+            generated_stabilizer_pair(n, k, "non_peq", seed=seed)
+            if use_cached
+            else None
+        )
+        code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=seed)
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
@@ -516,15 +619,19 @@ def non_permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, 
         expected_p=False,
         expected_lc=None,
     )
-    
-def permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None, use_cached: bool = True) -> Case:
+
+
+def permuted_stabilizer_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: StabilizerCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a positive stabilizer permutation case, preferring a seeded cache."""
     if dim is not None:
         n, k = dim
-        if use_cached:
-            pair = generated_stabilizer_pair(n, k, "peq")
-            code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=seed)
-        else:
-            code1, code2 = random_permuted_stabilizer_pair(n, k, seed=seed)
+        pair = generated_stabilizer_pair(n, k, "peq", seed=seed) if use_cached else None
+        code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=seed)
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
@@ -539,40 +646,61 @@ def permuted_stabilizer_case(seed: int, dim: tuple[int, int] | None = None, code
         expected_lc=None,
     )
 
-def lcc_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None) -> Case:
+
+def lcc_css_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: CSSCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a positive LC-CSS case, preferring a seeded single-code cache."""
     if dim is not None:
         n, k = dim
         code = random_css_code(n, k, seed=seed)
+        transformed = (
+            generated_lc_css_code(n, k, positive=True, seed=seed)
+            if use_cached
+            else None
+        )
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
         n, k = code.n, code.k
-        
+        transformed = None
+
+    if transformed is None:
+        transformed = lc_equivalent_code(code, seed=seed + 420)
+
     return Case(
         name=f"lcc_css_{n}_{k}_{seed}",
-        inputs=(lc_equivalent_code(code, seed=seed + 420),),
+        inputs=(transformed,),
         expected_p=None,
         expected_lc=True,
     )
 
-def non_lcc_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCode | None = None) -> Case:
+
+def non_lcc_css_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: CSSCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a negative LC-CSS case, preferring a seeded single-code cache."""
     if dim is not None:
         n, k = dim
         code = random_css_code(n, k, seed=seed)
+        negative = (
+            generated_lc_css_code(n, k, positive=False, seed=seed)
+            if use_cached
+            else None
+        )
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
         n, k = code.n, code.k
+        negative = None
 
-    cached_path = DATA_DIR / "lc" / f"non_lcc_css_{n}_{k}_{seed}.txt"
-    if cached_path.is_file():
-        negative = StabilizerCode.from_file(cached_path)
-        if (negative.n, negative.k) != (n, k):
-            raise ValueError(
-                f"Cached LC-CSS negative {cached_path} has parameters "
-                f"[[{negative.n}, {negative.k}]], expected [[{n}, {k}]]."
-            )
-    else:
+    if negative is None:
         negative = non_lc_css_code(code, seed=seed + 69)
 
     return Case(
@@ -582,47 +710,88 @@ def non_lcc_css_case(seed: int, dim: tuple[int, int] | None = None, code: CSSCod
         expected_lc=False,
     )
 
-def lcc_eq_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None) -> Case:
+
+def lcc_eq_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: StabilizerCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a positive stabilizer LC-equivalence case, preferring a cache."""
     if dim is not None:
         n, k = dim
-        code1 = random_stabilizer_code(n, k, seed=seed)
+        pair = (
+            generated_stabilizer_pair(n, k, "lcc_eq", seed=seed) if use_cached else None
+        )
+        if pair is None:
+            code1 = random_stabilizer_code(n, k, seed=seed)
+            code2 = lc_equivalent_code(code1, seed=seed + 1337)
+        else:
+            code1, code2 = pair
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
         n, k = code.n, code.k
         code1 = code
+        code2 = lc_equivalent_code(code1, seed=seed + 1337)
 
     return Case(
         name=f"lcc_eq_{n}_{k}_{seed}",
-        inputs=(code1, lc_equivalent_code(code1, seed=seed + 1337)),
+        inputs=(code1, code2),
         expected_p=None,
         expected_lc=True,
     )
 
-def non_lcc_eq_case(seed: int, dim: tuple[int, int] | None = None, code: StabilizerCode | None = None) -> Case:
+
+def non_lcc_eq_case(
+    seed: int,
+    dim: tuple[int, int] | None = None,
+    code: StabilizerCode | None = None,
+    use_cached: bool = True,
+) -> Case:
+    """Build a negative stabilizer LC-equivalence case, preferring a cache."""
     if dim is not None:
         n, k = dim
-        code1 = random_stabilizer_code(n, k, seed=seed)
+        pair = (
+            generated_stabilizer_pair(n, k, "non_lcc_eq", seed=seed)
+            if use_cached
+            else None
+        )
+        if pair is None:
+            code1 = random_stabilizer_code(n, k, seed=seed)
+            code2 = non_lc_equivalent_code(code1, seed=seed + 69)
+        else:
+            code1, code2 = pair
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
         n, k = code.n, code.k
         code1 = code
+        code2 = non_lc_equivalent_code(code1, seed=seed + 69)
 
     return Case(
         name=f"non_lcc_eq_{n}_{k}_{seed}",
-        inputs=(code1, non_lc_equivalent_code(code1, seed=seed + 69)),
+        inputs=(code1, code2),
         expected_p=None,
         expected_lc=False,
     )
 
 
-_LC_CSS_NEGATIVE_EXCLUDED_DIMENSIONS = {(3, 0), (3, 1), (4, 0), (8,6), (8,0), (10,8), (12,10)}
+# used invariant will lead to timeout or inconclusive results in the generation of these dimensions and seeds
+_LC_CSS_NEGATIVE_EXCLUDED_DIMENSIONS = {
+    (3, 0),
+    (3, 1),
+    (4, 0),
+    (8, 6),
+    (8, 0),
+    (10, 8),
+    (12, 10),
+}
 _LC_CSS_NEGATIVE_EXCLUDED_SEEDS = {
     (4, 1): {85},
     (4, 2): {773, 654, 438, 433, 858, 85, 697, 201, 94},
     (7, 4): {201, 94},
-    (9, 6): {89, 697}
+    (9, 6): {89, 697},
 }
 
 
@@ -648,206 +817,338 @@ def seeded_cases(
             continue
     return cases
 
-def seeded_measurements(seed: int, algorithm: str, random: bool, nmin: int | None = None, nmax: int | None = None) -> list[tuple[Measurement, list[Case]]]:
+
+def seeded_measurements(
+    seed: int,
+    algorithm: str,
+    random: bool,
+    nmin: int | None = None,
+    nmax: int | None = None,
+) -> list[tuple[Measurement, list[Case]]]:
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1000, size=N_STATS)
-    measurements : list[tuple[Measurement, list[Case]]] = []
+    measurements: list[tuple[Measurement, list[Case]]] = []
 
     sizes = [
         (n, i)
-        for n in [n for n in MEAS_STATS if (nmin is None or n >= nmin) and (nmax is None or n <= nmax)]
-        for i in sorted(set(range(0, n,  1 if n < 7 else 2 if n < 15 else 4 if n < 30 else 5)) | {4, 8})
+        for n in [
+            n
+            for n in MEAS_STATS
+            if (nmin is None or n >= nmin) and (nmax is None or n <= nmax)
+        ]
+        for i in sorted(
+            set(range(0, n, 1 if n < 7 else 2 if n < 15 else 4 if n < 30 else 5))
+            | {4, 8}
+        )
         if i < n
     ]
 
     if random:
         for n, k in sizes:
             if algorithm.startswith("pm_css"):
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: non_permuted_css_case(seed=s, dim=(n, k), use_cached=n>17))))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: permuted_css_case(seed=s, dim=(n, k), use_cached=False))))
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=None,
+                            n=n,
+                            k=k,
+                            positive=False,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds,
+                            lambda s: non_permuted_css_case(
+                                seed=s, dim=(n, k), use_cached=n > 17
+                            ),
+                        ),
+                    )
+                )
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=None,
+                            n=n,
+                            k=k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds,
+                            lambda s: permuted_css_case(
+                                seed=s, dim=(n, k), use_cached=False
+                            ),
+                        ),
+                    )
+                )
             elif algorithm.startswith("pm_stb"):
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: non_permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False))))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: permuted_stabilizer_case(seed=s, dim=(n, k), use_cached=False))))
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=None,
+                            n=n,
+                            k=k,
+                            positive=False,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds,
+                            lambda s: non_permuted_stabilizer_case(
+                                seed=s, dim=(n, k), use_cached=False
+                            ),
+                        ),
+                    )
+                )
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=None,
+                            n=n,
+                            k=k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds,
+                            lambda s: permuted_stabilizer_case(
+                                seed=s, dim=(n, k), use_cached=False
+                            ),
+                        ),
+                    )
+                )
             elif algorithm.startswith("lc_stb"):
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: lcc_eq_case(seed=s, dim=(n, k)))))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: non_lcc_eq_case(seed=s, dim=(n, k)))))
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=None,
+                            n=n,
+                            k=k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(seeds, lambda s: lcc_eq_case(seed=s, dim=(n, k))),
+                    )
+                )
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=None,
+                            n=n,
+                            k=k,
+                            positive=False,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds, lambda s: non_lcc_eq_case(seed=s, dim=(n, k))
+                        ),
+                    )
+                )
             elif algorithm.startswith("lc_css"):
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=None, 
-                                        n=n, 
-                                        k=k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                    seeded_cases(seeds, lambda s: lcc_css_case(seed=s, dim=(n, k)))))
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=None,
+                            n=n,
+                            k=k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(seeds, lambda s: lcc_css_case(seed=s, dim=(n, k))),
+                    )
+                )
                 negative_seeds = [
                     int(s) for s in seeds if supports_lc_css_negative_case(n, k, int(s))
                 ]
                 if negative_seeds:
-                    measurements.append((Measurement(
-                                            algorithm=algorithm,
-                                            name=None,
-                                            n=n,
-                                            k=k,
-                                            positive=False,
-                                            density=None,
-                                            symmetry=None
-                                        ),
-                        seeded_cases(negative_seeds, lambda s: non_lcc_css_case(seed=s, dim=(n, k)))))
+                    measurements.append(
+                        (
+                            Measurement(
+                                algorithm=algorithm,
+                                name=None,
+                                n=n,
+                                k=k,
+                                positive=False,
+                                density=None,
+                                symmetry=None,
+                            ),
+                            seeded_cases(
+                                negative_seeds,
+                                lambda s: non_lcc_css_case(seed=s, dim=(n, k)),
+                            ),
+                        )
+                    )
     else:
         if algorithm.startswith("pm_css"):
-            for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
+            for name, code in [
+                (name, code)
+                for name, code in NAMED_CODES
+                if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax)
+            ]:
                 if not isinstance(code, CSSCode):
                     continue
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ),
-                                    seeded_cases(seeds, lambda s: permuted_css_case(seed=s, code=code))))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ),
-                                    seeded_cases(seeds, lambda s: non_permuted_css_case(seed=s, code=code))
-                                    ))
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds, lambda s: permuted_css_case(seed=s, code=code)
+                        ),
+                    )
+                )
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=False,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds, lambda s: non_permuted_css_case(seed=s, code=code)
+                        ),
+                    )
+                )
 
         elif algorithm.startswith("pm_stb"):
-            for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: permuted_stabilizer_case(seed=s, code=code))))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: non_permuted_stabilizer_case(seed=s, code=code))))
+            for name, code in [
+                (name, code)
+                for name, code in NAMED_CODES
+                if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax)
+            ]:
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds, lambda s: permuted_stabilizer_case(seed=s, code=code)
+                        ),
+                    )
+                )
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=False,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds,
+                            lambda s: non_permuted_stabilizer_case(seed=s, code=code),
+                        ),
+                    )
+                )
         elif algorithm.startswith("lc_stb"):
-            for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: lcc_eq_case(seed=s, code=code))))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: non_lcc_eq_case(seed=s, code=code))))
+            for name, code in [
+                (name, code)
+                for name, code in NAMED_CODES
+                if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax)
+            ]:
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(seeds, lambda s: lcc_eq_case(seed=s, code=code)),
+                    )
+                )
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=False,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds, lambda s: non_lcc_eq_case(seed=s, code=code)
+                        ),
+                    )
+                )
         elif algorithm.startswith("lc_css"):
-              for name, code in [ (name, code) for name, code in NAMED_CODES if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax) ]:
+            for name, code in [
+                (name, code)
+                for name, code in NAMED_CODES
+                if (nmin is None or code.n >= nmin) and (nmax is None or code.n <= nmax)
+            ]:
                 if not isinstance(code, CSSCode):
                     continue
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=True, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: lcc_css_case(seed=s, code=code))))
-                measurements.append((Measurement(
-                                        algorithm=algorithm, 
-                                        name=name, 
-                                        n=code.n, 
-                                        k=code.k, 
-                                        positive=False, 
-                                        density=None, 
-                                        symmetry=None
-                                    ), 
-                                    seeded_cases(seeds, lambda s: non_lcc_css_case(seed=s, code=code))))
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=True,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(seeds, lambda s: lcc_css_case(seed=s, code=code)),
+                    )
+                )
+                measurements.append(
+                    (
+                        Measurement(
+                            algorithm=algorithm,
+                            name=name,
+                            n=code.n,
+                            k=code.k,
+                            positive=False,
+                            density=None,
+                            symmetry=None,
+                        ),
+                        seeded_cases(
+                            seeds, lambda s: non_lcc_css_case(seed=s, code=code)
+                        ),
+                    )
+                )
 
     return measurements
-    
+
+
 def invariant_dimensions(pm: bool) -> list[tuple[int, int]]:
     """Return a regular, bounded (n, k) grid for invariant benchmarks."""
     ns = PM_INVARIANT_NS if pm else LC_INVARIANT_NS
@@ -855,8 +1156,6 @@ def invariant_dimensions(pm: bool) -> list[tuple[int, int]]:
 
     for n in ns:
         if n > 50:
-            # At these sizes, use only dimensions backed by an existing named
-            # code; eagerly generating arbitrary random pairs is too costly.
             ks = KNOWN_INVARIANT_KS.get(n, set())
         elif n < 7:
             ks = range(0, n)
@@ -873,7 +1172,9 @@ def invariant_dimensions(pm: bool) -> list[tuple[int, int]]:
     return dimensions
 
 
-def invariant_measurements(seed: int, invariant: str, pm: bool) -> Iterator[tuple[Measurement, list[Case]]]:
+def invariant_measurements(
+    seed: int, invariant: str, pm: bool
+) -> Iterator[tuple[Measurement, list[Case]]]:
     """Yield five reproducible positive/negative cases per invariant dimension."""
     rng = np.random.default_rng(seed)
     seeds = rng.integers(0, 1_000_000, size=N_INVARIANT_STATS)
@@ -887,18 +1188,17 @@ def invariant_measurements(seed: int, invariant: str, pm: bool) -> Iterator[tupl
             if pm:
                 if positive:
                     cases = [
-                        permuted_stabilizer_case(
-                            seed=int(s), code=named_code
-                        ) if named_code is not None else permuted_stabilizer_case(
-                            seed=int(s), dim=(n, k)
-                        )
+                        permuted_stabilizer_case(seed=int(s), code=named_code)
+                        if named_code is not None
+                        else permuted_stabilizer_case(seed=int(s), dim=(n, k))
                         for s in seeds
                     ]
                 else:
                     cases = [
                         replace(
                             non_permuted_stabilizer_case(seed=int(s), code=named_code)
-                            if named_code is not None else non_permuted_stabilizer_case(
+                            if named_code is not None
+                            else non_permuted_stabilizer_case(
                                 seed=int(s), dim=(n, k), use_cached=False
                             ),
                             expected_p=None,
@@ -910,121 +1210,138 @@ def invariant_measurements(seed: int, invariant: str, pm: bool) -> Iterator[tupl
                     cases = [lcc_eq_case(seed=int(s), dim=(n, k)) for s in seeds]
                 else:
                     cases = [
-                        replace(non_lcc_eq_case(seed=int(s), dim=(n, k)), expected_lc=None)
+                        replace(
+                            non_lcc_eq_case(seed=int(s), dim=(n, k)), expected_lc=None
+                        )
                         for s in seeds
                     ]
             yield measurement, cases
 
-def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax: int | None = None) -> list[Case]:
+
+def default_cases(
+    seed: int, random: bool = False, nmin: int | None = None, nmax: int | None = None
+) -> list[Case]:
     """Return test cases."""
     case_bell_pair_same = Case(
-            name="bell_pair_same",
-            inputs=(bell_pair, bell_pair),
-            expected_p=True,
-            expected_lc=True,
+        name="bell_pair_same",
+        inputs=(bell_pair, bell_pair),
+        expected_p=True,
+        expected_lc=True,
     )
 
     case_three_qubits_permuted = Case(
-            name="three_qubits_permuted", 
-            inputs=(three_bit_repetition, permutation_equivalent_css_code(three_bit_repetition, seed=seed + 1)),
-            expected_p=True,
-            expected_lc=None,
+        name="three_qubits_permuted",
+        inputs=(
+            three_bit_repetition,
+            permutation_equivalent_css_code(three_bit_repetition, seed=seed + 1),
+        ),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_steane_permuted = Case(
-            name="steane_permuted", 
-            inputs=(steane, permutation_equivalent_css_code(steane, seed=seed + 2)),
-            expected_p=True,
-            expected_lc=None,
+        name="steane_permuted",
+        inputs=(steane, permutation_equivalent_css_code(steane, seed=seed + 2)),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_shor_permuted = Case(
-            name="shor_permuted", 
-            inputs=(shor, permutation_equivalent_css_code(shor, seed=seed + 7)),
-            expected_p=True,
-            expected_lc=None,
+        name="shor_permuted",
+        inputs=(shor, permutation_equivalent_css_code(shor, seed=seed + 7)),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_carbon_permuted = Case(
-            name="carbon_permuted",
-            inputs=(carbon, permutation_equivalent_css_code(carbon, seed=seed + 3)),
-            expected_p=True,
-            expected_lc=None,
+        name="carbon_permuted",
+        inputs=(carbon, permutation_equivalent_css_code(carbon, seed=seed + 3)),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_tetrahedral_permuted = Case(
-            name="tetrahedral_permuted", 
-            inputs=(tetrahedral, permutation_equivalent_css_code(tetrahedral, seed=seed + 8)),
-            expected_p=True,
-            expected_lc=None,
+        name="tetrahedral_permuted",
+        inputs=(
+            tetrahedral,
+            permutation_equivalent_css_code(tetrahedral, seed=seed + 8),
+        ),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_hamming_15_permuted = Case(
-            name="hamming_15_permuted", 
-            inputs=(hamming_15, permutation_equivalent_css_code(hamming_15, seed=seed + 5)),
-            expected_p=True,
-            expected_lc=None,
+        name="hamming_15_permuted",
+        inputs=(hamming_15, permutation_equivalent_css_code(hamming_15, seed=seed + 5)),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_golay_permuted = Case(
-            name="golay_permuted", 
-            inputs=(golay, permutation_equivalent_css_code(golay, seed=seed + 4)),
-            expected_p=True,
-            expected_lc=None,
+        name="golay_permuted",
+        inputs=(golay, permutation_equivalent_css_code(golay, seed=seed + 4)),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_rotated_surface_d5_permuted = Case(
-            name="rotated_surface_d5_permuted", 
-            inputs=(rotated_surface_d5, permutation_equivalent_css_code(rotated_surface_d5, seed=seed + 6)),
-            expected_p=True,
-            expected_lc=None,
+        name="rotated_surface_d5_permuted",
+        inputs=(
+            rotated_surface_d5,
+            permutation_equivalent_css_code(rotated_surface_d5, seed=seed + 6),
+        ),
+        expected_p=True,
+        expected_lc=None,
     )
 
     case_five_qubits_lc_only = Case(
-            name="five_qubits_lc_only",
-            inputs=(five_qubit_perfect, lc_equivalent_code(five_qubit_perfect, seed=seed + 3)),
-            expected_p=None,
-            expected_lc=True,
+        name="five_qubits_lc_only",
+        inputs=(
+            five_qubit_perfect,
+            lc_equivalent_code(five_qubit_perfect, seed=seed + 3),
+        ),
+        expected_p=None,
+        expected_lc=True,
     )
 
     case_shor_lc_only = Case(
-            name="shor_lc_only",
-            inputs=(shor, lc_equivalent_code(shor, seed=seed + 69)),
-            expected_p=None, 
-            expected_lc=True,
+        name="shor_lc_only",
+        inputs=(shor, lc_equivalent_code(shor, seed=seed + 69)),
+        expected_p=None,
+        expected_lc=True,
     )
 
     case_shor_lc_css = Case(
-            name="shor_lc_css",
-            inputs=tuple([lc_equivalent_code(shor, seed=seed + 1337)]),
-            expected_p=None, 
-            expected_lc=True,
+        name="shor_lc_css",
+        inputs=tuple([lc_equivalent_code(shor, seed=seed + 1337)]),
+        expected_p=None,
+        expected_lc=True,
     )
 
     case_three_qubits_lc_css = Case(
-            name="three_qubits_lc_css",
-            inputs=tuple([lc_equivalent_code(three_bit_repetition, seed=seed + 1337)]),
-            expected_p=None, 
-            expected_lc=True,
+        name="three_qubits_lc_css",
+        inputs=tuple([lc_equivalent_code(three_bit_repetition, seed=seed + 1337)]),
+        expected_p=None,
+        expected_lc=True,
     )
 
     case_steane_lc_css = Case(
-            name="steane_lc_css",
-            inputs=tuple([lc_equivalent_code(steane, seed=seed + 1337)]),
-            expected_p=None, 
-            expected_lc=True,
+        name="steane_lc_css",
+        inputs=tuple([lc_equivalent_code(steane, seed=seed + 1337)]),
+        expected_p=None,
+        expected_lc=True,
     )
 
     known_permuted = [
-        case_bell_pair_same, # n = 2 , k = 0
-        case_three_qubits_permuted, # n = 3 , k = 1
-        case_steane_permuted, # n = 7 , k = 1
-        case_shor_permuted, # n = 9 , k = 1
-        case_carbon_permuted, # n = 12 , k = 2
-        case_tetrahedral_permuted, # n = 15 , k = 1
-        case_hamming_15_permuted, # n = 15 , k = 7
-        case_golay_permuted, # n = 23 , k = 1
-        case_rotated_surface_d5_permuted, # n = 25 , k = 1
+        case_bell_pair_same,  # n = 2 , k = 0
+        case_three_qubits_permuted,  # n = 3 , k = 1
+        case_steane_permuted,  # n = 7 , k = 1
+        case_shor_permuted,  # n = 9 , k = 1
+        case_carbon_permuted,  # n = 12 , k = 2
+        case_tetrahedral_permuted,  # n = 15 , k = 1
+        case_hamming_15_permuted,  # n = 15 , k = 7
+        case_golay_permuted,  # n = 23 , k = 1
+        case_rotated_surface_d5_permuted,  # n = 25 , k = 1
     ]
 
     random_permuted_css = [
@@ -1033,7 +1350,7 @@ def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax
         permuted_css_case(seed=seed + 2, dim=(5, 2)),
         permuted_css_case(seed=seed + 3, dim=(6, 3)),
         permuted_css_case(seed=seed + 7, dim=(7, 2)),
-        permuted_css_case(seed=seed + 69, dim=(8, 3)), 
+        permuted_css_case(seed=seed + 69, dim=(8, 3)),
         permuted_css_case(seed=seed + 420, dim=(9, 5)),
         permuted_css_case(seed=seed, dim=(10, 4)),
     ]
@@ -1044,7 +1361,7 @@ def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax
         permuted_stabilizer_case(seed=seed + 2, dim=(5, 2)),
         permuted_stabilizer_case(seed=seed + 3, dim=(6, 3)),
         permuted_stabilizer_case(seed=seed + 7, dim=(7, 2)),
-        permuted_stabilizer_case(seed=seed + 69, dim=(8, 3)), 
+        permuted_stabilizer_case(seed=seed + 69, dim=(8, 3)),
         permuted_stabilizer_case(seed=seed + 420, dim=(9, 5)),
         permuted_stabilizer_case(seed=seed, dim=(10, 4)),
         permuted_stabilizer_case(seed=seed + 12, dim=(10, 4)),
@@ -1052,8 +1369,6 @@ def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax
         permuted_stabilizer_case(seed=seed + 4, dim=(13, 4)),
         permuted_stabilizer_case(seed=seed + 6, dim=(13, 4)),
         permuted_stabilizer_case(seed=seed + 9, dim=(15, 4)),
-
-
     ]
 
     random_non_permuted_css = [
@@ -1072,18 +1387,18 @@ def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax
         non_permuted_stabilizer_case(seed=seed + 420, dim=(10, 4)),
         non_permuted_stabilizer_case(seed=seed + 4, dim=(13, 4)),
         non_permuted_stabilizer_case(seed=seed + 6, dim=(13, 4)),
-        non_permuted_stabilizer_case(seed=seed + 9, dim=(15, 4))
+        non_permuted_stabilizer_case(seed=seed + 9, dim=(15, 4)),
     ]
 
     known_lc = [
-        case_five_qubits_lc_only, # n = 5 , k = 1
-        case_shor_lc_only, # n = 9 , k = 1 
+        case_five_qubits_lc_only,  # n = 5 , k = 1
+        case_shor_lc_only,  # n = 9 , k = 1
     ]
 
     known_lc_css = [
-        case_three_qubits_lc_css, # n = 3 , k = 1
-        case_steane_lc_css, # n = 7 , k = 1
-        case_shor_lc_css, # n = 9 , k = 1
+        case_three_qubits_lc_css,  # n = 3 , k = 1
+        case_steane_lc_css,  # n = 7 , k = 1
+        case_shor_lc_css,  # n = 9 , k = 1
     ]
 
     random_lc_css = [
@@ -1091,11 +1406,22 @@ def default_cases(seed: int, random: bool = False, nmin: int | None = None, nmax
     ]
 
     if random:
-        default_cases = random_permuted_css + random_non_permuted_css +random_permuted_stb + random_non_permuted_stb + random_lc_css
+        default_cases = (
+            random_permuted_css
+            + random_non_permuted_css
+            + random_permuted_stb
+            + random_non_permuted_stb
+            + random_lc_css
+        )
     else:
         default_cases = known_permuted + known_lc + known_lc_css
 
-    return [case for case in default_cases if (nmin is None or case.inputs[0].n >= nmin) and (nmax is None or case.inputs[0].n <= nmax)]
+    return [
+        case
+        for case in default_cases
+        if (nmin is None or case.inputs[0].n >= nmin)
+        and (nmax is None or case.inputs[0].n <= nmax)
+    ]
 
 
 def _run_algorithm_once(
@@ -1110,9 +1436,15 @@ def _run_algorithm_once(
         result = algorithm(*inputs)
         return perf_counter() - start, result, "ok"
 
-    context = mp.get_context("fork") if "fork" in mp.get_all_start_methods() else mp.get_context()
+    context = (
+        mp.get_context("fork")
+        if "fork" in mp.get_all_start_methods()
+        else mp.get_context()
+    )
     queue: mp.Queue = context.Queue()
-    process = context.Process(target=_algorithm_worker, args=(algorithm, inputs, queue, memory_limit_bytes))
+    process = context.Process(
+        target=_algorithm_worker, args=(algorithm, inputs, queue, memory_limit_bytes)
+    )
 
     start = perf_counter()
     deadline = None if timeout is None else start + timeout
@@ -1124,9 +1456,12 @@ def _run_algorithm_once(
             queue.close()
             return timeout, None, "timeout"
 
-        # The worker starts a new process group, so this includes subprocesses
-        # such as GAP in pm_stb_aut as well as the Python worker itself.
-        rss_bytes = _read_process_group_rss_bytes(process.pid) if process.pid is not None else None
+        # The worker starts a new process group to enable resource monitoring
+        rss_bytes = (
+            _read_process_group_rss_bytes(process.pid)
+            if process.pid is not None
+            else None
+        )
         if rss_bytes is not None:
             if memory_limit_bytes is not None and rss_bytes >= memory_limit_bytes:
                 elapsed = perf_counter() - start
@@ -1178,7 +1513,11 @@ def run_case(
     memory_limit_bytes: int | None = None,
 ) -> Result:
     """Run one algorithm on one case."""
-    expected = case.expected_p if algorithm_name.startswith("pm") else (case.expected_lc if algorithm_name.startswith("lc") else None)
+    expected = (
+        case.expected_p
+        if algorithm_name.startswith("pm")
+        else (case.expected_lc if algorithm_name.startswith("lc") else None)
+    )
 
     try:
         seconds, raw_result, status = _run_algorithm_once(
@@ -1234,7 +1573,13 @@ def run_raw_benchmarks(
             if verbose:
                 print(f"    Running case: {case.name}...")
             result_algorithm.append(
-                run_case(algorithm_name, ALGORITHMS[algorithm_name], case, timeout, memory_limit_bytes)
+                run_case(
+                    algorithm_name,
+                    ALGORITHMS[algorithm_name],
+                    case,
+                    timeout,
+                    memory_limit_bytes,
+                )
             )
 
         if verbose:
@@ -1243,6 +1588,7 @@ def run_raw_benchmarks(
         results.extend(result_algorithm)
 
     return results
+
 
 def run_stat_benchmarks(
     algorithm_names: Sequence[str],
@@ -1262,23 +1608,40 @@ def run_stat_benchmarks(
         if verbose:
             print(f"Running benchmark for algorithm: {algorithm_name}")
         stats_algorithm = []
-        for measurement, measurement_cases in seeded_measurements(seed=seed, algorithm=algorithm_name, random=random, nmin=nmin, nmax=nmax):
+        for measurement, measurement_cases in seeded_measurements(
+            seed=seed, algorithm=algorithm_name, random=random, nmin=nmin, nmax=nmax
+        ):
             if verbose:
-                print(f"    Running measurement for n={measurement.n} k={measurement.k}:")
+                print(
+                    f"    Running measurement for n={measurement.n} k={measurement.k}:"
+                )
             results: list[Result] = []
-            timeout_counter = 0 # avoid running 10 seeds that run into timeouts either way
-            memory_counter = 0 # avoid running seeds that are expected to hit the same memory limit
+            timeout_counter = (
+                0  # avoid running 10 seeds that run into timeouts either way
+            )
+            memory_counter = (
+                0  # avoid running seeds that are expected to hit the same memory limit
+            )
 
             for case in measurement_cases:
                 if not case_supports_algorithm(case, algorithm_name):
                     continue
-                if timeout_counter >= MAX_TOL_TIMEOUTS or memory_counter >= MAX_TOL_MEMORY_ERRORS:
+                if (
+                    timeout_counter >= MAX_TOL_TIMEOUTS
+                    or memory_counter >= MAX_TOL_MEMORY_ERRORS
+                ):
                     break
                 if verbose:
                     print(f"        Running case: {case.name}...")
 
                 results.append(
-                    run_case(algorithm_name, ALGORITHMS[algorithm_name], case, timeout, memory_limit_bytes)
+                    run_case(
+                        algorithm_name,
+                        ALGORITHMS[algorithm_name],
+                        case,
+                        timeout,
+                        memory_limit_bytes,
+                    )
                 )
 
                 if result_timed_out(results[-1]):
@@ -1289,10 +1652,17 @@ def run_stat_benchmarks(
             stat = compute_statistics(results, measurement)
 
             stats_algorithm.append(stat)
-            write_stat(stat, seed=seed, output=output, timeout=timeout, memory_limit_bytes=memory_limit_bytes)
+            write_stat(
+                stat,
+                seed=seed,
+                output=output,
+                timeout=timeout,
+                memory_limit_bytes=memory_limit_bytes,
+            )
 
         if verbose:
             print_statistics(stats_algorithm)
+
 
 def run_inv_benchmarks(
     pm: bool,
@@ -1313,9 +1683,20 @@ def run_inv_benchmarks(
             timeout_counter = 0
             memory_counter = 0
             for case in cases:
-                if timeout_counter >= MAX_TOL_TIMEOUTS or memory_counter >= MAX_TOL_MEMORY_ERRORS:
+                if (
+                    timeout_counter >= MAX_TOL_TIMEOUTS
+                    or memory_counter >= MAX_TOL_MEMORY_ERRORS
+                ):
                     break
-                results.append(run_case(inv_name, invariants[inv_name], case, timeout, memory_limit_bytes))
+                results.append(
+                    run_case(
+                        inv_name,
+                        invariants[inv_name],
+                        case,
+                        timeout,
+                        memory_limit_bytes,
+                    )
+                )
                 timeout_counter += int(result_timed_out(results[-1]))
                 memory_counter += int(result_memory_limited(results[-1]))
             statistic = compute_statistics(results, measurement)
@@ -1331,6 +1712,7 @@ def prefixed_output_path(output: Path, prefix: str) -> Path:
         return output
     return output.with_name(f"{prefix}_{output.name}")
 
+
 def result_timed_out(result: Result) -> bool:
     """Return whether a result failed because at least one repeat timed out."""
     return result.status == "timeout"
@@ -1341,7 +1723,9 @@ def result_memory_limited(result: Result) -> bool:
     return result.status == "memory_limit"
 
 
-def compute_statistics(results: Sequence[Result], measurement: Measurement) -> Statistic:
+def compute_statistics(
+    results: Sequence[Result], measurement: Measurement
+) -> Statistic:
     """Compute mean and standard deviation of runtimes for each algorithm and case."""
     times = []
     num_timeouts = 0
@@ -1357,11 +1741,13 @@ def compute_statistics(results: Sequence[Result], measurement: Measurement) -> S
             num_memory_limited += 1
 
         if result.status not in {"ok", "timeout"}:
-            print(f"Warning: Skipping failed case {result.case} for algorithm {result.algorithm} in statistics.")
+            print(
+                f"Warning: Skipping failed case {result.case} for algorithm {result.algorithm} in statistics."
+            )
             continue
 
         times.append(result.seconds)
-    
+
     mean = float(np.mean(times)) if times else float("nan")
     stddev = np.std(times, ddof=1) if len(times) > 1 else 0.0
 
@@ -1376,8 +1762,11 @@ def compute_statistics(results: Sequence[Result], measurement: Measurement) -> S
         num_timeouts=num_timeouts,
         num_memory_limited=num_memory_limited,
     )
-    
-def _metadata_row(seed: int, timeout: float | None, memory_limit_bytes: int | None) -> list[str | int | float]:
+
+
+def _metadata_row(
+    seed: int, timeout: float | None, memory_limit_bytes: int | None
+) -> list[str | int | float]:
     return [
         seed,
         "" if timeout is None else timeout,
@@ -1420,6 +1809,7 @@ def write_stat(
             writer.writeheader()
         writer.writerow(row)
 
+
 def write_bms(
     results: Sequence[Result],
     seed: int,
@@ -1458,11 +1848,13 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
     if len(statistics) == 0:
         print("No statistics to show.")
         return
-    
+
     print()
     print("Benchmark statistics:\n")
 
-    for stat in [s for s in statistics if s.meta.positive] + [s for s in statistics if not s.meta.positive]:
+    for stat in [s for s in statistics if s.meta.positive] + [
+        s for s in statistics if not s.meta.positive
+    ]:
         mean = "--" if np.isnan(stat.mean) else f"{stat.mean:.6f}s"
         stddev = "--" if np.isnan(stat.stddev) else f"{stat.stddev:.6f}s"
         maximum = "--" if np.isnan(stat.maximum) else f"{stat.maximum:.6f}s"
@@ -1471,6 +1863,7 @@ def print_statistics(statistics: Sequence[Statistic]) -> None:
             f"mean={mean} stddev={stddev} max={maximum} "
             f"timeouts={stat.num_timeouts} memory={stat.num_memory_limited} ntotal={stat.num_cases} nsuccess={stat.num_successful}"
         )
+
 
 def print_results(results: Sequence[Result]) -> None:
     """Print benchmark results to console."""
@@ -1489,9 +1882,13 @@ def print_results(results: Sequence[Result]) -> None:
 
 def parse_memory_limit(value: str) -> int:
     """Parse human-readable memory sizes like 4096M, 32G, or raw bytes."""
-    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*([kmgt]?i?b?|b)?\s*", value, re.IGNORECASE)
+    match = re.fullmatch(
+        r"\s*(\d+(?:\.\d+)?)\s*([kmgt]?i?b?|b)?\s*", value, re.IGNORECASE
+    )
     if match is None:
-        raise argparse.ArgumentTypeError("expected a size like 4096M, 32G, 16GiB, or raw bytes")
+        raise argparse.ArgumentTypeError(
+            "expected a size like 4096M, 32G, 16GiB, or raw bytes"
+        )
 
     number = float(match.group(1))
     unit = (match.group(2) or "b").lower()
@@ -1537,13 +1934,35 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "Defaults to all implemented algorithms."
         ),
     )
-    parser.add_argument("--output", type=Path, default=Path("results/latest.csv"), help="CSV output path.")
-    parser.add_argument("--seed", type=int, default=42, help="Seed for reproducibility.")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("results/latest.csv"),
+        help="CSV output path.",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Seed for reproducibility."
+    )
     parser.add_argument("--nmin", type=int, help="Minimum value for n.")
     parser.add_argument("--nmax", type=int, help="Maximum value for n.")
-    parser.add_argument("--verbose", action="store_true", default=False, help="Print detailed results updates.")
-    parser.add_argument("--random", action="store_true", default=False, help="Use randomly generated cases instead of fixed ones.")
-    parser.add_argument("--timeout", type=float, default=None, help="Maximum seconds allowed for each repeat before it is stopped.")
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Print detailed results updates.",
+    )
+    parser.add_argument(
+        "--random",
+        action="store_true",
+        default=False,
+        help="Use randomly generated cases instead of fixed ones.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Maximum seconds allowed for each repeat before it is stopped.",
+    )
     parser.add_argument(
         "--memory-limit",
         type=parse_memory_limit,
@@ -1592,7 +2011,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     if args.mode == "inv" and args.algorithm:
         parser.error("--algorithm can only be used with raw or stats benchmarks.")
     if args.mode in {"inv", "structured_hybrid_stats"} and args.random:
-        parser.error("--random cannot be used with invariant or structured hybrid benchmarks.")
+        parser.error(
+            "--random cannot be used with invariant or structured hybrid benchmarks."
+        )
     if args.mode == "inv" and (args.nmin is not None or args.nmax is not None):
         parser.error("--nmin and --nmax can only be used with raw or stats benchmarks.")
     try:
@@ -1634,7 +2055,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"STATISTICAL BENCHMARKS for {s} cases")
         if args.output.exists():
             args.output.unlink()
-            
+
         run_stat_benchmarks(
             args.algorithm,
             args.seed,
@@ -1647,23 +2068,29 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.nmax,
         )
         return 0
-    
+
     if args.mode == "inv":
         print("INVARIANT BENCHMARKS")
-            
+
         pm_output = prefixed_output_path(args.output, "pm")
         lc_output = prefixed_output_path(args.output, "lc")
         for output in (pm_output, lc_output):
             if output.exists():
                 output.unlink()
-        run_inv_benchmarks(True, args.seed, pm_output, args.timeout, args.memory_limit, args.verbose)
-        run_inv_benchmarks(False, args.seed, lc_output, args.timeout, args.memory_limit, args.verbose)
+        run_inv_benchmarks(
+            True, args.seed, pm_output, args.timeout, args.memory_limit, args.verbose
+        )
+        run_inv_benchmarks(
+            False, args.seed, lc_output, args.timeout, args.memory_limit, args.verbose
+        )
         return 0
- 
+
     raw_case_kind = "random" if args.random else "structured"
     print(f"RAW BENCHMARKS for {raw_case_kind} cases")
     results = run_raw_benchmarks(
-        default_cases(seed=args.seed, random=args.random, nmin=args.nmin, nmax=args.nmax),
+        default_cases(
+            seed=args.seed, random=args.random, nmin=args.nmin, nmax=args.nmax
+        ),
         args.algorithm,
         timeout=args.timeout,
         memory_limit_bytes=args.memory_limit,
@@ -1671,6 +2098,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     write_bms(results, args.seed, args.output, args.timeout, args.memory_limit)
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())
