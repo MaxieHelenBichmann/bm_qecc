@@ -4,7 +4,7 @@ This repository benchmarks different approaches to equivalence checking for quan
 
 This README does not discuss the examined equivalence notions or their theoretical foundations in depth; those are covered in the thesis. References for the implemented algorithms are cited in the corresponding source files.
 
-This repository is currently not intended to be installed as a package. Its final hybrid algorithms are contributed to [MQT QECC](https://github.com/munich-quantum-toolkit/qecc).
+This repository is currently not intended to be installed as a package, or be a professionally polished replication package. Its final hybrid algorithms are contributed to [MQT QECC](https://github.com/munich-quantum-toolkit/qecc).
 
 ## Problems
 
