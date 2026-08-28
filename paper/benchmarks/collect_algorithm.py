@@ -19,17 +19,23 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from pathlib import Path
 
+from benchmarks.experiments.statistics import run_statistics
 from benchmarks.thesis import resolve_names
-from benchmarks.thesis.thesis_prototypes import ALGORITHMS, run_suite
-from paper.benchmarks.utils.config import ALGORITHM_DATA_DIR
+from benchmarks.thesis.thesis_prototypes import (
+    ALGORITHMS,
+    RandomCaseGenerator,
+    measurement_dimensions,
+)
 
+ROOT = Path(__file__).resolve().parents[2]
 MASTER_SEED = 42
 NUM_SEEDS = 10
 TIMEOUT_SECONDS = 5_400.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
 VERBOSE = True
-OUTPUT_DIRECTORY = ALGORITHM_DATA_DIR
+OUTPUT_DIRECTORY = ROOT / "paper" / "data" / "collected" / "algorithms"
 
 # Inclusive ranges, intentionally centralized so server runs can be tuned by
 # editing one table without adding more command-line configuration.
@@ -69,23 +75,30 @@ def collect(algorithm_names: Sequence[str]) -> None:
     for algorithm_name in algorithm_names:
         nmin, nmax = ALGORITHM_N_RANGES[algorithm_name]
         output_file = OUTPUT_DIRECTORY / f"{algorithm_name}.csv"
+        algorithm = ALGORITHMS[algorithm_name]
         if VERBOSE:
             print(
                 f"{algorithm_name}: n={nmin}..{nmax}, {NUM_SEEDS} seeds/cell "
                 f"-> {output_file}",
                 flush=True,
             )
-        run_suite(
-            [algorithm_name],
-            seed=MASTER_SEED,
-            nr_seeds=NUM_SEEDS,
-            output_file=output_file,
-            nmin=nmin,
-            nmax=nmax,
-            timeout=TIMEOUT_SECONDS,
-            max_memory_bytes=MEMORY_LIMIT_BYTES,
-            verbose=VERBOSE,
-        )
+        for n, k in measurement_dimensions(nmin, nmax):
+            if algorithm_name == "lc_stb_lse" and k >= 2:
+                continue
+            for positive in (True, False):
+                if VERBOSE:
+                    label = "positive" if positive else "negative"
+                    print(f"    [[{n},{k}]] {label}", flush=True)
+                run_statistics(
+                    algorithm,
+                    RandomCaseGenerator(algorithm_name, n, k, positive),
+                    MASTER_SEED,
+                    NUM_SEEDS,
+                    output_file,
+                    timeout=TIMEOUT_SECONDS,
+                    max_memory_bytes=MEMORY_LIMIT_BYTES,
+                    verbose=VERBOSE,
+                )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

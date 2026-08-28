@@ -8,11 +8,15 @@ import csv
 import pytest
 
 from benchmarks.experiments.run import RunResult
-from paper.benchmarks import collect_invariant_rejections
+from paper.benchmarks import collect_invariant_rejections as rejections
+from paper.benchmarks import collect_signature_space as signatures
 from paper.benchmarks.collect_signature_space import signature_metric
 from paper.benchmarks import collect_algorithm
-from paper.benchmarks.utils.config import DIMENSIONS, SEEDS
-from paper.benchmarks.utils.generation import certified_negative_pair
+from paper.benchmarks.collect_invariant_rejections import (
+    DIMENSIONS,
+    SEEDS,
+    certified_negative_pair,
+)
 from src.algorithms.p_css.p_css_sat import are_peq_css_sat
 from src.algorithms.p_stb.p_stab_sat import are_peq_stab_sat
 from src.core.css_code import CSSCode
@@ -39,6 +43,52 @@ def test_independent_css_negative_has_a_complete_certificate() -> None:
         right.Hz.shape[0],
     )
     assert rank_mismatch or are_peq_css_sat(left, right) is False
+
+
+def test_css_certifier_selection_respects_backend_limits() -> None:
+    assert rejections._css_certifier(47, 38) is are_peq_css_sat  # r = 9
+    assert rejections._css_certifier(28, 18) is rejections.are_peq_css_matroid
+    assert rejections._css_certifier(29, 19) is None
+
+
+def test_large_high_rank_css_uses_certified_generator_without_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pair = (object(), object())
+    monkeypatch.setattr(
+        rejections.NonPEqCodePairGenerator,
+        "css_codes_cascaded",
+        lambda *args: pair,
+    )
+    monkeypatch.setattr(
+        rejections,
+        "_certified_inequivalent",
+        lambda *args: pytest.fail("large CSS fallback must not invoke a backend"),
+    )
+
+    assert rejections.certified_negative_pair(
+        "pm_css", 29, 19, 89, max_attempts=1
+    ) is pair
+
+
+def test_large_pm_stb_signature_pair_matches_by_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pair = (object(), object())
+    monkeypatch.setattr(
+        signatures.NonPEqCodePairGenerator,
+        "stabilizer_codes_x_z_rank_projection",
+        lambda *args: pair,
+    )
+    monkeypatch.setattr(
+        signatures,
+        "certified_negative_pair",
+        lambda *args, **kwargs: pytest.fail(
+            "large PM-STB signature generation must not rejection-sample signatures"
+        ),
+    )
+
+    assert signatures.signature_pair("pm_stb", 21, 10, 89, False) is pair
 
 
 def test_signature_metric_has_the_expected_extremes() -> None:
@@ -70,19 +120,22 @@ def test_algorithm_collector_chooses_output_file_from_algorithm(
     calls = []
     monkeypatch.setattr(collect_algorithm, "OUTPUT_DIRECTORY", tmp_path)
     monkeypatch.setattr(collect_algorithm, "VERBOSE", False)
+    monkeypatch.setattr(collect_algorithm, "measurement_dimensions", lambda *args: [(3, 1)])
     monkeypatch.setattr(
         collect_algorithm,
-        "run_suite",
+        "run_statistics",
         lambda *args, **kwargs: calls.append((args, kwargs)),
     )
 
     collect_algorithm.collect(["pm_stb_sat"])
 
-    assert len(calls) == 1
+    assert len(calls) == 2
     args, kwargs = calls[0]
-    assert args == (["pm_stb_sat"],)
-    assert kwargs["output_file"] == tmp_path / "pm_stb_sat.csv"
-    assert (kwargs["nmin"], kwargs["nmax"]) == collect_algorithm.ALGORITHM_N_RANGES["pm_stb_sat"]
+    assert args[0] is collect_algorithm.ALGORITHMS["pm_stb_sat"]
+    assert args[1].n == 3 and args[1].k == 1 and args[1].positive is True
+    assert args[2:4] == (collect_algorithm.MASTER_SEED, collect_algorithm.NUM_SEEDS)
+    assert args[4] == tmp_path / "pm_stb_sat.csv"
+    assert calls[1][0][1].positive is False
 
 
 def test_raw_collector_persists_rows_and_resumes_without_duplicates(
@@ -90,14 +143,14 @@ def test_raw_collector_persists_rows_and_resumes_without_duplicates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     output = tmp_path / "rejections.csv"
-    monkeypatch.setattr(collect_invariant_rejections, "PROBLEMS", ("pm_stb",))
+    monkeypatch.setattr(rejections, "PROBLEMS", ("pm_stb",))
     monkeypatch.setattr(
-        collect_invariant_rejections,
+        rejections,
         "certified_negative_pair",
         lambda *args: (object(), object()),
     )
     monkeypatch.setattr(
-        collect_invariant_rejections,
+        rejections,
         "run",
         lambda *args, **kwargs: RunResult(
             runtime=0.1,
@@ -110,10 +163,10 @@ def test_raw_collector_persists_rows_and_resumes_without_duplicates(
         ),
     )
 
-    first = collect_invariant_rejections.collect(
+    first = rejections.collect(
         dimensions=[(3, 1)], seeds=[89], output_file=output
     )
-    second = collect_invariant_rejections.collect(
+    second = rejections.collect(
         dimensions=[(3, 1)], seeds=[89], output_file=output
     )
 

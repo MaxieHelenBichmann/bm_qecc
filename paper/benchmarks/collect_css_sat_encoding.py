@@ -15,6 +15,7 @@ file with the normal ``pm_stb_sat.csv`` and ``pm_css_sat.csv`` files.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from benchmarks.experiments.generators_random import (
@@ -23,16 +24,16 @@ from benchmarks.experiments.generators_random import (
 )
 from benchmarks.experiments.statistics import BenchmarkCase, run_statistics
 from benchmarks.thesis.thesis_prototypes import DecisionAlgorithm, measurement_dimensions
-from paper.benchmarks.utils.config import COLLECTED_DATA_DIR
 from src.algorithms.p_stb.p_stab_sat import are_peq_stab_sat
 
+ROOT = Path(__file__).resolve().parents[2]
 MASTER_SEED = 42
 NUM_SEEDS = 10
 TIMEOUT_SECONDS = 5_400.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
 VERBOSE = True
 N_RANGE = (3, 47)
-OUTPUT_FILE = COLLECTED_DATA_DIR / "pm_stb_sat_on_css.csv"
+OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "pm_stb_sat_on_css.csv"
 
 
 @dataclass(frozen=True)

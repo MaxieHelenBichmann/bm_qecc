@@ -54,7 +54,7 @@ import os
 import sys
 import tempfile
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean, stdev
@@ -68,27 +68,21 @@ from benchmarks.experiments.generators_structured import (
     load_named_code,
     named_code_names,
 )
-from benchmarks.experiments.run import run
+from benchmarks.experiments.run import RunResult, run
 from benchmarks.experiments.statistics import deterministic_seeds
-from paper.benchmarks.utils.config import (
-    COLLECTED_DATA_DIR,
-    append_csv_row,
-    completed_csv_keys,
-    csv_key,
-    execution_status,
-)
 from paper.hybrids.lc_stb import are_lceq
 from paper.hybrids.pm_css import are_peq_css
 from paper.hybrids.pm_stb import are_peq_stab
 from src.core.css_code import CSSCode
 
+ROOT = Path(__file__).resolve().parents[2]
 MASTER_SEED = 42
 NUM_SEEDS = 10
 SEED_UPPER_BOUND = 1_000
 TIMEOUT_SECONDS = 5_400.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
 VERBOSE = True
-OUTPUT_DIRECTORY = COLLECTED_DATA_DIR / "hybrids"
+OUTPUT_DIRECTORY = ROOT / "paper" / "data" / "collected" / "hybrids"
 
 #: Stage tags the hybrids print on entry, in pipeline order.
 COMPONENTS = ("CI", "EI", "S", "BF", "MI", "GI", "SAT", "LSE")
@@ -98,6 +92,54 @@ TRIVIAL = "trivial"
 UNREACHED = "start"
 #: Prefix under which the traced call records the component that decided.
 DECIDED_MARKER = "#decided_by "
+
+
+def execution_status(result: RunResult) -> str:
+    if result.timed_out:
+        return "timeout"
+    if result.memory_exceeded:
+        return "memory_limited"
+    if result.error is not None:
+        return "error"
+    return "success"
+
+
+def csv_key(*values: Any) -> tuple[str, ...]:
+    return tuple(str(value) for value in values)
+
+
+def completed_csv_keys(
+    path: Path,
+    key_fields: Sequence[str],
+) -> set[tuple[str, ...]]:
+    if not path.is_file() or path.stat().st_size == 0:
+        return set()
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        missing = set(key_fields) - set(reader.fieldnames or ())
+        if missing:
+            raise ValueError(
+                f"{path} has an incompatible header; missing {sorted(missing)}"
+            )
+        return {
+            tuple(row[field] for field in key_fields)
+            for row in reader
+            if all(row.get(field) is not None for field in key_fields)
+        }
+
+
+def append_csv_row(
+    path: Path,
+    row: Mapping[str, Any],
+    fields: Sequence[str],
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_header = not path.exists() or path.stat().st_size == 0
+    with path.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
 
 
 @dataclass(frozen=True)

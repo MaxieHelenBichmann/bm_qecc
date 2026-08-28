@@ -67,12 +67,30 @@ CSVs, so an interrupted server run continues without duplicating completed
 work. Remove an output file only when intentionally starting that collection
 from scratch.
 
-Everything that is not a runnable collector lives under `utils/`: `config.py`
-contains shared constants and CSV writing, `generation.py` contains direct
-deterministic negative-pair generation and SAT certification, and
-`invariants.py` contains the five invariant calls. There is no paper-specific
-runner, cached-instance object model, or serialized intermediate format; the
-collectors reuse `benchmarks/experiments/run.py`.
+Every runnable collector is self-contained, following `collect_hybrids.py`:
+its editable constants, input generation, certification choices, invariant
+calls, and collection loop are visible in that one file. Instance-level scripts
+also contain their resume keys and CSV persistence directly. Some small
+functions are intentionally duplicated so a server-side collection does not
+depend on paper-specific helper abstractions. The collectors only reuse the
+repository's generic generators, supervised runner, and statistical benchmark
+machinery.
+
+CSS negative certification follows the available backend domains. Independent
+candidates use SAT for `r = n-k <= 9`, matroid isomorphism for `r > 9` with
+`n <= 28`, and never invoke either backend for `r > 9, n > 28`. That last
+region uses `css_codes_cascaded`, which produces a negative carrying its own
+permutation-invariant certificate. Consequently the large/high-rank A1 and A2
+CSS population is certificate-conditioned rather than an unconditioned
+independent-pair population; A2 additionally resamples until signatures match.
+
+For A2 PM-STB negatives, independent candidates are signature-filtered only
+through `n=20`. Above that boundary, generating a matching independent pair
+would require too many expensive signature evaluations. The collector instead
+uses `stabilizer_codes_x_z_rank_projection`: its LC-derived partner has the same
+signature by construction, while a changed X+Z projection rank certifies
+permutation inequivalence. The measured signature itself is still computed once
+under the normal timeout and memory supervision.
 
 ## Which collection feeds which experiment?
 
