@@ -6,13 +6,16 @@ Usage::
 
 There are no CLI arguments. For each fixed ``(n, k, seed)`` the script normally
 draws two independent codes, certifies them with an admissible exact backend,
-and records whether each relevant invariant rejects the pair. PM-CSS uses SAT
+and records whether each relevant invariant rejects the pair. Independent CSS
+pairs are conditioned to have matching X- and Z-check ranks. PM-CSS uses SAT
 for ``r<=9``, matroid isomorphism for ``r>9,n<=28``, and the scalable certified
 CSS generator beyond those limits.
 
 Every result is appended immediately to
-``paper/data/collected/invariant_rejections.csv``. Restarting skips keys already
-present, while the A1 experiment performs all aggregation later.
+``paper/data/collected/invariant_rejections.csv``. Practical feasibility
+(runtime and memory consumption) is not important here; errors are merely
+recorded. Restarting skips keys already present, while the A1 experiment
+performs all aggregation later.
 """
 
 from __future__ import annotations
@@ -170,18 +173,15 @@ def _attempt_seed(problem: str, n: int, k: int, seed: int, attempt: int) -> int:
 
 def _independent_candidate(problem: str, n: int, k: int, seed: int) -> CodePair:
     if problem == "pm_css":
-        return NonPEqCodePairGenerator.css_codes_independent_candidate(n, k, seed)
+        # The attempt seed is uniformly hash-derived, so this selects one
+        # deterministic X-check rank for the pair. Passing it explicitly makes
+        # both independent draws have the same r_x and, because r_x+r_z=n-k,
+        # the same r_z. Rank mismatch must not make A1 negatives trivial.
+        rx = seed % (n - k + 1)
+        return NonPEqCodePairGenerator.css_codes_independent_candidate(
+            n, k, seed, rx=rx
+        )
     return NonPEqCodePairGenerator.stabilizer_codes_independent_candidate(n, k, seed)
-
-
-def _css_rank_mismatch(pair: CodePair) -> bool:
-    left, right = pair
-    return (
-        isinstance(left, CSSCode)
-        and isinstance(right, CSSCode)
-        and (left.Hx.shape[0], left.Hz.shape[0])
-        != (right.Hx.shape[0], right.Hz.shape[0])
-    )
 
 
 def _css_certifier(n: int, k: int) -> Callable[..., bool] | None:
@@ -193,8 +193,6 @@ def _css_certifier(n: int, k: int) -> Callable[..., bool] | None:
 
 
 def _certified_inequivalent(problem: str, pair: CodePair, n: int, k: int) -> bool:
-    if problem == "pm_css" and _css_rank_mismatch(pair):
-        return True
     certifier = _css_certifier(n, k) if problem == "pm_css" else CERTIFIERS[problem]
     if certifier is None:
         raise RuntimeError(f"no independent CSS certifier configured for [[{n},{k}]]")

@@ -36,13 +36,20 @@ def test_independent_stabilizer_negative_is_certified() -> None:
 def test_independent_css_negative_has_a_complete_certificate() -> None:
     left, right = certified_negative_pair("pm_css", 3, 1, 89, max_attempts=5)
     assert isinstance(left, CSSCode) and isinstance(right, CSSCode)
-    # Different check ranks are themselves a complete PM-CSS certificate; the
-    # SAT encoding is used internally when the ranks match.
-    rank_mismatch = (left.Hx.shape[0], left.Hz.shape[0]) != (
+    assert (left.Hx.shape[0], left.Hz.shape[0]) == (
         right.Hx.shape[0],
         right.Hz.shape[0],
     )
-    assert rank_mismatch or are_peq_css_sat(left, right) is False
+    assert are_peq_css_sat(left, right) is False
+
+
+def test_every_independent_css_candidate_has_matching_check_ranks() -> None:
+    for seed in range(10):
+        left, right = rejections._independent_candidate("pm_css", 7, 3, seed)
+        assert (left.Hx.shape[0], left.Hz.shape[0]) == (
+            right.Hx.shape[0],
+            right.Hz.shape[0],
+        )
 
 
 def test_css_certifier_selection_respects_backend_limits() -> None:
