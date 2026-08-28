@@ -4,12 +4,14 @@ Usage::
 
     python3 -m paper.benchmarks.collect_invariant_rejections
 
-There are no CLI arguments. For each fixed ``(n, k, seed)`` the script normally
-draws two independent codes, certifies them with an admissible exact backend,
-and records whether each relevant invariant rejects the pair. Independent CSS
-pairs are conditioned to have matching X- and Z-check ranks. PM-CSS uses SAT
-for ``r<=9``, matroid isomorphism for ``r>9,n<=28``, and the scalable certified
-CSS generator beyond those limits.
+There are no CLI arguments. For each fixed ``(n, k, seed)``, PM-STB and LC-STB
+apply a small, configurable number of random Clifford gates to one source code,
+while PM-CSS normally uses two independent codes with matching X- and Z-check
+ranks.
+Each candidate is certified with an admissible exact backend before the script
+records whether the relevant invariants reject it. PM-CSS uses SAT for
+``r<=9``, matroid isomorphism for ``r>9,n<=28``, and the scalable certified CSS
+generator beyond those limits.
 
 Every result is appended immediately to
 ``paper/data/collected/invariant_rejections.csv``. Practical feasibility
@@ -48,6 +50,7 @@ CERTIFICATION_TIMEOUT_SECONDS = 600.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
 CSS_SAT_MAX_R = 9
 CSS_MATROID_MAX_N = 28
+STABILIZER_CLIFFORD_GATE_STEPS = 2
 
 OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "invariant_rejections.csv"
 PROBLEMS = ("pm_stb", "pm_css", "lc_stb")
@@ -171,7 +174,7 @@ def _attempt_seed(problem: str, n: int, k: int, seed: int, attempt: int) -> int:
     return int.from_bytes(hashlib.sha256(value).digest()[:8], "big") % (2**32)
 
 
-def _independent_candidate(problem: str, n: int, k: int, seed: int) -> CodePair:
+def _candidate_pair(problem: str, n: int, k: int, seed: int) -> CodePair:
     if problem == "pm_css":
         # The attempt seed is uniformly hash-derived, so this selects one
         # deterministic X-check rank for the pair. Passing it explicitly makes
@@ -181,7 +184,16 @@ def _independent_candidate(problem: str, n: int, k: int, seed: int) -> CodePair:
         return NonPEqCodePairGenerator.css_codes_independent_candidate(
             n, k, seed, rx=rx
         )
-    return NonPEqCodePairGenerator.stabilizer_codes_independent_candidate(n, k, seed)
+    # A short random Clifford circuit keeps the two stabilizer codes related
+    # without consulting any measured invariant. Entangling gates can leave
+    # both the permutation and LC orbit; the exact problem-specific backend
+    # below decides whether the candidate is retained.
+    return NonPEqCodePairGenerator.stabilizer_codes_clifford_candidate(
+        n,
+        k,
+        seed,
+        gate_steps=STABILIZER_CLIFFORD_GATE_STEPS,
+    )
 
 
 def _css_certifier(n: int, k: int) -> Callable[..., bool] | None:
@@ -226,7 +238,7 @@ def certified_negative_pair(
         pair = (
             NonPEqCodePairGenerator.css_codes_cascaded(n, k, attempt_seed)
             if use_certified_css_generator
-            else _independent_candidate(problem, n, k, attempt_seed)
+            else _candidate_pair(problem, n, k, attempt_seed)
         )
         if use_certified_css_generator or _certified_inequivalent(problem, pair, n, k):
             return pair

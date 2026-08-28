@@ -28,7 +28,7 @@ def test_fixed_suite_matches_the_thesis_grid_and_seed_schedule() -> None:
     assert SEEDS == (89, 773, 654, 438, 433, 858, 85, 697, 201, 94)
 
 
-def test_independent_stabilizer_negative_is_certified() -> None:
+def test_clifford_perturbed_stabilizer_negative_is_certified() -> None:
     left, right = certified_negative_pair("pm_stb", 3, 1, 89, max_attempts=5)
     assert are_peq_stab_sat(left, right) is False
 
@@ -45,11 +45,30 @@ def test_independent_css_negative_has_a_complete_certificate() -> None:
 
 def test_every_independent_css_candidate_has_matching_check_ranks() -> None:
     for seed in range(10):
-        left, right = rejections._independent_candidate("pm_css", 7, 3, seed)
+        left, right = rejections._candidate_pair("pm_css", 7, 3, seed)
         assert (left.Hx.shape[0], left.Hz.shape[0]) == (
             right.Hx.shape[0],
             right.Hz.shape[0],
         )
+
+
+def test_stabilizer_candidates_use_clifford_perturbations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pair = (object(), object())
+    calls = []
+    monkeypatch.setattr(
+        rejections.NonPEqCodePairGenerator,
+        "stabilizer_codes_clifford_candidate",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or pair,
+    )
+    assert rejections._candidate_pair("pm_stb", 7, 3, 89) is pair
+    assert rejections._candidate_pair("lc_stb", 7, 3, 89) is pair
+    assert len(calls) == 2
+    assert all(
+        kwargs["gate_steps"] == rejections.STABILIZER_CLIFFORD_GATE_STEPS
+        for _, kwargs in calls
+    )
 
 
 def test_css_certifier_selection_respects_backend_limits() -> None:
