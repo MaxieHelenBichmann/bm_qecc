@@ -1,0 +1,7 @@
+# Generated paper artifacts. Kept local to paper/ so the repository root
+# .gitignore stays untouched.
+data/
+results/*
+!results/README.md
+__pycache__/
+*.py[cod]

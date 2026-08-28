@@ -24,3 +24,15 @@ results/visual*.py
 .DS_Store
 
 *tmp*
+
+playground/
+paper/*
+!paper/.gitignore
+!paper/*.md
+!paper/*.py
+!paper/benchmarks/
+!paper/experiments/
+!paper/hybrids/
+!paper/results/
+!paper/tests/
+!paper/visualizations/
