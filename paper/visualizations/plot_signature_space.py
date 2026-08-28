@@ -4,10 +4,10 @@ Run with no arguments::
 
     python3 -m paper.visualizations.plot_signature_space
 
-Positive and negative cases are aggregated into one success-count-weighted mean
-per parameter cell. Color shows the fraction of distinct ordered qubit pairs
-that remain in the same signature class, normalized to one shared linear
-``0..1`` scale. Exactly one PNG is written.
+Independently seeded random codes are aggregated into one mean per parameter
+cell. Color shows the fraction of distinct ordered qubit pairs that remain in
+the same signature class, normalized to one shared linear ``0..1`` scale.
+Exactly one PNG is written.
 """
 
 from __future__ import annotations
@@ -67,13 +67,13 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                     1,
                     SIGNATURE_CMAP(norm(float(cell["mean_value"]))),
                 )
-    figure.suptitle("Signature-compatible distinct-pair search space", fontsize=12)
+    figure.suptitle("Typical random-code signature partitions", fontsize=12)
     bar = figure.colorbar(
         scalar_mappable(SIGNATURE_CMAP, norm), ax=axes, fraction=0.025, pad=0.02
     )
     bar.set_label(
         "mean fraction of distinct qubit pairs in the same signature class\n"
-        "positive + negative aggregate (0 = complete, 1 = no refinement)"
+        "random-code aggregate (0 = complete, 1 = no refinement)"
     )
     mark_synthetic(figure, synthetic)
     return save_png(figure, output)

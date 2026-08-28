@@ -1,4 +1,4 @@
-"""Normalize and aggregate A2 positive and negative signature metrics."""
+"""Normalize and aggregate A2 signature metrics from typical random codes."""
 
 from __future__ import annotations
 

@@ -97,24 +97,53 @@ def test_large_high_rank_css_uses_certified_generator_without_backend(
     ) is pair
 
 
-def test_large_pm_stb_signature_pair_matches_by_construction(
+def test_signature_collector_uses_css_then_stabilizer_order() -> None:
+    assert signatures.PROBLEMS == ("pm_css", "pm_stb")
+
+
+def test_signature_collector_generates_one_code_per_seed(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pair = (object(), object())
+    output = tmp_path / "signatures.csv"
+    code = object()
+    generated = []
+    assert not hasattr(signatures, "NonPEqCodePairGenerator")
     monkeypatch.setattr(
-        signatures.NonPEqCodePairGenerator,
-        "stabilizer_codes_x_z_rank_projection",
-        lambda *args: pair,
+        signatures,
+        "PROBLEMS",
+        ("pm_css",),
     )
     monkeypatch.setattr(
         signatures,
-        "certified_negative_pair",
-        lambda *args, **kwargs: pytest.fail(
-            "large PM-STB signature generation must not rejection-sample signatures"
+        "generate_random_code",
+        lambda *args: generated.append(args) or (code, 1),
+    )
+    monkeypatch.setattr(
+        signatures,
+        "run",
+        lambda *args, **kwargs: RunResult(
+            runtime=0.1,
+            result=[2, 1],
+            expected=None,
+            result_is_expected=False,
+            timed_out=False,
+            memory_exceeded=False,
+            error=None,
         ),
     )
 
-    assert signatures.signature_pair("pm_stb", 21, 10, 89, False) is pair
+    first = signatures.collect(dimensions=[(3, 1)], seeds=[89], output_file=output)
+    second = signatures.collect(dimensions=[(3, 1)], seeds=[89], output_file=output)
+
+    with output.open(newline="", encoding="utf-8") as handle:
+        persisted = list(csv.DictReader(handle))
+    assert generated == [("pm_css", 3, 1, 89)]
+    assert len(first) == 1
+    assert second == []
+    assert len(persisted) == 1
+    assert "positive" not in persisted[0]
+    assert persisted[0]["x_rank"] == "1"
 
 
 def test_signature_metric_has_the_expected_extremes() -> None:

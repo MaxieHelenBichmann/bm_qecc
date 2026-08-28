@@ -1,37 +1,35 @@
-"""Collect raw signature transformation-space measurements.
+"""Collect signature-partition sizes on typical random codes.
 
 Usage::
 
     python3 -m paper.benchmarks.collect_signature_space
 
-For PM-STB and PM-CSS, the script generates both positive and certified-negative 
-pairs whose signatures match and records ``sum(|s_i|^2)/n^2``. Practical feasibility 
-(runtime and memory consumption) is not important here, only in the case of an error
-it is recorded. Every result is appended immediately to 
-``paper/data/collected/signature_space.csv``. Restarting skips keys already
-present, while A2 aggregates both labels later. 
-The generated instances aim to be as random as possible (w.r.t. partition sizes)
-while still being verifiable (in)equivalent and quick to generate.
+There are no CLI arguments. For every configured ``(problem, n, k, seed)``,
+the collector generates exactly one random code and measures how its Sendrier
+signature partitions the physical qubits. It does not construct or filter code
+pairs, and it does not condition samples on equivalence, inequivalence, or two
+signatures matching. PM-CSS is collected first, followed by PM-STB.
+
+The raw metric is ``sum(|s_i|^2) / n^2``, where ``|s_i|`` are the signature
+class sizes. Every result is appended immediately to
+``paper/data/collected/signature_space.csv``. Restarting skips completed
+``(problem, n, k, seed)`` keys. Generation and signature-computation failures
+are retained as explicit rows.
 """
 
 from __future__ import annotations
 
 import csv
-import hashlib
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from benchmarks.experiments.generators_random import (
-    NonPEqCodePairGenerator,
-    PEqCodePairGenerator,
-)
+import numpy as np
+
 from benchmarks.experiments.run import RunResult, run
 from benchmarks.experiments.statistics import deterministic_seeds
+from benchmarks.experiments.utils import random_css_code, random_stabilizer_code
 from benchmarks.thesis.thesis_prototypes import measurement_dimensions
-from src.algorithms.p_css.p_css_matroid import are_peq_css_matroid
-from src.algorithms.p_css.p_css_sat import are_peq_css_sat
-from src.algorithms.p_stb.p_stab_sat import are_peq_stab_sat
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 from src.hybrids import p_css, p_stab
@@ -42,19 +40,25 @@ NUM_SEEDS = 10
 SEEDS = deterministic_seeds(MASTER_SEED, NUM_SEEDS, upper_bound=1_000)
 DIMENSIONS = tuple(measurement_dimensions())
 TIMEOUT_SECONDS = 5_400.0
-CERTIFICATION_TIMEOUT_SECONDS = 600.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
-CSS_SAT_MAX_R = 9
-CSS_MATROID_MAX_N = 28
-PM_STB_SIGNATURE_MATCH_MAX_N = 20
 
 OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "signature_space.csv"
-PROBLEMS = ("pm_stb", "pm_css")
+PROBLEMS = ("pm_css", "pm_stb")
 FIELDS = (
-    "problem", "positive", "seed", "n", "k", "r", "class_sizes", "q_pairs",
-    "status", "timeout", "memory_limited", "error",
+    "problem",
+    "seed",
+    "n",
+    "k",
+    "r",
+    "x_rank",
+    "class_sizes",
+    "q_pairs",
+    "status",
+    "timeout",
+    "memory_limited",
+    "error",
 )
-CodePair = tuple[StabilizerCode, StabilizerCode]
+Code = CSSCode | StabilizerCode
 
 
 # CSV persistence -------------------------------------------------------------------------------
@@ -104,147 +108,59 @@ def append_csv_row(
         writer.writerow(row)
 
 
+# Random-code generation ------------------------------------------------------------------------
+
+def generate_random_code(
+    problem: str,
+    n: int,
+    k: int,
+    seed: int,
+) -> tuple[Code, int | None]:
+    """Generate one unconditioned code from the repository's random ensemble."""
+    if problem == "pm_css":
+        rng = np.random.default_rng(seed)
+        x_rank = int(rng.integers(0, n - k + 1))
+        code_seed = int(rng.integers(0, np.iinfo(np.int32).max))
+        return random_css_code(n, k, rx=x_rank, seed=code_seed), x_rank
+    if problem == "pm_stb":
+        return random_stabilizer_code(n, k, seed=seed), None
+    raise ValueError(f"unknown signature problem {problem!r}")
+
+
 # Signature computation -------------------------------------------------------------------------
 
-def _partition_sizes(partition: dict[Any, list[int]] | None) -> list[int]:
+def _partition_sizes(partition: Mapping[Any, Sequence[int]] | None) -> list[int]:
     return sorted((len(group) for group in (partition or {}).values()), reverse=True)
 
 
-def _prepared(problem: str, left: StabilizerCode, right: StabilizerCode) -> tuple:
+def evaluate_signature_partition(problem: str, code: Code) -> list[int]:
+    """Compute one code's partition through the production signature routine."""
+    # Passing the same matrices selects each routine's single-computation
+    # self-comparison path while keeping one canonical signature implementation.
     row_basis = p_stab._row_basis
     if problem == "pm_css":
-        if not isinstance(left, CSSCode) or not isinstance(right, CSSCode):
-            raise TypeError("pm_css signatures require CSSCode inputs")
-        return (
-            row_basis(left.Hx),
-            row_basis(left.Hz),
-            row_basis(right.Hx),
-            row_basis(right.Hz),
+        if not isinstance(code, CSSCode):
+            raise TypeError("pm_css signatures require a CSSCode")
+        hx = row_basis(code.Hx)
+        hz = row_basis(code.Hz)
+        compatible, partition, _ = p_css.preserved_punctured_hull_weight_enumerator(
+            hx, hz, hx, hz
         )
-    return row_basis(left.symplectic), row_basis(right.symplectic)
-
-
-def evaluate_signature(
-    problem: str,
-    left: StabilizerCode,
-    right: StabilizerCode,
-) -> tuple[bool, list[int], list[int]]:
-    matrices = _prepared(problem, left, right)
-    if problem == "pm_stb":
-        compatible, first, second = p_stab.preserved_punctured_hull_weight_enumerator(
-            *matrices
-        )
-    elif problem == "pm_css":
-        compatible, first, second = p_css.preserved_punctured_hull_weight_enumerator(
-            *matrices
+    elif problem == "pm_stb":
+        matrix = row_basis(code.symplectic)
+        compatible, partition, _ = p_stab.preserved_punctured_hull_weight_enumerator(
+            matrix, matrix
         )
     else:
-        raise ValueError(f"no signature invariant for {problem}")
-    return bool(compatible), _partition_sizes(first), _partition_sizes(second)
+        raise ValueError(f"unknown signature problem {problem!r}")
+
+    if not compatible or partition is None:
+        raise RuntimeError("a code was unexpectedly incompatible with itself")
+    return _partition_sizes(partition)
 
 
 def signature_metric(class_sizes: Sequence[int], n: int) -> float:
     return sum(size * size for size in class_sizes) / (n * n)
-
-
-# Pair generation and certification --------------------------------------------------------------
-
-def _attempt_seed(population: str, n: int, k: int, seed: int, attempt: int) -> int:
-    value = f"{population}|{n}|{k}|{seed}|{attempt}".encode()
-    return int.from_bytes(hashlib.sha256(value).digest()[:8], "big") % (2**32)
-
-
-def _independent_candidate(problem: str, n: int, k: int, seed: int) -> CodePair:
-    if problem == "pm_css":
-        return NonPEqCodePairGenerator.css_codes_independent_candidate(n, k, seed)
-    return NonPEqCodePairGenerator.stabilizer_codes_independent_candidate(n, k, seed)
-
-
-def _css_rank_mismatch(pair: CodePair) -> bool:
-    left, right = pair
-    return (
-        isinstance(left, CSSCode)
-        and isinstance(right, CSSCode)
-        and (left.Hx.shape[0], left.Hz.shape[0])
-        != (right.Hx.shape[0], right.Hz.shape[0])
-    )
-
-
-def _css_certifier(n: int, k: int) -> Callable[..., bool] | None:
-    if n - k <= CSS_SAT_MAX_R:
-        return are_peq_css_sat
-    if n <= CSS_MATROID_MAX_N:
-        return are_peq_css_matroid
-    return None
-
-
-def _certified_inequivalent(problem: str, pair: CodePair, n: int, k: int) -> bool:
-    if problem == "pm_css" and _css_rank_mismatch(pair):
-        return True
-    certifier = _css_certifier(n, k) if problem == "pm_css" else are_peq_stab_sat
-    if certifier is None:
-        raise RuntimeError(f"no independent CSS certifier configured for [[{n},{k}]]")
-    result = run(
-        certifier,
-        pair,
-        False,
-        timeout=CERTIFICATION_TIMEOUT_SECONDS,
-        max_memory_bytes=MEMORY_LIMIT_BYTES,
-    )
-    if result.timed_out:
-        raise RuntimeError("inequivalence certification timed out")
-    if result.memory_exceeded:
-        raise RuntimeError("inequivalence certification exceeded memory limit")
-    if result.error is not None:
-        raise RuntimeError(f"inequivalence certification failed: {result.error}")
-    return result.result is False
-
-
-def certified_negative_pair(
-    problem: str,
-    n: int,
-    k: int,
-    seed: int,
-    *,
-    max_attempts: int = 1_000,
-) -> CodePair:
-    """Return an inequivalent pair whose two signatures match."""
-    population = f"{problem}_negative_matching=True"
-    use_certified_css_generator = problem == "pm_css" and _css_certifier(n, k) is None
-    for attempt in range(max_attempts):
-        attempt_seed = _attempt_seed(population, n, k, seed, attempt)
-        pair = (
-            NonPEqCodePairGenerator.css_codes_cascaded(n, k, attempt_seed) # verifying CSS code inequivalence is too slow for larger codes, so we use a generator that produces inequivalent codes by construction 
-            if use_certified_css_generator
-            else _independent_candidate(problem, n, k, attempt_seed)
-        )
-        if not evaluate_signature(problem, *pair)[0]:
-            continue
-        if use_certified_css_generator or _certified_inequivalent(problem, pair, n, k):
-            return pair
-    raise RuntimeError(
-        f"could not generate a signature-matching {problem} negative for "
-        f"[[{n},{k}]], seed {seed}"
-    )
-
-
-def signature_pair(
-    problem: str,
-    n: int,
-    k: int,
-    seed: int,
-    positive: bool,
-) -> CodePair:
-    """Return a positive or certified-negative pair with matching signatures."""
-    if positive:
-        if problem == "pm_css":
-            return PEqCodePairGenerator.css_codes_basis_changed(n, k, seed)
-        return PEqCodePairGenerator.stabilizer_codes_permuted(n, k, seed)
-    if problem == "pm_stb" and n > PM_STB_SIGNATURE_MATCH_MAX_N:
-        return NonPEqCodePairGenerator.stabilizer_codes_x_z_rank_projection( # guaranteeing matching signatures for larger inequivalent stabilizer codes is too slow, so we use a generator guarantees match by construction
-            n, k, seed
-        )
-    return certified_negative_pair(problem, n, k, seed)
 
 
 # Collection ------------------------------------------------------------------------------------
@@ -255,61 +171,67 @@ def collect(
     seeds: Sequence[int] = SEEDS,
     output_file: Path = OUTPUT_FILE,
 ) -> list[dict[str, Any]]:
-    key_fields = ("problem", "n", "k", "seed", "positive")
+    key_fields = ("problem", "n", "k", "seed")
     completed = completed_csv_keys(output_file, key_fields)
     rows: list[dict[str, Any]] = []
-    for problem in PROBLEMS:
-        for positive in (True, False):
-            label = "positive" if positive else "negative"
-            print(f"signature space: {problem} {label}", flush=True)
-            for n, k in dimensions:
-                for seed in seeds:
-                    key = csv_key(problem, n, k, seed, positive)
-                    if key in completed:
-                        continue
-                    base = {
-                        "problem": problem, "positive": positive, "seed": seed,
-                        "n": n, "k": k, "r": n - k,
-                    }
-                    try:
-                        pair = signature_pair(problem, n, k, seed, positive)
-                    except Exception as exc:  # noqa: BLE001 - benchmark data
-                        row = {
-                            **base, "class_sizes": "", "q_pairs": None,
-                            "status": "generation_error", "timeout": False,
-                            "memory_limited": False,
-                            "error": f"{type(exc).__name__}: {exc}",
-                        }
-                        append_csv_row(output_file, row, FIELDS)
-                        rows.append(row)
-                        completed.add(key)
-                        continue
 
-                    result = run(
-                        evaluate_signature,
-                        (problem, *pair),
-                        None,
-                        timeout=TIMEOUT_SECONDS,
-                        max_memory_bytes=MEMORY_LIMIT_BYTES,
-                    )
-                    status = execution_status(result)
-                    sizes: list[int] = []
-                    error = result.error or ""
-                    if status == "success":
-                        compatible, sizes, partner_sizes = result.result
-                        if not compatible or sorted(sizes) != sorted(partner_sizes):
-                            status = "error"
-                            error = "generated pair does not have matching signatures"
+    for problem in PROBLEMS:
+        print(f"signature partitions: {problem}", flush=True)
+        for n, k in dimensions:
+            for seed in seeds:
+                key = csv_key(problem, n, k, seed)
+                if key in completed:
+                    continue
+
+                base = {
+                    "problem": problem,
+                    "seed": seed,
+                    "n": n,
+                    "k": k,
+                    "r": n - k,
+                    "x_rank": "",
+                }
+                try:
+                    code, x_rank = generate_random_code(problem, n, k, seed)
+                    base["x_rank"] = "" if x_rank is None else x_rank
+                except Exception as exc:  # noqa: BLE001 - recorded benchmark data
                     row = {
                         **base,
-                        "class_sizes": " ".join(map(str, sizes)),
-                        "q_pairs": signature_metric(sizes, n) if status == "success" else None,
-                        "status": status, "timeout": result.timed_out,
-                        "memory_limited": result.memory_exceeded, "error": error,
+                        "class_sizes": "",
+                        "q_pairs": None,
+                        "status": "generation_error",
+                        "timeout": False,
+                        "memory_limited": False,
+                        "error": f"{type(exc).__name__}: {exc}",
                     }
                     append_csv_row(output_file, row, FIELDS)
                     rows.append(row)
                     completed.add(key)
+                    continue
+
+                result = run(
+                    evaluate_signature_partition,
+                    (problem, code),
+                    None,
+                    timeout=TIMEOUT_SECONDS,
+                    max_memory_bytes=MEMORY_LIMIT_BYTES,
+                )
+                status = execution_status(result)
+                sizes = list(result.result) if status == "success" else []
+                row = {
+                    **base,
+                    "class_sizes": " ".join(map(str, sizes)),
+                    "q_pairs": (
+                        signature_metric(sizes, n) if status == "success" else None
+                    ),
+                    "status": status,
+                    "timeout": result.timed_out,
+                    "memory_limited": result.memory_exceeded,
+                    "error": result.error or "",
+                }
+                append_csv_row(output_file, row, FIELDS)
+                rows.append(row)
+                completed.add(key)
 
     print(f"appended {len(rows)} new signature measurements to {output_file}", flush=True)
     return rows

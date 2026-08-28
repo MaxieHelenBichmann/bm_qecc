@@ -97,15 +97,15 @@ def test_a1_computes_component_and_combined_rejections(tmp_path: Path) -> None:
     assert combined["rejection_percentage"] == 100
 
 
-def test_a2_aggregates_positive_and_negative_instances(tmp_path: Path) -> None:
+def test_a2_aggregates_random_code_instances(tmp_path: Path) -> None:
     source = tmp_path / "signatures.csv"
-    fields = ("problem", "positive", "n", "k", "q_pairs", "status")
+    fields = ("problem", "seed", "n", "k", "q_pairs", "status")
     _write_rows(
         source,
         fields,
         [
-            {"problem": "pm_css", "positive": True, "n": 3, "k": 1, "q_pairs": 1.0, "status": "success"},
-            {"problem": "pm_css", "positive": False, "n": 3, "k": 1, "q_pairs": 0.5, "status": "success"},
+            {"problem": "pm_css", "seed": 89, "n": 3, "k": 1, "q_pairs": 1.0, "status": "success"},
+            {"problem": "pm_css", "seed": 773, "n": 3, "k": 1, "q_pairs": 0.5, "status": "success"},
         ],
     )
 
@@ -114,7 +114,7 @@ def test_a2_aggregates_positive_and_negative_instances(tmp_path: Path) -> None:
     assert len(cells) == 1
     assert cells[0]["num_valid"] == 2
     # For n=3, q=1 maps to 1 and q=1/2 maps to 1/4 after removing
-    # unavoidable self-pairs; positive and negative cases are then averaged.
+    # unavoidable self-pairs; the two independently seeded codes are averaged.
     assert cells[0]["mean_distinct_pair_fraction"] == pytest.approx(0.625)
 
 
