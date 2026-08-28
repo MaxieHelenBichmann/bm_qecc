@@ -1,4 +1,4 @@
-"""Focused tests for the benchmark code-pair generator API."""
+"""Focused tests for the random benchmark generator API."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import inspect
 import numpy as np
 import pytest
 
-from benchmarks.generators import (
+from benchmarks.random_generators import (
     LCEqCodeGenerator,
     LCEqCodePairGenerator,
     NonLCEqCodeGenerator,

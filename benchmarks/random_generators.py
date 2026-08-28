@@ -1,4 +1,4 @@
-"""Benchmark generators for (non-)equivalent code pairs.
+"""Random benchmark generators for (non-)equivalent code pairs.
 
 Every public entry point is a static method of one of the generator classes
 below. Equivalence problems on two codes use pair generators with the shape

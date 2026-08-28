@@ -71,7 +71,7 @@ from .utils import (
     permutation_equivalent_css_code,
     random_stabilizer_code,
 )
-from .generators import (
+from .random_generators import (
     LCEqCodeGenerator,
     NonLCEqCodeGenerator,
     NonPEqCodePairGenerator,
@@ -79,6 +79,16 @@ from .generators import (
     non_lc_equivalent_code,
     non_permutation_equivalent_css_code,
     non_permutation_equivalent_stabilizer_code,
+)
+from .structured_generators import (
+    LCEqCodeGenerator as StructuredLCEqCodeGenerator,
+    LCEqCodePairGenerator as StructuredLCEqCodePairGenerator,
+    NonLCEqCodeGenerator as StructuredNonLCEqCodeGenerator,
+    NonLCEqCodePairGenerator as StructuredNonLCEqCodePairGenerator,
+    NonPEqCodePairGenerator as StructuredNonPEqCodePairGenerator,
+    PEqCodePairGenerator as StructuredPEqCodePairGenerator,
+    load_named_code,
+    named_code_names,
 )
 
 resource: ModuleType | None
@@ -108,52 +118,29 @@ MAX_TOL_TIMEOUTS = 3
 MAX_TOL_MEMORY_ERRORS = 2
 MEMORY_POLL_INTERVAL_SECONDS = 0.2
 
-bell_pair = CSSCode(
-    Hx=np.array([[1, 1]], dtype=np.int8), Hz=np.array([[1, 1]], dtype=np.int8)
-)
-three_bit_repetition = CSSCode.from_file("data/three_bit_repetition")
-steane = CSSCode.from_file("data/steane")
-carbon = CSSCode.from_file("data/carbon")
-golay = CSSCode.from_file("data/golay")
-hamming_15 = CSSCode.from_file("data/hamming_15")
-hamming_31 = CSSCode.from_file("data/hamming_31")
-rotated_surface_d5 = CSSCode.from_file("data/rotated_surface_d5")
-shor = CSSCode.from_file("data/shor")
-tetrahedral = CSSCode.from_file("data/tetrahedral")
-bring = CSSCode.from_file("data/bring")
-coco_488 = CSSCode.from_file("data/coco_488")
-coco_666 = CSSCode.from_file("data/coco_666")
-bb_72 = CSSCode.from_file("data/bb_72")
-bb_90 = CSSCode.from_file("data/bb_90")
-bb_108 = CSSCode.from_file("data/bb_108")
-bb_144 = CSSCode.from_file("data/bb_144")
+NAMED_CODES = [(name, load_named_code(name)) for name in named_code_names()]
+_NAMED_CODE_BY_NAME = dict(NAMED_CODES)
 
-five_qubit_perfect = StabilizerCode.from_file("data/five_qubit_perfect")
-gottesman = StabilizerCode.from_file("data/eight_qubit_gottesman")
-fifteen_qubit_optimal = StabilizerCode.from_file("data/fifteen_qubit_optimal")
-
-NAMED_CODES = [
-    ("bell", bell_pair),  # n = 2 , k = 0
-    ("3q_rep", three_bit_repetition),  # n = 3 , k = 1
-    ("5q_prf", five_qubit_perfect),  # n = 5 , k = 1
-    ("steane", steane),  # n = 7 , k = 1
-    ("gottesman", gottesman),  # n = 8 , k = 3
-    ("shor", shor),  # n = 9 , k = 1
-    ("carbon", carbon),  # n = 12 , k = 2
-    ("tetrahedral", tetrahedral),  # n = 15 , k = 1
-    ("15q_optimal", fifteen_qubit_optimal),  # n = 15 , k = 3
-    ("hamming_15", hamming_15),  # n = 15 , k = 7
-    ("golay", golay),  # n = 23 , k = 1
-    ("rot_surf_d5", rotated_surface_d5),  # n = 25 , k = 1
-    ("bring", bring),  # n = 30 , k = 8
-    ("coco_488", coco_488),  # n = 31 , k = 1
-    ("hamming_31", hamming_31),  # n = 31 , k = 21
-    ("coco_666", coco_666),  # n = 37 , k = 1
-    ("bb_72", bb_72),  # n = 72, k = 12
-    ("bb_90", bb_90),  # n = 90, k = 8
-    ("bb_108", bb_108),  # n = 108, k = 8
-    ("bb_144", bb_144),  # n = 144 , k = 12
-]
+bell_pair = _NAMED_CODE_BY_NAME["bell"]
+three_bit_repetition = _NAMED_CODE_BY_NAME["3q_rep"]
+five_qubit_perfect = _NAMED_CODE_BY_NAME["5q_prf"]
+steane = _NAMED_CODE_BY_NAME["steane"]
+gottesman = _NAMED_CODE_BY_NAME["gottesman"]
+shor = _NAMED_CODE_BY_NAME["shor"]
+carbon = _NAMED_CODE_BY_NAME["carbon"]
+tetrahedral = _NAMED_CODE_BY_NAME["tetrahedral"]
+fifteen_qubit_optimal = _NAMED_CODE_BY_NAME["15q_optimal"]
+hamming_15 = _NAMED_CODE_BY_NAME["hamming_15"]
+golay = _NAMED_CODE_BY_NAME["golay"]
+rotated_surface_d5 = _NAMED_CODE_BY_NAME["rot_surf_d5"]
+bring = _NAMED_CODE_BY_NAME["bring"]
+coco_488 = _NAMED_CODE_BY_NAME["coco_488"]
+hamming_31 = _NAMED_CODE_BY_NAME["hamming_31"]
+coco_666 = _NAMED_CODE_BY_NAME["coco_666"]
+bb_72 = _NAMED_CODE_BY_NAME["bb_72"]
+bb_90 = _NAMED_CODE_BY_NAME["bb_90"]
+bb_108 = _NAMED_CODE_BY_NAME["bb_108"]
+bb_144 = _NAMED_CODE_BY_NAME["bb_144"]
 
 
 @dataclass(frozen=True)
@@ -801,6 +788,88 @@ def non_lcc_eq_case(
     )
 
 
+def structured_peq_case(name: str, seed: int, *, css: bool) -> Case:
+    """Build a permutation-positive case by loading a named source."""
+    if css:
+        code1, code2 = StructuredPEqCodePairGenerator.css_codes_basis_changed(
+            name, seed
+        )
+    else:
+        code1, code2 = StructuredPEqCodePairGenerator.stabilizer_codes_basis_changed(
+            name, seed
+        )
+    return Case(
+        name=f"structured_peq_{name}_{seed}",
+        inputs=(code1, code2),
+        expected_p=True,
+    )
+
+
+def structured_non_peq_case(name: str, seed: int, *, css: bool) -> Case:
+    """Build a permutation-negative case by loading a named source."""
+    if css:
+        code1, code2 = StructuredNonPEqCodePairGenerator.css_codes_cascaded(
+            name, seed
+        )
+    else:
+        code1, code2 = (
+            StructuredNonPEqCodePairGenerator.stabilizer_codes_x_z_rank_projection(
+                name, seed
+            )
+        )
+    return Case(
+        name=f"structured_non_peq_{name}_{seed}",
+        inputs=(code1, code2),
+        expected_p=False,
+    )
+
+
+def structured_lc_eq_case(name: str, seed: int) -> Case:
+    """Build an LC-positive pair by loading a named source."""
+    code1, code2 = StructuredLCEqCodePairGenerator.stabilizer_codes_local_clifford(
+        name, seed
+    )
+    return Case(
+        name=f"structured_lc_eq_{name}_{seed}",
+        inputs=(code1, code2),
+        expected_lc=True,
+    )
+
+
+def structured_non_lc_eq_case(name: str, seed: int) -> Case:
+    """Build an LC-negative pair by loading a named source."""
+    code1, code2 = StructuredNonLCEqCodePairGenerator.stabilizer_codes_independent(
+        name, seed
+    )
+    return Case(
+        name=f"structured_non_lc_eq_{name}_{seed}",
+        inputs=(code1, code2),
+        expected_lc=False,
+    )
+
+
+def structured_lc_css_case(name: str, seed: int) -> Case:
+    """Build a positive LC-CSS instance by loading a named CSS source."""
+    code = StructuredLCEqCodeGenerator.stabilizer_code_local_clifford(name, seed)
+    return Case(
+        name=f"structured_lc_css_{name}_{seed}",
+        inputs=(code,),
+        expected_lc=True,
+    )
+
+
+def structured_non_lc_css_case(name: str, seed: int) -> Case:
+    """Build a negative LC-CSS instance matched to a named CSS source."""
+    code = StructuredNonLCEqCodeGenerator.stabilizer_code_locally_rank_one(
+        name, seed
+    )
+    return Case(
+        name=f"structured_non_lc_css_{name}_{seed}",
+        inputs=(code,),
+        expected_lc=False,
+    )
+
+
 # used invariant will lead to timeout or inconclusive results in the generation of these dimensions and seeds
 _LC_CSS_NEGATIVE_EXCLUDED_DIMENSIONS = {
     (3, 0),
@@ -1035,7 +1104,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds, partial(permuted_css_case, code=code)
+                            seeds, partial(structured_peq_case, name, css=True)
                         ),
                     )
                 )
@@ -1051,7 +1120,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds, partial(non_permuted_css_case, code=code)
+                            seeds, partial(structured_non_peq_case, name, css=True)
                         ),
                     )
                 )
@@ -1074,7 +1143,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds, lambda s: permuted_stabilizer_case(seed=s, code=code)
+                            seeds, partial(structured_peq_case, name, css=False)
                         ),
                     )
                 )
@@ -1090,8 +1159,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds,
-                            lambda s: non_permuted_stabilizer_case(seed=s, code=code),
+                            seeds, partial(structured_non_peq_case, name, css=False)
                         ),
                     )
                 )
@@ -1112,7 +1180,7 @@ def seeded_measurements(
                             density=None,
                             symmetry=None,
                         ),
-                        seeded_cases(seeds, lambda s: lcc_eq_case(seed=s, code=code)),
+                        seeded_cases(seeds, partial(structured_lc_eq_case, name)),
                     )
                 )
                 measurements.append(
@@ -1127,7 +1195,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds, lambda s: non_lcc_eq_case(seed=s, code=code)
+                            seeds, partial(structured_non_lc_eq_case, name)
                         ),
                     )
                 )
@@ -1150,7 +1218,7 @@ def seeded_measurements(
                             density=None,
                             symmetry=None,
                         ),
-                        seeded_cases(seeds, lambda s: lcc_css_case(seed=s, code=code)),
+                        seeded_cases(seeds, partial(structured_lc_css_case, name)),
                     )
                 )
                 measurements.append(
@@ -1165,7 +1233,7 @@ def seeded_measurements(
                             symmetry=None,
                         ),
                         seeded_cases(
-                            seeds, lambda s: non_lcc_css_case(seed=s, code=code)
+                            seeds, partial(structured_non_lc_css_case, name)
                         ),
                     )
                 )
