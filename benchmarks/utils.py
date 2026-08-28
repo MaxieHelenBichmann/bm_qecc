@@ -38,9 +38,18 @@ def random_stabilizer_code(
 ) -> StabilizerCode:
     """Return a seeded random-looking stabilizer code with parameters ``[[n, k]]``.
 
-    The construction starts with ``n-k`` single-qubit Z stabilizers and applies a
-    seeded random Clifford circuit to the stabilizer tableau. This is meant for
-    benchmark instances, not for uniform sampling from all stabilizer codes.
+    The construction places ``n-k`` single-qubit Z stabilizers on a seeded
+    random subset of distinct physical qubits, so the initial generators are
+    linearly independent without privileging the first ``n-k`` coordinates.
+    It then applies seeded random Clifford layers. Every layer applies a random
+    local Clifford to every qubit and a random matching of two-qubit entangling
+    gates, so every qubit receives a local gate and all but at most one qubit
+    per layer participates in an entangling gate. Random matchings rotate the
+    unmatched coordinate when ``n`` is odd.
+
+    ``clifford_steps`` is the number of full layers and defaults to four. This
+    is meant for benchmark instances, not for uniform sampling from all
+    stabilizer codes or Clifford orbits.
     """
     if n < 1:
         msg = "n must be at least 1."
@@ -49,22 +58,28 @@ def random_stabilizer_code(
         msg = f"k must satisfy 0 <= k <= n, got n={n}, k={k}."
         raise ValueError(msg)
 
+    rng = np.random.default_rng(seed)
     num_stabilizers = n - k
-    generators = ["I" * q + "Z" + "I" * (n - q - 1) for q in range(num_stabilizers)]
+    occupied_qubits = tuple(
+        int(qubit) for qubit in rng.choice(n, size=num_stabilizers, replace=False)
+    )
+    generators = [
+        "I" * qubit + "Z" + "I" * (n - qubit - 1)
+        for qubit in occupied_qubits
+    ]
     tableau = (
         StabilizerTableau.from_pauli_strings(generators)
         if generators
         else StabilizerTableau.empty(n)
     )
 
-    rng = np.random.default_rng(seed)
-    steps = clifford_steps if clifford_steps is not None else 4 * n
+    steps = clifford_steps if clifford_steps is not None else 4
     if steps < 0:
         msg = "clifford_steps must be non-negative."
         raise ValueError(msg)
 
     for _ in range(steps):
-        _apply_random_clifford_gate(tableau, rng)
+        _apply_random_clifford_layer(tableau, rng)
 
     return StabilizerCode(_without_phases(tableau))
 
@@ -1208,6 +1223,31 @@ def _apply_local_clifford(
             tableau.apply_h(qubit)
         elif gate == "S":
             tableau.apply_s(qubit)
+
+
+def _apply_random_clifford_layer(
+    tableau: StabilizerTableau, rng: np.random.Generator
+) -> None:
+    """Apply one seeded local-plus-entangling Clifford layer in-place.
+
+    Local Cliffords randomize the Pauli axes before a fresh random matching is
+    entangled by CNOT or CZ gates. A random CNOT orientation is used for each
+    matched pair. The construction guarantees interaction coverage per layer;
+    it is not a uniform sampler from the Clifford group.
+    """
+    for qubit in range(tableau.n):
+        local_clifford = str(rng.choice(_LOCAL_CLIFFORDS))
+        _apply_local_clifford(tableau, local_clifford, qubit)
+
+    matching = tuple(int(qubit) for qubit in rng.permutation(tableau.n))
+    for index in range(0, tableau.n - 1, 2):
+        left, right = matching[index], matching[index + 1]
+        if bool(rng.integers(0, 2)):
+            if bool(rng.integers(0, 2)):
+                left, right = right, left
+            tableau.apply_cx(left, right)
+        else:
+            tableau.apply_cz(left, right)
 
 
 def _apply_random_clifford_gate(

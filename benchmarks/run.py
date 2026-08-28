@@ -67,17 +67,17 @@ from .utils import (
     RandomizeError,
     lc_equivalent_code,
     non_lc_css_code,
+    permutation_equivalent_code,
+    permutation_equivalent_css_code,
+    random_css_code,
+    random_stabilizer_code,
+)
+from .generators import (
+    NonPEqCodePairGenerator,
+    PEqCodePairGenerator,
     non_lc_equivalent_code,
     non_permutation_equivalent_css_code,
     non_permutation_equivalent_stabilizer_code,
-    permutation_equivalent_code,
-    permutation_equivalent_css_code,
-    random_permuted_stabilizer_pair,
-    random_permuted_css_pair,
-    random_non_permuted_stabilizer_pair,
-    random_non_permuted_css_pair,
-    random_css_code,
-    random_stabilizer_code,
 )
 
 resource: ModuleType | None
@@ -548,9 +548,11 @@ def non_permuted_css_case(
         n, k = dim
         if use_cached:
             pair = generated_css_pair(n, k, "non_peq", seed=seed)
-            code1, code2 = pair or random_non_permuted_css_pair(n, k, seed=seed)
+            code1, code2 = pair or NonPEqCodePairGenerator.css_codes_cascaded(
+                n, k, seed
+            )
         else:
-            code1, code2 = random_non_permuted_css_pair(n, k, seed=seed)
+            code1, code2 = NonPEqCodePairGenerator.css_codes_cascaded(n, k, seed)
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
@@ -577,9 +579,11 @@ def permuted_css_case(
         n, k = dim
         if use_cached:
             pair = generated_css_pair(n, k, "peq", seed=seed)
-            code1, code2 = pair or random_permuted_css_pair(n, k, seed=seed)
+            code1, code2 = pair or PEqCodePairGenerator.css_codes_basis_changed(
+                n, k, seed
+            )
         else:
-            code1, code2 = random_permuted_css_pair(n, k, seed=seed)
+            code1, code2 = PEqCodePairGenerator.css_codes_basis_changed(n, k, seed)
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
@@ -609,7 +613,12 @@ def non_permuted_stabilizer_case(
             if use_cached
             else None
         )
-        code1, code2 = pair or random_non_permuted_stabilizer_pair(n, k, seed=seed)
+        code1, code2 = (
+            pair
+            or NonPEqCodePairGenerator.stabilizer_codes_x_z_rank_projection(
+                n, k, seed
+            )
+        )
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
@@ -635,7 +644,9 @@ def permuted_stabilizer_case(
     if dim is not None:
         n, k = dim
         pair = generated_stabilizer_pair(n, k, "peq", seed=seed) if use_cached else None
-        code1, code2 = pair or random_permuted_stabilizer_pair(n, k, seed=seed)
+        code1, code2 = pair or PEqCodePairGenerator.stabilizer_codes_permuted(
+            n, k, seed
+        )
     else:
         if code is None:
             raise ValueError("Either dim or code must be provided")
