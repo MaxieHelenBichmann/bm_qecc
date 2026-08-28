@@ -69,10 +69,11 @@ from .utils import (
     non_lc_css_code,
     permutation_equivalent_code,
     permutation_equivalent_css_code,
-    random_css_code,
     random_stabilizer_code,
 )
 from .generators import (
+    LCEqCodeGenerator,
+    NonLCEqCodeGenerator,
     NonPEqCodePairGenerator,
     PEqCodePairGenerator,
     non_lc_equivalent_code,
@@ -671,7 +672,6 @@ def lcc_css_case(
     """Build a positive LC-CSS case, preferring a seeded single-code cache."""
     if dim is not None:
         n, k = dim
-        code = random_css_code(n, k, seed=seed)
         transformed = (
             generated_lc_css_code(n, k, positive=True, seed=seed)
             if use_cached
@@ -684,7 +684,12 @@ def lcc_css_case(
         transformed = None
 
     if transformed is None:
-        transformed = lc_equivalent_code(code, seed=seed + 420)
+        if dim is not None:
+            transformed = LCEqCodeGenerator.stabilizer_code_local_clifford(
+                n, k, seed
+            )
+        else:
+            transformed = lc_equivalent_code(code, seed=seed + 420)
 
     return Case(
         name=f"lcc_css_{n}_{k}_{seed}",
@@ -703,7 +708,6 @@ def non_lcc_css_case(
     """Build a negative LC-CSS case, preferring a seeded single-code cache."""
     if dim is not None:
         n, k = dim
-        code = random_css_code(n, k, seed=seed)
         negative = (
             generated_lc_css_code(n, k, positive=False, seed=seed)
             if use_cached
@@ -716,7 +720,12 @@ def non_lcc_css_case(
         negative = None
 
     if negative is None:
-        negative = non_lc_css_code(code, seed=seed + 69)
+        if dim is not None:
+            negative = NonLCEqCodeGenerator.stabilizer_code_locally_rank_one(
+                n, k, seed
+            )
+        else:
+            negative = non_lc_css_code(code, seed=seed + 69)
 
     return Case(
         name=f"non_lcc_css_{n}_{k}_{seed}",

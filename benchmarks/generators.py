@@ -1,9 +1,13 @@
 """Benchmark generators for (non-)equivalent code pairs.
 
-Every public entry point is a static method of one of the four generator
-classes below and follows the same shape:
+Every public entry point is a static method of one of the generator classes
+below. Equivalence problems on two codes use pair generators with the shape
 
     <family>_codes_<method>(n, k, seed) -> tuple[Code, Code]
+
+The LC-CSS property problem uses single-code generators with the shape
+
+    <family>_code_<method>(n, k, seed) -> Code
 
 ``<family>`` is the code family the pair is drawn from (``stabilizer`` or
 ``css``) and ``<method>`` names the *construction* used to obtain the second
@@ -49,6 +53,7 @@ from .utils import (
     _without_phases,
     lc_equivalent_code,
     lc_equivalent_code_and_log_ops,
+    non_lc_css_code,
     permutation_equivalent_code,
     permutation_equivalent_css_code,
     random_css_code,
@@ -662,6 +667,91 @@ class NonLCEqCodePairGenerator:
         code = random_stabilizer_code(n, k, seed=code_seed)
         return code, non_lc_equivalent_code(
             code, seed=partner_seed, row_steps=row_steps, max_attempts=max_attempts
+        )
+
+
+# --------------------------------------------------------------------------
+# Local-Clifford equivalence to CSS form
+# --------------------------------------------------------------------------
+
+
+class LCEqCodeGenerator:
+    """Generator for codes that are local-Clifford-equivalent to CSS codes."""
+
+    @staticmethod
+    def stabilizer_code_local_clifford(
+        n: int,
+        k: int,
+        seed: int | None = None,
+        *,
+        rx: int | None = None,
+        row_steps: int | None = None,
+    ) -> StabilizerCode:
+        """Return a stabilizer code in the LC orbit of a random CSS code.
+
+        A seeded CSS code is generated first and then hidden by independently
+        sampled single-qubit Cliffords and a generator-basis change. The result
+        is generally not presented as CSS even though its LC orbit contains the
+        source CSS code.
+
+        Sampling bias: the source comes from the usually dense, ``Hx``-first
+        ensemble of :func:`~benchmarks.utils.random_css_code`, and the output is
+        conditioned to lie in a CSS LC orbit by construction.
+        NOT USABLE whenever the target requires the natural prevalence of CSS
+        LC orbits among stabilizer codes, a uniform sample of those orbits, or a
+        structured sparse/LDPC CSS population, because membership and the source
+        ensemble are fixed rather than sampled from those populations.
+        """
+        rng = np.random.default_rng(seed)
+        source_seed = _seed(rng)
+        partner_seed = _seed(rng)
+        source = random_css_code(n, k, rx=rx, seed=source_seed)
+        return lc_equivalent_code(source, seed=partner_seed, row_steps=row_steps)
+
+
+class NonLCEqCodeGenerator:
+    """Generator for codes outside every local-Clifford CSS orbit."""
+
+    @staticmethod
+    def stabilizer_code_locally_rank_one(
+        n: int,
+        k: int,
+        seed: int | None = None,
+        *,
+        max_attempts: int = 10_000,
+        max_exact_rank: int = 16,
+    ) -> StabilizerCode:
+        """Return a code certified not local-Clifford-equivalent to any CSS code.
+
+        The construction uses direct sums of fixed five-qubit non-CSS blocks
+        and a layered-random remainder. For ``n <= 6`` candidates are certified
+        by exact LC-CSS brute force. At larger sizes the certificate is the
+        absence of a locally rank-one stabilizer subspace of the dimension that
+        every CSS stabilizer must contain; above ``max_exact_rank`` a component-
+        wise upper bound avoids enumerating the whole stabilizer group. A final
+        random local Clifford and basis change obscure the constructed basis but
+        do not remove the direct-sum structure.
+
+        Sampling bias: candidates are deliberately assembled from fixed blocks
+        and accepted using either the exact LC-CSS decision or the locally-rank-
+        one certificate. They are not independent draws from the layered random-
+        stabilizer ensemble.
+        NOT USABLE whenever the target is an unconditioned population of
+        stabilizer codes outside CSS LC orbits, the measured statistic is the
+        locally-rank-one certificate, or the result is sensitive to direct-sum,
+        fixed-block, or low-weight structure. Other invariant and runtime results
+        describe only this explicitly labeled structured-negative family.
+        """
+        # ``non_lc_css_code`` uses its argument only for the requested [[n, k]]
+        # dimensions. A CSS carrier keeps the public construction explicit and
+        # validates those dimensions through the ordinary code constructor.
+        rng = np.random.default_rng(seed)
+        carrier = random_css_code(n, k, seed=_seed(rng))
+        return non_lc_css_code(
+            carrier,
+            seed=_seed(rng),
+            max_attempts=max_attempts,
+            max_exact_rank=max_exact_rank,
         )
 
 
