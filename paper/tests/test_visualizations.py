@@ -22,16 +22,22 @@ def test_stale_collector_schema_is_rejected_explicitly(tmp_path: Path) -> None:
     path = tmp_path / "old.csv"
     _write(path, ("problem", "median_q_pairs"), [{"problem": "pm_stb", "median_q_pairs": 1}])
     with pytest.raises(ValueError, match="obsolete schema"):
-        load_rows(path, ("problem", "mean_q_pairs"))
+        load_rows(path, ("problem", "mean_distinct_pair_fraction"))
 
 
 def test_signature_plot_writes_one_png(tmp_path: Path) -> None:
     path = tmp_path / "by_cell.csv"
-    fields = ("problem", "n", "k", "r", "num_valid", "mean_q_pairs")
+    fields = (
+        "problem", "n", "k", "r", "num_valid",
+        "mean_distinct_pair_fraction",
+    )
     rows = [
-        {"problem": problem, "n": 3, "k": 1, "r": 2, "num_valid": 20, "mean_q_pairs": value}
+        {
+            "problem": problem, "n": 3, "k": 1, "r": 2,
+            "num_valid": 20, "mean_distinct_pair_fraction": value,
+        }
         for problem in ("pm_stb", "pm_css")
-        for value in (2 / 3,)
+        for value in (0.5,)
     ]
     _write(path, fields, rows)
     output = render(path, tmp_path / "signature_space.png")

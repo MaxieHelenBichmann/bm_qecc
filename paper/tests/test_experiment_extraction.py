@@ -113,7 +113,9 @@ def test_a2_aggregates_positive_and_negative_instances(tmp_path: Path) -> None:
 
     assert len(cells) == 1
     assert cells[0]["num_valid"] == 2
-    assert cells[0]["mean_q_pairs"] == pytest.approx(0.75)
+    # For n=3, q=1 maps to 1 and q=1/2 maps to 1/4 after removing
+    # unavoidable self-pairs; positive and negative cases are then averaged.
+    assert cells[0]["mean_distinct_pair_fraction"] == pytest.approx(0.625)
 
 
 def test_a4_reads_only_graph_algorithm_files_and_aggregates_polarities(tmp_path: Path) -> None:

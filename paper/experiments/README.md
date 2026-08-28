@@ -27,5 +27,13 @@ cell. A3 and A5 disqualify an algorithm in a cell if either polarity is absent
 or any run was unexpected, timed out, memory-limited, errored, or failed during
 generation. Therefore the backend used for A3 can vary with `(problem, n, k)`.
 
+A2 converts the collector's raw
+`q_pairs = sum_i(|s_i|^2) / n^2` to
+`(q_pairs - 1/n) / (1 - 1/n)` before aggregation. This is the fraction of
+distinct ordered qubit pairs that remain in the same signature class. It has a
+dimension-independent range from `0` (all signature classes are singletons) to
+`1` (one undivided class). The derived columns are
+`mean_distinct_pair_fraction` and `stddev_distinct_pair_fraction`.
+
 The plotting entry points in `paper/visualizations/` read these result CSVs;
 they never read raw server collections directly.

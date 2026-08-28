@@ -114,6 +114,11 @@ def test_algorithm_collector_cli_exposes_only_algorithm_selection() -> None:
     assert vars(args) == {"algorithm": ["pm_stb_sat"]}
 
 
+def test_algorithm_collector_runs_every_configured_algorithm_without_selector() -> None:
+    args = collect_algorithm.parse_args([])
+    assert args.algorithm == list(collect_algorithm.ALGORITHM_N_RANGES)
+
+
 def test_algorithm_collector_chooses_output_file_from_algorithm(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

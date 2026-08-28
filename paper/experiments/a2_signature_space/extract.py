@@ -1,4 +1,4 @@
-"""Aggregate A2 positive and negative raw signature metrics per cell."""
+"""Normalize and aggregate A2 positive and negative signature metrics."""
 
 from __future__ import annotations
 
@@ -11,7 +11,23 @@ from paper.experiments.common import COLLECTED_DATA_DIR, RESULTS_DIR, read_csv, 
 
 INPUT = COLLECTED_DATA_DIR / "signature_space.csv"
 OUTPUT = RESULTS_DIR / "signature_space" / "by_cell.csv"
-FIELDS = ("problem", "n", "k", "r", "num_requested", "num_valid", "mean_q_pairs", "stddev_q_pairs", "num_censored")
+FIELDS = (
+    "problem", "n", "k", "r", "num_requested", "num_valid",
+    "mean_distinct_pair_fraction", "stddev_distinct_pair_fraction",
+    "num_censored",
+)
+
+
+def distinct_pair_fraction(q_pairs: float, n: int) -> float:
+    """Normalize q_pairs from its n-dependent [1/n, 1] range to [0, 1]."""
+    minimum = 1 / n
+    tolerance = 1e-12
+    if q_pairs < minimum - tolerance or q_pairs > 1 + tolerance:
+        raise ValueError(
+            f"q_pairs={q_pairs} is outside the theoretical [{minimum}, 1] "
+            f"range for n={n}"
+        )
+    return min(1.0, max(0.0, (q_pairs - minimum) / (1 - minimum)))
 
 
 def extract(input_file: Path = INPUT, output_file: Path = OUTPUT) -> list[dict[str, Any]]:
@@ -21,12 +37,18 @@ def extract(input_file: Path = INPUT, output_file: Path = OUTPUT) -> list[dict[s
         groups[(row["problem"], int(row["n"]), int(row["k"]))].append(row)
     cells = []
     for (problem, n, k), group in sorted(groups.items()):
-        values = [float(row["q_pairs"]) for row in group if row["status"] == "success"]
+        values = [
+            distinct_pair_fraction(float(row["q_pairs"]), n)
+            for row in group
+            if row["status"] == "success"
+        ]
         cells.append({
             "problem": problem, "n": n, "k": k, "r": n - k,
             "num_requested": len(group), "num_valid": len(values),
-            "mean_q_pairs": mean(values) if values else "",
-            "stddev_q_pairs": stdev(values) if len(values) > 1 else (0.0 if values else ""),
+            "mean_distinct_pair_fraction": mean(values) if values else "",
+            "stddev_distinct_pair_fraction": (
+                stdev(values) if len(values) > 1 else (0.0 if values else "")
+            ),
             "num_censored": len(group) - len(values),
         })
     write_csv(output_file, cells, FIELDS)
