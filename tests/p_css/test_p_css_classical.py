@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import ldpc.mod2.mod2_numpy as mod2
 
-from benchmarks.utils import (
+from benchmarks.experiments.utils import (
     RandomizeError,
     random_non_permuted_css_pair,
     random_permuted_css_pair,

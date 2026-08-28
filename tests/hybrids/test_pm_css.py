@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import src.hybrids.p_css as p_css
 
-from benchmarks.utils import RandomizeError, random_non_permuted_css_pair, random_permuted_css_pair
+from benchmarks.experiments.utils import RandomizeError, random_non_permuted_css_pair, random_permuted_css_pair
 from src.core.css_code import CSSCode
 from src.hybrids.p_css import are_peq_css
 

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import ldpc.mod2.mod2_numpy as mod2
 
-from benchmarks.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
+from benchmarks.experiments.utils import RandomizeError, random_permuted_css_pair, random_non_permuted_css_pair
 from src.algorithms.p_css.p_css_matroid import _circuits_binary_matroid, _graph_from_circuits, are_peq_css_matroid
 
 # ----------------------------------------------------------------------------------------------------

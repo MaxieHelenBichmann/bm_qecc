@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pynauty import Graph, certificate
 
-from benchmarks.utils import RandomizeError, random_permuted_stabilizer_pair, random_non_permuted_stabilizer_pair
+from benchmarks.experiments.utils import RandomizeError, random_permuted_stabilizer_pair, random_non_permuted_stabilizer_pair
 from src.core.stabilizer_code import StabilizerCode
 from src.algorithms.p_stb.p_stab_graph_iso import (
     _graph_from_code,

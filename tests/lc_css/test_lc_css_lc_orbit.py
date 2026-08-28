@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import lc_equivalent_code, random_stabilizer_code, random_css_code, lc_equivalent_code_and_log_ops
+from benchmarks.experiments.utils import lc_equivalent_code, random_stabilizer_code, random_css_code, lc_equivalent_code_and_log_ops
 from src.algorithms.lc_css.lc_css_lc_orbit import (
     _stab_code_to_stab_state,
     _stab_state_to_graph_state,

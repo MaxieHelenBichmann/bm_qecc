@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import non_lc_equivalent_code, random_stabilizer_code, lc_equivalent_code, lc_equivalent_code_and_log_ops
+from benchmarks.experiments.utils import non_lc_equivalent_code, random_stabilizer_code, lc_equivalent_code, lc_equivalent_code_and_log_ops
 from src.algorithms.lc_stb.lc_stb_lse import (
     _stab_state_to_graph_state,
     _stab_code_to_stab_state,

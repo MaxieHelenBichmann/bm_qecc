@@ -161,10 +161,19 @@ tests/               # partially randomized tests and edge-case tests
   lc_stb/
   p_css/
   p_stab/
+  bm/
 
 benchmarks/
-  run.py             # cases, timing, and CSV output
-  utils.py           # randomization utilities
+  thesis/                     # data collection scripts used for thesis
+    thesis_prototypes.py
+    thesis_hybrids.py
+    thesis_invariants.py
+  experiments/
+    utils.py                  # randomization utilities
+    run.py                    # one supervised function call
+    statistics.py             # seeded repetitions, aggregation, and CSV append
+    generators_random.py
+    generators_structured.py
   run_hybrids.sh
   run_invariants.sh
   run_multiple.sh
@@ -184,42 +193,60 @@ source .venv/bin/activate
 python3 -m pip install -r requirements.txt
 ```
 
-Run benchmarks from the repository root:
+The benchmark infrastructure has four layers:
+
+- `benchmarks.experiments.run.run(...)` executes exactly one function call. The caller
+  supplies the function, positional inputs, exact expected value, timeout, and
+  memory limit. Its `RunResult` separately reports runtime, whether the result
+  matched, timeout, memory exhaustion, and any other execution error.
+- `benchmarks.experiments.statistics.run_statistics(...)` accepts an algorithm, a seeded
+  generator, a master seed, number of seeds, and output file. It derives
+  distinct seeds deterministically and appends one aggregate row, including a
+  CSV header when the file is empty.
+- `benchmarks.thesis.thesis_prototypes` is the user-facing CLI for random cases and
+  prototype algorithms.
+- `benchmarks.thesis.thesis_hybrids` and
+  `benchmarks.thesis.thesis_invariants` own the
+  structured hybrid and fixed invariant suites, respectively.
+
+Run a random prototype benchmark from the repository root:
 
 ```bash
-python3 -m benchmarks.run
+python3 -m benchmarks.thesis.thesis_prototypes \
+  --algorithm pm_css_sat --nmin 5 --nmax 8 \
+  --nr-seeds 10 --output results/pm_css_sat_random.csv
 ```
 
-The benchmark runner has four mutually exclusive modes:
-
-- `--raw`, the default when no mode is specified, benchmarks the default known or random cases. It is useful for flamegraphs and profiling.
-- `--stats` benchmarks multiple seeded instances with fixed dimensions and calculates aggregate statistics. It is useful for broader algorithm evaluation and detecting edge cases.
-- `--structured-hybrid-stats` (alias `--hybrid-stats`) benchmarks the named/structured cases using only hybrid algorithms.
-- `--inv` runs a fixed suite for all invariant-checking algorithms. It is useful for comparing invariants.
-
-The `--algorithm`, `--nmin`, and `--nmax` arguments can be used in raw, statistics, and structured-hybrid statistics mode. The `--random` argument is available only in raw and statistics mode. None of these arguments can be used with `--inv`.
-
-For each algorithm, the range of benchmarked instance sizes can be customized with `--nmin` and `--nmax`.
+`--algorithm` is repeatable and accepts exact names, shell wildcards, or regular
+expressions. `--nmin` and `--nmax` select the inclusive randomized parameter
+range. Raw-case benchmarking has been removed.
 
 Two optional resource guards are available:
 
 - `--timeout` limits the execution time of each repeat in seconds.
 - `--memory-limit` limits the memory available to each benchmark child process. Accepted forms include `4096M`, `32G`, and `16GiB`.
 
-Other parameters include `--output`, `--seed`, and `--verbose`. For example:
+Common parameters include `--output`, `--seed`, `--nr-seeds`, and `--verbose`.
+Statistics files are append-only, so separate invocations can intentionally
+contribute rows to the same file. For example:
 
 ```bash
-python3 -m benchmarks.run --seed 69 --output results/bm.csv --verbose --timeout 200
+python3 -m benchmarks.thesis.thesis_prototypes \
+  --algorithm pm_css_bruteforce --algorithm lc_stb_lse \
+  --seed 69 --nmin 3 --nmax 12 --timeout 200 --verbose \
+  --output results/prototypes.csv
 
-python3 -m benchmarks.run --algorithm pm_css_bruteforce --algorithm lc_stb_lse
-python3 -m benchmarks.run --algorithm 'pm_css*'
+python3 -m benchmarks.thesis.thesis_prototypes \
+  --algorithm 'pm_css*' --memory-limit 4GiB \
+  --output results/pm_css_random.csv
 
-python3 -m benchmarks.run --raw --random --nmin 5 --nmax 8
-python3 -m benchmarks.run --stats --algorithm pm_css_sat --random --verbose \
-  --output results/pm_css_sat_random.csv
-python3 -m benchmarks.run --stats --algorithm pm_css_matroid \
-  --output results/pm_css_matroid_structured.csv
-python3 -m benchmarks.run --inv --verbose --output results/invariants.csv --timeout 20 --memory-limit 512M
+python3 -m benchmarks.thesis.thesis_hybrids \
+  --nmin 2 --nmax 144 --nr-seeds 10 --verbose \
+  --output results/hybrids.csv
+
+python3 -m benchmarks.thesis.thesis_invariants \
+  --family both --timeout 20 --memory-limit 512M --verbose \
+  --output results/invariants.csv
 ```
 
 Optionally, record a flamegraph for more detailed analysis:
@@ -228,10 +255,13 @@ Optionally, record a flamegraph for more detailed analysis:
 py-spy record \
   --format flamegraph \
   --output results/pm_css_matroid_flame.svg \
-  -- python -m benchmarks.run --algorithm pm_css_matroid --output results/pm_css_matroid_profile.csv --random
+  -- python -m benchmarks.thesis.thesis_prototypes --algorithm pm_css_matroid \
+     --nmin 10 --nmax 10 --nr-seeds 1 \
+     --output results/pm_css_matroid_profile.csv
 ```
 
-The Bash scripts `run_invariants.sh` and `run_multiple.sh` run customizable benchmark suites in parallel on the benchmark server.
+The Bash scripts have intentionally not yet been migrated to the new dedicated
+entry points; this cleanup only changes the Python benchmark infrastructure.
 
 ### Tests
 
@@ -258,4 +288,7 @@ This approach is expected to be less efficient than the alternatives and is incl
 While I used coding agents in my workflow, I kept that usage and especially AI-generated code to a minimum. 
 It is limited to small/fine-grained library-specific functions, i.e. my helper functions calling certain library functions with some additional checks (see `_kernel_basis` or `_row_basis`). Broader-scope algorithms and algorithm components are written by me.  
 Some basic tests are generated as well.
-The only relevant files where I used AI more than that are `benchmarks/run.py`, `benchmarks/utils.py` and `benchmarks/run_*.sh`, for infrastructure, resource restrictions and instance generation (reviewed by me).
+The only relevant files where I used AI more than that are the benchmark
+infrastructure in `benchmarks/experiments/`, especially `run.py`,
+`statistics.py`, and `utils.py`, plus `benchmarks/run_*.sh`, for infrastructure, resource
+restrictions and instance generation (reviewed by me).

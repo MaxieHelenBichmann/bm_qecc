@@ -5,7 +5,7 @@ Every entry point loads its source by name and follows one of these shapes::
     <family>_codes_<method>(name, seed) -> tuple[Code, Code]
     <family>_code_<method>(name, seed) -> Code
 
-Unlike :mod:`benchmarks.random_generators`, these generators do not sample the
+Unlike :mod:`benchmarks.experiments.generators_random`, these generators do not sample the
 source dimensions or source code. The named code is always the first member of
 a pair, or the CSS representative used for a positive LC-CSS instance.
 """
@@ -19,7 +19,7 @@ import numpy as np
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 
-from .random_generators import (
+from .generators_random import (
     _perturbed_stabilizer_code,
     non_lc_equivalent_code,
     non_permutation_equivalent_css_code,
@@ -41,11 +41,11 @@ from .utils import (
     permutation_equivalent_css_code,
 )
 
-_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 _MAX_SEED = np.iinfo(np.int32).max
 
 # The values are (file stem, is_css). Aliases are the stable names historically
-# exposed by benchmarks.run.NAMED_CODES.
+# used by the structured thesis benchmark suites.
 NAMED_CODE_SPECS: dict[str, tuple[str | None, bool]] = {
     "bell": (None, True),
     "3q_rep": ("three_bit_repetition", True),

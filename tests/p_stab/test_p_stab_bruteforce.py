@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from benchmarks.utils import RandomizeError, random_permuted_stabilizer_pair, random_non_permuted_stabilizer_pair
+from benchmarks.experiments.utils import RandomizeError, random_permuted_stabilizer_pair, random_non_permuted_stabilizer_pair
 from src.algorithms.p_stb.p_stab_bruteforce import are_peq_stab_bruteforce
 
 # ----------------------------------------------------------------------------------------------------

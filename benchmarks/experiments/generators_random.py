@@ -473,7 +473,7 @@ class NonPEqCodePairGenerator:
         codes, where a dense random negative is rejected on sight.
 
         This public pair method nevertheless draws its source with
-        :func:`~benchmarks.utils.random_css_code`, which normally produces a
+        :func:`~benchmarks.experiments.utils.random_css_code`, which normally produces a
         dense code. To perturb an existing sparse or named code, call
         :func:`non_permutation_equivalent_css_code_cnot` directly.
 
@@ -695,7 +695,7 @@ class LCEqCodeGenerator:
         source CSS code.
 
         Sampling bias: the source comes from the usually dense, ``Hx``-first
-        ensemble of :func:`~benchmarks.utils.random_css_code`, and the output is
+        ensemble of :func:`~benchmarks.experiments.utils.random_css_code`, and the output is
         conditioned to lie in a CSS LC orbit by construction.
         NOT USABLE whenever the target requires the natural prevalence of CSS
         LC orbits among stabilizer codes, a uniform sample of those orbits, or a

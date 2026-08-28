@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import src.hybrids.lc_css as lc_css
 
-from benchmarks.utils import lc_equivalent_code, random_css_code, random_stabilizer_code
+from benchmarks.experiments.utils import lc_equivalent_code, random_css_code, random_stabilizer_code
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 from src.hybrids.lc_css import _row_basis, _sat, is_lceq_css

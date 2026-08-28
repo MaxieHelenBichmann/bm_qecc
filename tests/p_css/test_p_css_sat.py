@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from benchmarks.utils import random_permuted_css_pair, random_non_permuted_css_pair, RandomizeError
+from benchmarks.experiments.utils import random_permuted_css_pair, random_non_permuted_css_pair, RandomizeError
 from src.algorithms.p_css.p_css_sat import are_peq_css_sat
 
 # ----------------------------------------------------------------------------------------------------

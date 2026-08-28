@@ -7,7 +7,7 @@ import inspect
 import numpy as np
 import pytest
 
-from benchmarks.structured_generators import (
+from benchmarks.experiments.generators_structured import (
     LCEqCodeGenerator,
     LCEqCodePairGenerator,
     NAMED_CODE_SPECS,

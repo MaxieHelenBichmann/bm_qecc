@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import src.hybrids.p_stab as p_stab
 
-from benchmarks.utils import (
+from benchmarks.experiments.utils import (
     RandomizeError,
     permutation_equivalent_code,
     random_non_permuted_stabilizer_pair,

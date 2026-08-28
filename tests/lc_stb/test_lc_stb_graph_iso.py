@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pynauty import Graph
 
-from benchmarks.utils import lc_equivalent_code, non_lc_equivalent_code, random_stabilizer_code
+from benchmarks.experiments.utils import lc_equivalent_code, non_lc_equivalent_code, random_stabilizer_code
 from src.algorithms.lc_stb.lc_stb_graph_iso import (
     _graph_from_code,
     are_lceq_graph_iso,

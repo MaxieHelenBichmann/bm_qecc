@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from benchmarks.utils import lc_equivalent_code, non_lc_equivalent_code, random_stabilizer_code
+from benchmarks.experiments.utils import lc_equivalent_code, non_lc_equivalent_code, random_stabilizer_code
 from src.core.stabilizer_code import StabilizerCode
 from src.algorithms.lc_stb.lc_stb_sat import are_lceq_sat
 

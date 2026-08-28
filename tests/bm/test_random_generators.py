@@ -7,7 +7,7 @@ import inspect
 import numpy as np
 import pytest
 
-from benchmarks.random_generators import (
+from benchmarks.experiments.generators_random import (
     LCEqCodeGenerator,
     LCEqCodePairGenerator,
     NonLCEqCodeGenerator,
@@ -17,7 +17,7 @@ from benchmarks.random_generators import (
     _lc_projection_rank_invariant,
     _projection_rank_invariant,
 )
-from benchmarks.utils import _rank_binary, random_stabilizer_code
+from benchmarks.experiments.utils import _rank_binary, random_stabilizer_code
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 from src.algorithms.lc_css.lc_css_bruteforce import is_lceq_css_bruteforce

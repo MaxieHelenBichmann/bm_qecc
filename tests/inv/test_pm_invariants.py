@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks.utils import (
+from benchmarks.experiments.utils import (
     random_non_permuted_stabilizer_pair,
     random_permuted_stabilizer_pair,
 )

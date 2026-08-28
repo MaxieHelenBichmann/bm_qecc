@@ -8,7 +8,7 @@ import multiprocessing as mp
 import numpy as np
 import pytest
 
-from benchmarks.utils import (
+from benchmarks.experiments.utils import (
     RandomizeError,
     permutation_equivalent_code,
     random_non_permuted_stabilizer_pair,

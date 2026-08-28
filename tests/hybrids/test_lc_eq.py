@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import src.hybrids.lc_stb as lc_stb
 
-from benchmarks.utils import (
+from benchmarks.experiments.utils import (
     RandomizeError,
     lc_equivalent_code,
     non_lc_equivalent_code,
