@@ -25,7 +25,7 @@ from .generators_random import (
     non_permutation_equivalent_css_code,
     non_permutation_equivalent_css_code_cnot,
     non_permutation_equivalent_css_code_decoupled,
-    non_permutation_equivalent_css_code_independent,
+    non_permutation_equivalent_css_code_independent_invariant_certified,
     non_permutation_equivalent_stabilizer_code,
     non_permutation_equivalent_stabilizer_code_anchored,
     non_permutation_equivalent_stabilizer_code_independent,
@@ -249,7 +249,7 @@ class NonPEqCodePairGenerator:
         return code, partner
 
     @staticmethod
-    def stabilizer_codes_clifford(
+    def stabilizer_codes_clifford_candidate(
         name: str, seed: int | None = None, *, gate_steps: int | None = None
     ) -> tuple[StabilizerCode, StabilizerCode]:
         """Return a named code and an uncertified Clifford perturbation.
@@ -313,7 +313,7 @@ class NonPEqCodePairGenerator:
         return code, partner
 
     @staticmethod
-    def css_codes_independent(
+    def css_codes_independent_invariant_certified(
         name: str, seed: int | None = None, *, max_attempts: int = 10_000
     ) -> tuple[CSSCode, CSSCode]:
         """Return a named CSS code and an independent certified proposal.
@@ -324,7 +324,7 @@ class NonPEqCodePairGenerator:
         or certificate-conditioned statistics are interpreted as natural rates.
         """
         code = _load_css_code(name)
-        partner = non_permutation_equivalent_css_code_independent(
+        partner = non_permutation_equivalent_css_code_independent_invariant_certified(
             code, seed=seed, max_attempts=max_attempts
         )
         return code, partner

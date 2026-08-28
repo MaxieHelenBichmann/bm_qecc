@@ -135,6 +135,58 @@ def test_anchored_negative_has_a_permutation_certificate() -> None:
     assert partner not in {source, (source[1], source[0], source[2])}
 
 
+def test_independent_stabilizer_candidate_is_seeded_and_uncorrelated() -> None:
+    first = NonPEqCodePairGenerator.stabilizer_codes_independent_candidate(
+        7, 3, 123, clifford_steps=4
+    )
+    second = NonPEqCodePairGenerator.stabilizer_codes_independent_candidate(
+        7, 3, 123, clifford_steps=4
+    )
+
+    assert all(
+        np.array_equal(_matrix(left), _matrix(right))
+        for left, right in zip(first, second)
+    )
+    assert not np.array_equal(_matrix(first[0]), _matrix(first[1]))
+    assert (first[0].n, first[0].k) == (first[1].n, first[1].k) == (7, 3)
+
+
+def test_independent_css_candidate_draws_both_codes_without_certifying() -> None:
+    first = NonPEqCodePairGenerator.css_codes_independent_candidate(7, 3, 123, rx=2)
+    second = NonPEqCodePairGenerator.css_codes_independent_candidate(7, 3, 123, rx=2)
+
+    assert all(
+        np.array_equal(left.Hx, right.Hx) and np.array_equal(left.Hz, right.Hz)
+        for left, right in zip(first, second)
+    )
+    assert not (
+        np.array_equal(first[0].Hx, first[1].Hx)
+        and np.array_equal(first[0].Hz, first[1].Hz)
+    )
+    assert _rank_binary(first[0].Hx) == _rank_binary(first[1].Hx) == 2
+    assert (first[0].n, first[0].k) == (first[1].n, first[1].k) == (7, 3)
+
+
+def test_independent_css_candidate_draws_ranks_independently_by_default() -> None:
+    left, right = NonPEqCodePairGenerator.css_codes_independent_candidate(7, 3, 0)
+
+    assert _rank_binary(left.Hx) == 4
+    assert _rank_binary(right.Hx) == 3
+
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        NonPEqCodePairGenerator.stabilizer_codes_independent_candidate,
+        NonPEqCodePairGenerator.css_codes_independent_candidate,
+    ],
+)
+def test_independent_candidates_do_not_claim_a_negative_for_trivial_codes(method) -> None:
+    left, right = method(3, 3, 5)
+
+    assert (left.n, left.k) == (right.n, right.k) == (3, 3)
+
+
 def test_independent_lc_negative_has_an_lc_certificate() -> None:
     left, right = NonLCEqCodePairGenerator.stabilizer_codes_independent(5, 2, 9)
     assert isinstance(left, StabilizerCode)

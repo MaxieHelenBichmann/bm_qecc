@@ -18,8 +18,10 @@ Positive constructions are exact: the second code is obtained by applying a
 transformation from the equivalence group, so the pair is equivalent by
 construction. Negative constructions instead document the *certificate* they
 use and raise :class:`RandomizeError` when no candidate carrying that
-certificate is found inside the search budget. The one exception is the
-``clifford`` method, which is deliberately uncertified; see its docstring.
+certificate is found inside the search budget. Methods ending in
+``_candidate`` are deliberately uncertified;
+callers must label their outputs with an exact backend before treating them as
+negative.
 
 The choice of method matters, and different methods are not interchangeable.
 A certified negative is selected with respect to an invariant. It therefore
@@ -377,7 +379,7 @@ class NonPEqCodePairGenerator:
         )
 
     @staticmethod
-    def stabilizer_codes_clifford(
+    def stabilizer_codes_clifford_candidate(
         n: int,
         k: int,
         seed: int | None = None,
@@ -420,6 +422,48 @@ class NonPEqCodePairGenerator:
         return code, partner
 
     @staticmethod
+    def stabilizer_codes_independent_candidate(
+        n: int,
+        k: int,
+        seed: int | None = None,
+        *,
+        clifford_steps: int | None = None,
+    ) -> tuple[StabilizerCode, StabilizerCode]:
+        """Return two independently sampled, *uncertified* stabilizer codes.
+
+        Both members are independent draws from :func:`random_stabilizer_code`
+        with separately derived seeds. No invariant, signature, or equivalence
+        backend is consulted here. The caller must use an exact backend and
+        retain the pair only when that backend certifies non-equivalence.
+
+        This is the natural independent-pair counterpart to
+        :meth:`stabilizer_codes_clifford_candidate`: it removes the shared-source
+        correlation of a Clifford perturbation. Retained negative pairs follow
+        the repository's random-stabilizer ensemble conditioned on not being
+        permutation-equivalent.
+
+        Sampling bias: :func:`random_stabilizer_code` uses the repository's
+        layered random-Clifford ensemble rather than a uniform distribution
+        over stabilizer codes or permutation orbits. Exact-backend rejection
+        additionally conditions retained pairs on different permutation
+        orbits.
+        NOT USABLE whenever the exact certifier is incomplete, time-limited, or
+        also the system whose solvable-case rate is being measured, because
+        discarding uncertified pairs then selects for certifier-easy instances.
+        """
+        rng = np.random.default_rng(seed)
+        left_seed = _seed(rng)
+        right_seed = _seed(rng)
+        return (
+            random_stabilizer_code(
+                n, k, seed=left_seed, clifford_steps=clifford_steps
+            ),
+            random_stabilizer_code(
+                n, k, seed=right_seed, clifford_steps=clifford_steps
+            ),
+        )
+
+    @staticmethod
     def css_codes_cascaded(
         n: int,
         k: int,
@@ -430,12 +474,13 @@ class NonPEqCodePairGenerator:
         """Return a certified negative CSS pair, trying every method in turn.
 
         Tries the partner constructions underlying :meth:`css_codes_cnot`,
-        :meth:`css_codes_decoupled`, and :meth:`css_codes_independent` in that
-        order when applicable, keeping the first candidate that carries a
-        certificate. CNOT candidates are attempted only for large sparse source
-        codes. This is the general-purpose choice: the cheaper, structure-
-        preserving methods do not apply to every code, and an independent
-        proposal provides the broadest fallback.
+        :meth:`css_codes_decoupled`, and
+        :meth:`css_codes_independent_invariant_certified` in that order when
+        applicable, keeping the first candidate that carries a certificate.
+        CNOT candidates are attempted only for large sparse source codes. This
+        is the general-purpose choice: the cheaper, structure-preserving methods
+        do not apply to every code, and an independent proposal provides the
+        broadest fallback.
 
         Sampling bias: the output is a size/structure-dependent mixture of
         CNOT, decoupled-permutation, and independent candidates, each accepted
@@ -528,14 +573,14 @@ class NonPEqCodePairGenerator:
         )
 
     @staticmethod
-    def css_codes_independent(
+    def css_codes_independent_invariant_certified(
         n: int,
         k: int,
         seed: int | None = None,
         *,
         max_attempts: int = 10_000,
     ) -> tuple[CSSCode, CSSCode]:
-        """Return independently proposed CSS codes with a different invariant.
+        """Return independent CSS proposals separated by an adaptive invariant.
 
         Candidates are constrained to match the source's cheap visible
         invariants -- ranks, zero columns, duplicate-column multiplicities -- so
@@ -558,7 +603,48 @@ class NonPEqCodePairGenerator:
             k,
             seed=seed,
             max_attempts=max_attempts,
-            partner=non_permutation_equivalent_css_code_independent,
+            partner=non_permutation_equivalent_css_code_independent_invariant_certified,
+        )
+
+    @staticmethod
+    def css_codes_independent_candidate(
+        n: int,
+        k: int,
+        seed: int | None = None,
+        *,
+        rx: int | None = None,
+    ) -> tuple[CSSCode, CSSCode]:
+        """Return two independently sampled, *uncertified* CSS codes.
+
+        No invariant, signature, or equivalence backend is consulted. The
+        caller must use an exact backend and retain the pair only when that
+        backend certifies non-equivalence.
+
+        With ``rx=None``, each code independently draws its X-check rank from
+        ``0..n-k`` as part of the repository's random-CSS ensemble. Consequently
+        some candidates are easy negatives because their X-check ranks differ.
+        Passing ``rx`` conditions both independent draws on the same X-check
+        rank when rank-matched candidates are desired.
+
+        Sampling bias: the underlying generator is the dense, X-first
+        :func:`random_css_code` ensemble, not a uniform distribution over CSS
+        codes or permutation orbits. Exact-backend rejection additionally
+        conditions retained pairs on different permutation orbits.
+        NOT USABLE whenever the exact certifier is incomplete, time-limited, or
+        also the system whose solvable-case rate is being measured, because
+        discarding uncertified pairs then selects for certifier-easy instances.
+        """
+        rng = np.random.default_rng(seed)
+        if rx is None:
+            left_rx = int(rng.integers(0, n - k + 1))
+            right_rx = int(rng.integers(0, n - k + 1))
+        else:
+            left_rx = right_rx = rx
+        left_seed = _seed(rng)
+        right_seed = _seed(rng)
+        return (
+            random_css_code(n, k, left_rx, seed=left_seed),
+            random_css_code(n, k, right_rx, seed=right_seed),
         )
 
 
@@ -996,7 +1082,9 @@ def non_permutation_equivalent_css_code(
         except RandomizeError:
             pass
 
-    return non_permutation_equivalent_css_code_independent(code, seed=_seed(rng))
+    return non_permutation_equivalent_css_code_independent_invariant_certified(
+        code, seed=_seed(rng)
+    )
 
 
 def non_permutation_equivalent_css_code_cnot(
@@ -1068,13 +1156,13 @@ def non_permutation_equivalent_css_code_decoupled(
     )
 
 
-def non_permutation_equivalent_css_code_independent(
+def non_permutation_equivalent_css_code_independent_invariant_certified(
     code: CSSCode,
     seed: int | None = None,
     *,
     max_attempts: int = 10_000,
 ) -> CSSCode:
-    """Return an independent CSS proposal with a different invariant.
+    """Return an independent CSS proposal separated by an adaptive invariant.
 
     Candidates must preserve the very cheap invariants used as early filters by
     the benchmark solvers, so random negative pairs are not rejected just
