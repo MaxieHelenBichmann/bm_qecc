@@ -1,4 +1,4 @@
-"""Collect explicit runtimes for every invariant used in A3.
+"""Collect explicit marginal runtimes for every invariant used in A3.
 
 Usage::
 
@@ -10,6 +10,14 @@ limit, or verbosity. Each invariant is timed on positive and negative random
 instances and appended to ``paper/data/collected/invariant_timings.csv`` using
 the standard statistics schema. The A3 experiment later chooses the fastest
 valid backend separately at every parameter setting and computes the ratio.
+
+Case generation, negative-case certification, and row-basis normalization all
+happen before the supervised invariant call and are excluded from
+``mean_seconds``. Thus A3 measures the invariant's marginal runtime on prepared
+matrices, not end-to-end preprocessing time. Negative candidates are generated
+without consulting a measured invariant and retained only after A1's exact
+problem-specific certification. A certification failure or timeout is counted
+as an input-generation failure rather than timed or labelled as negative.
 """
 
 from __future__ import annotations
@@ -19,7 +27,8 @@ from pathlib import Path
 from typing import Any
 
 from benchmarks.experiments.statistics import BenchmarkCase, run_statistics
-from benchmarks.thesis.thesis_prototypes import RandomCaseGenerator, measurement_dimensions
+from benchmarks.thesis.thesis_prototypes import measurement_dimensions
+from paper.benchmarks.collect_algorithm import CertifiedRandomCaseGenerator
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 from src.hybrids import lc_stb, p_css, p_stab
@@ -55,10 +64,8 @@ def _prepared(problem: str, left: StabilizerCode, right: StabilizerCode) -> tupl
 
 def evaluate_signature(
     problem: str,
-    left: StabilizerCode,
-    right: StabilizerCode,
+    *matrices: Any,
 ) -> bool:
-    matrices = _prepared(problem, left, right)
     if problem == "pm_stb":
         compatible, _, _ = p_stab.preserved_punctured_hull_weight_enumerator(*matrices)
     elif problem == "pm_css":
@@ -71,12 +78,10 @@ def evaluate_signature(
 def evaluate_invariant(
     name: str,
     problem: str,
-    left: StabilizerCode,
-    right: StabilizerCode,
+    *matrices: Any,
 ) -> bool:
     if name == "signatures":
-        return evaluate_signature(problem, left, right)
-    matrices = _prepared(problem, left, right)
+        return evaluate_signature(problem, *matrices)
     if name == "linear_dependency" and problem == "pm_stb":
         return bool(p_stab.preserved_linear_dependencies(*matrices))
     if name == "linear_dependency" and problem == "pm_css":
@@ -102,8 +107,8 @@ class InvariantAlgorithm:
     def __name__(self) -> str:
         return f"{self.problem}_{self.invariant}"
 
-    def __call__(self, left: Any, right: Any) -> bool:
-        evaluate_invariant(self.invariant, self.problem, left, right)
+    def __call__(self, *matrices: Any) -> bool:
+        evaluate_invariant(self.invariant, self.problem, *matrices)
         # A3 measures completion, not whether the invariant accepts the pair.
         return True
 
@@ -141,9 +146,19 @@ class InvariantCaseGenerator:
     def __call__(self, seed: int) -> BenchmarkCase:
         # Any prototype name with the right prefix selects the shared random
         # population for that equivalence problem.
-        base = RandomCaseGenerator(f"{self.problem}_sat", self.n, self.k, self.positive)
+        base = CertifiedRandomCaseGenerator(
+            f"{self.problem}_sat", self.n, self.k, self.positive
+        )
         case = base(seed)
-        return BenchmarkCase(case.inputs, True, self.metadata)
+        if len(case.inputs) != 2:
+            raise TypeError("invariant timing cases require a pair of codes")
+        left, right = case.inputs
+        if not isinstance(left, StabilizerCode) or not isinstance(
+            right, StabilizerCode
+        ):
+            raise TypeError("invariant timing cases require stabilizer-code inputs")
+        matrices = _prepared(self.problem, left, right)
+        return BenchmarkCase(matrices, True, self.metadata)
 
 
 def collect() -> None:

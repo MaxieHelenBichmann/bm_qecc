@@ -6,6 +6,9 @@ import csv
 import time
 from pathlib import Path
 
+import pytest
+
+from benchmarks.experiments import run as run_module
 from benchmarks.experiments.run import run
 from benchmarks.experiments.statistics import (
     BenchmarkCase,
@@ -25,6 +28,14 @@ def _sleep(seconds: float) -> bool:
 
 def _raise_memory_error() -> None:
     raise MemoryError
+
+
+class _RecordingQueue:
+    def __init__(self) -> None:
+        self.item: object | None = None
+
+    def put(self, item: object) -> None:
+        self.item = item
 
 
 def test_run_reports_expected_and_unexpected_results() -> None:
@@ -60,6 +71,19 @@ def test_run_reports_other_execution_error() -> None:
     assert result.error == "ZeroDivisionError: division by zero"
     assert not result.timed_out
     assert not result.memory_exceeded
+
+
+def test_worker_reports_call_runtime_without_supervisor_overhead(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue = _RecordingQueue()
+    times = iter((10.0, 10.25))
+    monkeypatch.setattr(run_module.os, "setsid", lambda: None)
+    monkeypatch.setattr(run_module, "perf_counter", lambda: next(times))
+
+    run_module._worker(_identity, (3,), queue, None)
+
+    assert queue.item == ("result", 3, 0.25)
 
 
 def test_statistics_uses_distinct_deterministic_seeds_and_appends_header_once(

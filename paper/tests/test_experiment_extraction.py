@@ -25,6 +25,7 @@ def _stat_row(
     k: int = 1,
     successful: int = 10,
     timeouts: int = 0,
+    generation_errors: int = 0,
 ) -> dict[str, object]:
     return {
         "algorithm": algorithm,
@@ -48,7 +49,7 @@ def _stat_row(
         "num_timeouts": timeouts,
         "num_memory_limited": 0,
         "num_errors": 0,
-        "num_generation_errors": 0,
+        "num_generation_errors": generation_errors,
     }
 
 
@@ -173,6 +174,29 @@ def test_a3_backend_choice_is_parameter_dependent(tmp_path: Path) -> None:
 
     assert rows[0]["backend_algorithm"] == "pm_stb_graph_iso"
     assert rows[0]["relative_runtime"] == pytest.approx(0.2)
+
+
+def test_a3_excludes_incomplete_invariant_cells(tmp_path: Path) -> None:
+    algorithms = tmp_path / "algorithms"
+    _algorithm(algorithms, "lc_stb_sat", 1.0, 1.0)
+    invariant_file = tmp_path / "invariants.csv"
+    _write_statistics(
+        invariant_file,
+        [
+            _stat_row("lc_stb_local_invariant", True, 0.2),
+            _stat_row(
+                "lc_stb_local_invariant",
+                False,
+                0.2,
+                successful=9,
+                generation_errors=1,
+            ),
+        ],
+    )
+
+    rows = extract_a3(invariant_file, algorithms, tmp_path / "a3.csv")
+
+    assert rows == []
 
 
 def test_a6_uses_two_complete_files_and_only_the_extra_css_file(tmp_path: Path) -> None:

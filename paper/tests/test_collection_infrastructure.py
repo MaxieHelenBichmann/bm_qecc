@@ -9,6 +9,7 @@ import pytest
 
 from benchmarks.experiments.run import RunResult
 from paper.benchmarks import collect_invariant_rejections as rejections
+from paper.benchmarks import collect_invariant_timings as timings
 from paper.benchmarks import collect_signature_space as signatures
 from paper.benchmarks.collect_signature_space import signature_metric
 from paper.benchmarks import collect_algorithm
@@ -20,6 +21,7 @@ from paper.benchmarks.collect_invariant_rejections import (
 from src.algorithms.p_css.p_css_sat import are_peq_css_sat
 from src.algorithms.p_stb.p_stab_sat import are_peq_stab_sat
 from src.core.css_code import CSSCode
+from src.core.stabilizer_code import StabilizerCode
 
 
 def test_fixed_suite_matches_the_thesis_grid_and_seed_schedule() -> None:
@@ -95,6 +97,110 @@ def test_large_high_rank_css_uses_certified_generator_without_backend(
     assert rejections.certified_negative_pair(
         "pm_css", 29, 19, 89, max_attempts=1
     ) is pair
+
+
+def test_invariant_timing_generator_uses_shared_certified_pair_before_preparing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pair = (
+        StabilizerCode.get_trivial_code(3),
+        StabilizerCode.get_trivial_code(3),
+    )
+    events: list[object] = []
+
+    class BaseGenerator:
+        def __init__(self, *args: object) -> None:
+            pass
+
+        def __call__(self, seed: int) -> object:
+            events.append(("generate", seed))
+            return timings.BenchmarkCase(pair, False)
+
+    prepared = (object(), object())
+    monkeypatch.setattr(timings, "CertifiedRandomCaseGenerator", BaseGenerator)
+    monkeypatch.setattr(
+        timings,
+        "_prepared",
+        lambda *inputs: events.append(("prepare", inputs)) or prepared,
+    )
+
+    case = timings.InvariantCaseGenerator(
+        "lc_stb", "local_invariant", 3, 0, False
+    )(89)
+
+    assert case.inputs is prepared
+    assert [event[0] for event in events] == ["generate", "prepare"]
+
+
+def test_runtime_negative_uses_a1_certified_generator_and_is_cached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pair = (object(), object())
+    calls: list[tuple[object, ...]] = []
+    collect_algorithm._certified_negative_result.cache_clear()
+    monkeypatch.setattr(
+        collect_algorithm,
+        "certified_negative_pair",
+        lambda *args: calls.append(args) or pair,
+    )
+
+    first = collect_algorithm.CertifiedRandomCaseGenerator(
+        "pm_stb_sat", 7, 3, False
+    )(89)
+    second = collect_algorithm.CertifiedRandomCaseGenerator(
+        "pm_stb_graph_iso", 7, 3, False
+    )(89)
+
+    assert first.inputs == second.inputs == pair
+    assert calls == [("pm_stb", 7, 3, 89)]
+    collect_algorithm._certified_negative_result.cache_clear()
+
+
+def test_negative_certification_failure_becomes_generation_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, ...]] = []
+    collect_algorithm._certified_negative_result.cache_clear()
+    monkeypatch.setattr(
+        collect_algorithm,
+        "certified_negative_pair",
+        lambda *args: calls.append(args)
+        or (_ for _ in ()).throw(RuntimeError("certification timed out")),
+    )
+
+    statistic = timings.run_statistics(
+        timings.InvariantAlgorithm("lc_stb", "local_invariant"),
+        timings.InvariantCaseGenerator("lc_stb", "local_invariant", 3, 0, False),
+        42,
+        1,
+        tmp_path / "timings.csv",
+    )
+
+    assert statistic.num_cases == 0
+    assert statistic.num_generation_errors == 1
+    with pytest.raises(RuntimeError, match="certification timed out"):
+        collect_algorithm.CertifiedRandomCaseGenerator(
+            "lc_stb_sat", 3, 0, False
+        )(89)
+    assert calls == [("lc_stb", 3, 0, 89)]
+    collect_algorithm._certified_negative_result.cache_clear()
+
+
+def test_prepared_matrix_arity_matches_each_invariant_family() -> None:
+    pm_stb = timings.InvariantCaseGenerator(
+        "pm_stb", "linear_dependency", 3, 1, True
+    )(89)
+    pm_css = timings.InvariantCaseGenerator(
+        "pm_css", "linear_dependency", 3, 1, True
+    )(89)
+    lc_stb = timings.InvariantCaseGenerator(
+        "lc_stb", "local_invariant", 3, 1, True
+    )(89)
+
+    assert len(pm_stb.inputs) == 2
+    assert len(pm_css.inputs) == 4
+    assert len(lc_stb.inputs) == 2
 
 
 def test_signature_collector_uses_css_then_stabilizer_order() -> None:

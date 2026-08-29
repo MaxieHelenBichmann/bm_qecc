@@ -45,7 +45,11 @@ def extract(
             invariant_cell["k"],
         )
         choices = candidates.get(key, [])
-        if not choices or invariant_cell["mean_seconds"] is None:
+        if (
+            not choices
+            or not invariant_cell["complete"]
+            or invariant_cell["mean_seconds"] is None
+        ):
             continue
         backend = min(choices, key=lambda cell: cell["mean_seconds"])
         problem = invariant_cell["problem"]
