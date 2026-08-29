@@ -135,6 +135,8 @@ $$
  \frac{T_{\text{invariant}}}{T_{\text{backend}}}
 $$
 
+The visualizer creates one temperature map per invariant.
+
 ### A4 - Representation Cost
 *Where do methods trade fast search for excessive representation cost?*
 Methods measured: graph-isomorphism based methods for `pm_stb` and `lc_stb` on general stabilizer codes.

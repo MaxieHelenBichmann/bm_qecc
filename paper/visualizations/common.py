@@ -104,6 +104,79 @@ SIGNATURE_CMAP = LinearSegmentedColormap.from_list(
     "signature_space", tuple(reversed(COLOR_PAPER_CYAN_RAMP))
 )
 
+# Diverging ratio scale: white at parity, blue where the invariant is cheaper
+# than the backend it screens for, red where it costs more. The arms are
+# mirrored in log space, so equal colour intensity means an equal factor in
+# either direction.
+RELATIVE_DECADES = 3
+RELATIVE_BLUE_ARM = (
+    COLOR_PAPER_WHITE,
+    COLOR_PAPER_LIGHT_BLUE,
+    COLOR_PAPER_MEDIUM_BLUE,
+    COLOR_PAPER_BLUE,
+    COLOR_PAPER_DARK_BLUE,
+)
+RELATIVE_RED_ARM = (
+    COLOR_PAPER_WHITE,
+    COLOR_PAPER_SALMON,
+    COLOR_PAPER_LIGHT_RED,
+    COLOR_PAPER_RED,
+    COLOR_PAPER_DARK_RED,
+)
+# Ratios cluster within one decade of parity, so the arms are warped to reach a
+# readable tint after a factor of about two and spend their last colours on the
+# three-decade tails. Both arms carry the same warp, so the scale stays
+# symmetric and the colorbar shows the compression it applies.
+RELATIVE_GAMMA = 1.8
+
+
+def _relative_stops() -> list[tuple[float, str]]:
+    stops: list[tuple[float, str]] = []
+    for arm, direction in ((RELATIVE_BLUE_ARM, -1), (RELATIVE_RED_ARM, 1)):
+        steps = len(arm) - 1
+        for index, color in enumerate(arm):
+            distance = (index / steps) ** RELATIVE_GAMMA
+            stops.append((0.5 + direction * 0.5 * distance, color))
+    return sorted(stops)
+
+
+RELATIVE_CMAP = LinearSegmentedColormap.from_list("relative_runtime", _relative_stops())
+
+
+def relative_norm(decades: int = RELATIVE_DECADES) -> LogNorm:
+    """Symmetric log scale around 1, clipping the tails onto the end colours.
+
+    ``LogNorm`` puts 1 exactly at the midpoint of a symmetric decade range, so
+    the diverging colormap's white lands on parity without a second norm class.
+    """
+    return LogNorm(vmin=10.0**-decades, vmax=10.0**decades, clip=True)
+
+
+def ratio_ticks(bar, decades: int = RELATIVE_DECADES) -> None:
+    """Label a ratio colorbar as factors, reading outwards from parity."""
+    ticks = [10.0**power for power in range(-decades, decades + 1)]
+    labels = [
+        f"1/{10**-power:g}" if power < 0 else f"{10**power:g}"
+        for power in range(-decades, decades + 1)
+    ]
+    bar.set_ticks(ticks, labels=labels)
+
+
+def outline_partition(ax, n: int, r: int, index: int, count: int, color: Any) -> None:
+    """Trace one partition of a parameter cell without repainting its fill."""
+    width = 1 / count
+    ax.add_patch(
+        Rectangle(
+            (n - 0.5 + index * width, r - 0.5),
+            width,
+            1,
+            facecolor="none",
+            edgecolor=color,
+            linewidth=0.5,
+            zorder=4,
+        )
+    )
+
 
 def use_style(scale: float = 1.0) -> None:
     """Apply compact, paper-friendly plotting defaults.
@@ -313,10 +386,32 @@ def save_png(figure, path: Path) -> Path:
     return path
 
 
+def half_cell_key(
+    fill: str,
+    color: Any,
+    label: str,
+    *,
+    size: float = 7,
+) -> Line2D:
+    """Legend key shaped like one half of a split parameter cell.
+
+    ``fill`` is ``"left"`` or ``"right"``. Filling only the half the entry
+    describes lets the key say which side of the cell it means, instead of
+    leaving the reader to infer it from the order of a row of flat patches.
+    """
+    return Line2D(
+        [], [], marker="s", fillstyle=fill, linestyle="none", markersize=size,
+        markerfacecolor=color,
+        markerfacecoloralt=COLOR_PAPER_WHITE,
+        markeredgecolor=color,
+        label=label,
+    )
+
+
 def polarity_legend() -> list[Line2D]:
     return [
-        Line2D([], [], marker="s", fillstyle="left", markerfacecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, markerfacecoloralt=COLOR_PAPER_WHITE, markeredgecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, linestyle="none", markersize=7, label="left half: equivalent"),
-        Line2D([], [], marker="s", fillstyle="right", markerfacecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, markerfacecoloralt=COLOR_PAPER_WHITE, markeredgecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, linestyle="none", markersize=7, label="right half: inequivalent"),
+        half_cell_key("left", COLOR_PAPER_GRAY_VERY_VERY_DARK, "left half: equivalent"),
+        half_cell_key("right", COLOR_PAPER_GRAY_VERY_VERY_DARK, "right half: inequivalent"),
     ]
 
 

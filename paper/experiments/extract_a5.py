@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -42,11 +43,12 @@ def timeout_candidate(cell: dict[str, Any]) -> bool:
     )
 
 
-def extract(
-    algorithm_directory: Path = ALGORITHM_DATA_DIR,
-    output_directory: Path = OUTPUT_DIRECTORY,
-) -> list[dict[str, Any]]:
-    methods = aggregate_statistics(load_all_algorithms(algorithm_directory))
+def select_winners(methods: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pick the fastest backend per parameter cell, as A5 defines "best".
+
+    A3 pairs invariants against exactly these winners, so the choice lives here
+    rather than being reimplemented against a slightly different rule.
+    """
     groups: dict[tuple[str, int, int], list[dict[str, Any]]] = defaultdict(list)
     for cell in methods:
         groups[(cell["problem"], cell["n"], cell["k"])].append(cell)
@@ -87,6 +89,15 @@ def extract(
             "selection": selection,
             "winner_num_timeouts": winner["num_timeouts"],
         })
+    return winners
+
+
+def extract(
+    algorithm_directory: Path = ALGORITHM_DATA_DIR,
+    output_directory: Path = OUTPUT_DIRECTORY,
+) -> list[dict[str, Any]]:
+    methods = aggregate_statistics(load_all_algorithms(algorithm_directory))
+    winners = select_winners(methods)
     write_csv(output_directory / "by_method.csv", methods, METHOD_FIELDS)
     write_csv(output_directory / "by_cell.csv", winners, WINNER_FIELDS)
     return winners

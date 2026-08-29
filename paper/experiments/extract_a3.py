@@ -18,13 +18,15 @@ from paper.experiments.common import (
     read_csv,
     write_csv,
 )
+from paper.experiments.extract_a5 import select_winners
 
 INVARIANT_INPUT = COLLECTED_DATA_DIR / "invariant_timings.csv"
 OUTPUT = RESULTS_DIR / "a3" / "by_cell.csv"
 FIELDS = (
     "problem", "invariant", "n", "k", "r", "invariant_mean_seconds",
     "invariant_stddev_seconds", "backend_algorithm", "backend_mean_seconds",
-    "relative_runtime", "num_invariant_requested", "num_invariant_successful",
+    "backend_selection", "backend_num_timeouts", "relative_runtime",
+    "num_invariant_requested", "num_invariant_successful",
 )
 EXPECTED_SEEDS_PER_POLARITY = 5
 
@@ -94,11 +96,15 @@ def extract(
     output_file: Path = OUTPUT,
 ) -> list[dict[str, Any]]:
     invariant_cells = read_invariant_cells(invariant_input)
-    backend_cells = aggregate_statistics(load_all_algorithms(algorithm_directory))
-    candidates: dict[tuple[str, int, int], list[dict[str, Any]]] = defaultdict(list)
-    for cell in backend_cells:
-        if cell["complete"] and cell["mean_seconds"] is not None:
-            candidates[(cell["problem"], cell["n"], cell["k"])].append(cell)
+    backend_statistics = aggregate_statistics(load_all_algorithms(algorithm_directory))
+    # The comparison baseline is A5's winner, including its timeout fallback: a
+    # backend that only finishes by timing out still bounds what the invariant
+    # has to beat, and dropping those cells would silently hide the region
+    # where invariants matter most.
+    backends = {
+        (winner["problem"], winner["n"], winner["k"]): winner
+        for winner in select_winners(backend_statistics)
+    }
 
     output = []
     for invariant_cell in invariant_cells:
@@ -107,24 +113,25 @@ def extract(
             invariant_cell["n"],
             invariant_cell["k"],
         )
-        choices = candidates.get(key, [])
+        backend = backends.get(key)
         if (
-            not choices
+            backend is None
+            or not backend["mean_seconds"]
             or invariant_cell["mean_seconds"] is None
         ):
             continue
-        backend = min(choices, key=lambda cell: cell["mean_seconds"])
-        problem = invariant_cell["problem"]
         output.append({
-            "problem": problem,
+            "problem": invariant_cell["problem"],
             "invariant": invariant_cell["invariant"],
             "n": invariant_cell["n"], "k": invariant_cell["k"],
             "r": invariant_cell["r"],
             "invariant_mean_seconds": invariant_cell["mean_seconds"],
             "invariant_stddev_seconds": invariant_cell["stddev_seconds"],
-            "backend_algorithm": backend["algorithm"],
+            "backend_algorithm": backend["winner"],
             "backend_mean_seconds": backend["mean_seconds"],
-            "relative_runtime": invariant_cell["mean_seconds"] / backend["mean_seconds"] if backend["mean_seconds"] else "",
+            "backend_selection": backend["selection"],
+            "backend_num_timeouts": backend["winner_num_timeouts"],
+            "relative_runtime": invariant_cell["mean_seconds"] / backend["mean_seconds"],
             "num_invariant_requested": invariant_cell["num_requested"],
             "num_invariant_successful": invariant_cell["num_successful"],
         })

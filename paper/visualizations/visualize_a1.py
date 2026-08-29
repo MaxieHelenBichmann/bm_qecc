@@ -8,6 +8,7 @@ from typing import Sequence
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
+from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 from paper.visualizations.common import (
@@ -15,6 +16,7 @@ from paper.visualizations.common import (
     COLOR_PAPER_ORANGE_RAMP,
     COLOR_PAPER_PINK_RAMP,
     RESULTS_DIR,
+    half_cell_key,
     load_rows,
     parameter_axis,
     partition_cell,
@@ -57,11 +59,18 @@ def _draw(ax, values: dict[tuple[int, int, str], tuple[int, int]], invariants: S
             partition_cell(ax, n, r, index, len(visible), CMAPS[name](fraction))
 
 
-def _overall(values: dict[tuple[int, int, str], tuple[int, int]], invariant: str) -> float:
+def _overall(values: dict[tuple[int, int, str], tuple[int, int]], invariant: str) -> float | None:
     selected = [value for (*_, name), value in values.items() if name == invariant]
     rejected = sum(value[0] for value in selected)
     valid = sum(value[1] for value in selected)
-    return 100 * rejected / valid if valid else float("nan")
+    return 100 * rejected / valid if valid else None
+
+
+def _label(invariant: str, values: dict[tuple[int, int, str], tuple[int, int]]) -> str:
+    overall = _overall(values, invariant)
+    if overall is None:
+        return f"{LABELS[invariant]} (not yet collected)"
+    return f"{LABELS[invariant]} ({overall:.1f}% overall)"
 
 
 def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
@@ -76,9 +85,14 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
     _draw(axes[0], pm, ("linear_dependency", "signatures"))
     _draw(axes[1], lc, ("local_invariant",))
 
-    handles = []
-    for name, values in (("linear_dependency", pm), ("signatures", pm), ("local_invariant", lc)):
-        handles.append(Patch(facecolor=CMAPS[name](0.72), label=f"{LABELS[name]} ({_overall(values, name):.1f}% overall)"))
+    # The permutation panel splits every cell between its two invariants, so
+    # those keys are drawn as the matching half-cells; the local invariant owns
+    # its cell outright and keeps a full square.
+    handles: list[Patch | Line2D] = [
+        half_cell_key("left", CMAPS["linear_dependency"](0.72), _label("linear_dependency", pm)),
+        half_cell_key("right", CMAPS["signatures"](0.72), _label("signatures", pm)),
+        Patch(facecolor=CMAPS["local_invariant"](0.72), label=_label("local_invariant", lc)),
+    ]
     figure.legend(handles=handles, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 0.015), fontsize=9)
     figure.suptitle("Invariants' Rejection Patterns and Rates of Inequivalent Codes", fontsize=12)
 
