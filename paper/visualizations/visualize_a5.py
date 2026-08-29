@@ -1,36 +1,24 @@
-"""Render A5 as three categorical winner maps.
-
-Run with no arguments::
-
-    python3 -m paper.visualizations.visualize_a5
-
-Each method keeps the same colour in every panel. A forward-slash hatch in the
-runner-up's colour marks methods whose runtimes differ by at most five percent.
-Exactly one PNG is written.
-"""
+"""Render A5 as three categorical winner maps."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch, Rectangle
+from matplotlib.legend_handler import HandlerBase
+from matplotlib.patches import Patch, Polygon, Rectangle
 
 from paper.visualizations.common import (
-    COLOR_PAPER_BLUE,
-    COLOR_PAPER_CYAN,
-    COLOR_PAPER_DARK_GREEN,
-    COLOR_PAPER_DARK_LILA,
+    COLOR_PAPER_CYAN_STRONG,
+    COLOR_PAPER_DARK_CYAN,
+    COLOR_PAPER_ZX_BLUE,
+    COLOR_PAPER_LILA,
     COLOR_PAPER_DARK_PINK,
     COLOR_PAPER_DARK_RED,
     COLOR_PAPER_GRAY_VERY_DARK,
     COLOR_PAPER_GRAY_VERY_VERY_DARK,
-    COLOR_PAPER_LIGHT_CYAN,
-    COLOR_PAPER_SALMON,
-    COLOR_PAPER_ZX_GREEN_DARK,
-    COLOR_PAPER_DARK_GREEN,
-    COLOR_PAPER_GREEN,
-    COLOR_PAPER_ZX_ORANGE,
+    COLOR_PAPER_LIGHT_RED,
+    COLOR_PAPER_GREEN_DEEP,
     EMPTY,
     RESULTS_DIR,
     load_rows,
@@ -52,13 +40,13 @@ PANELS = (
 )
 
 METHODS = (
-    ("sat", "SAT", COLOR_PAPER_CYAN),
-    ("bruteforce", "Brute force", COLOR_PAPER_ZX_ORANGE),
-    ("classical", "Classical Approaches", COLOR_PAPER_DARK_LILA),
-    ("graph_iso", "Graph Isomorphism", COLOR_PAPER_GREEN),
-    ("matroid", "Matroid Isomorphism", COLOR_PAPER_SALMON),
-    ("kls", "KLS Orbit", COLOR_PAPER_DARK_PINK),
-    ("lse", "Graph-State LSE", COLOR_PAPER_DARK_RED),
+    ("sat", "SAT", COLOR_PAPER_DARK_CYAN),
+    ("bruteforce", "Brute force", COLOR_PAPER_DARK_RED),
+    ("classical", "Classical Approaches", COLOR_PAPER_DARK_PINK),
+    ("graph_iso", "Graph Isomorphism", COLOR_PAPER_GREEN_DEEP),
+    ("matroid", "Matroid Isomorphism", COLOR_PAPER_LIGHT_RED),
+    ("kls", "KLS Orbit", COLOR_PAPER_ZX_BLUE),
+    ("lse", "Graph-State LSE", COLOR_PAPER_LILA),
 )
 
 
@@ -69,25 +57,47 @@ def method(algorithm: str) -> tuple[str, str]:
     return algorithm, COLOR_PAPER_GRAY_VERY_VERY_DARK
 
 
-def overlay_hatch(
+def overlay_runner_up(
     ax,
     n: int,
     r: int,
-    hatch: str,
     color: str,
 ) -> None:
+    """Paint the runner-up into the lower triangle of an already-filled cell.
+
+    The split runs bottom-left to top-right, so the winner keeps the whole top
+    edge and the runner-up the whole bottom edge; which method leads stays
+    readable at a glance without a second visual channel.
+    """
+    x, y = n - 0.5, r - 0.5
     ax.add_patch(
-        Rectangle(
-            (n - 0.5, r - 0.5),
-            1,
-            1,
-            facecolor="none",
-            edgecolor=color,
-            linewidth=0,
-            hatch=hatch,
+        Polygon(
+            [(x, y), (x + 1, y), (x + 1, y + 1)],
+            closed=True,
+            facecolor=color,
+            edgecolor="none",
             zorder=3,
         )
     )
+
+
+class _SplitCellHandler(HandlerBase):
+    """Legend key drawn as the same diagonally split cell."""
+
+    def create_artists(self, legend, orig_handle, xdescent, ydescent, width, height, fontsize, trans):
+        x, y = -xdescent, -ydescent
+        top = Polygon([(x, y), (x, y + height), (x + width, y + height)], closed=True,
+                      facecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, edgecolor="none", transform=trans)
+        bottom = Polygon([(x, y), (x + width, y), (x + width, y + height)], closed=True,
+                         facecolor=COLOR_PAPER_GRAY_VERY_DARK, edgecolor="none", transform=trans)
+        return [top, bottom]
+
+
+class _SplitCellKey:
+    """Marker object selecting :class:`_SplitCellHandler` in the legend."""
+
+    def get_label(self) -> str:
+        return "top/bottom: within 5%"
 
 
 def legend(rows: list[dict[str, str]]) -> list[Patch]:
@@ -99,6 +109,7 @@ def legend(rows: list[dict[str, str]]) -> list[Patch]:
         for _, label, color in METHODS
         if label in present
     ]
+    handles.append(_SplitCellKey())
     return handles
 
 
@@ -136,7 +147,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                 and row["runner_up"]
             ):
                 _, runner_color = method(row["runner_up"])
-                overlay_hatch(ax, n, r, "///", runner_color)
+                overlay_runner_up(ax, n, r, runner_color)
 
     figure.suptitle(
         "Best-Performing Prototype per Parameter Setting",
@@ -150,6 +161,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         frameon=False,
         fontsize=11,
         bbox_to_anchor=(0.5, 0.025),
+        handler_map={_SplitCellKey: _SplitCellHandler()},
     )
     return save_png(figure, output)
 
