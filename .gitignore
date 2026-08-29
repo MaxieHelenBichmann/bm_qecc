@@ -34,5 +34,4 @@ paper/*
 !paper/experiments/
 !paper/hybrids/
 !paper/results/
-!paper/tests/
 !paper/visualizations/
