@@ -37,6 +37,11 @@ class RunResult:
     ``result_is_expected`` is false for every failed execution. The three
     failure fields are intentionally separate: a timeout, a memory-limit hit,
     and another execution error cannot be confused by callers.
+
+    For a completed supervised call, ``runtime`` is measured inside the worker
+    around ``function(*inputs)``. Process startup, queue transfer, and parent
+    supervision are excluded. A timeout has no completed worker measurement,
+    so its runtime is the parent-observed capped wall time instead.
     """
 
     runtime: float
@@ -90,18 +95,22 @@ def _worker(
     queue: mp.Queue,
     max_memory_bytes: int | None,
 ) -> None:
-    """Execute the call in its own process and report a serializable outcome."""
+    """Execute and time only the requested call in a supervised worker."""
     if hasattr(os, "setsid"):
         os.setsid()
     if max_memory_bytes is not None:
         _set_memory_limit(max_memory_bytes)
 
+    start = perf_counter()
     try:
-        queue.put(("result", function(*inputs)))
+        result = function(*inputs)
+        queue.put(("result", result, perf_counter() - start))
     except MemoryError:
-        queue.put(("memory", None))
+        queue.put(("memory", None, perf_counter() - start))
     except BaseException as exc:  # noqa: BLE001 - the supervisor reports all failures
-        queue.put(("error", f"{type(exc).__name__}: {exc}"))
+        queue.put(
+            ("error", f"{type(exc).__name__}: {exc}", perf_counter() - start)
+        )
 
 
 def _process_group_rss_bytes(process_group_id: int) -> int | None:
@@ -279,7 +288,7 @@ def run(
 
     runtime = perf_counter() - start
     try:
-        kind, payload = queue.get(timeout=0.2)
+        kind, payload, worker_runtime = queue.get(timeout=0.2)
     except Empty:
         return _failed_result(
             runtime=runtime,
@@ -291,15 +300,19 @@ def run(
 
     if kind == "memory":
         return _failed_result(
-            runtime=runtime,
+            runtime=worker_runtime,
             expected=expected,
             memory_exceeded=True,
         )
     if kind == "error":
-        return _failed_result(runtime=runtime, expected=expected, error=str(payload))
+        return _failed_result(
+            runtime=worker_runtime,
+            expected=expected,
+            error=str(payload),
+        )
 
     return RunResult(
-        runtime=runtime,
+        runtime=worker_runtime,
         result=payload,
         expected=expected,
         result_is_expected=_matches_expected(payload, expected),
