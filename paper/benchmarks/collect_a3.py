@@ -2,7 +2,7 @@
 
 Usage::
 
-    python3 -m paper.benchmarks.collect_invariant_timings
+    python3 -m paper.benchmarks.collect_a3
 
 There are no CLI arguments. Edit the constants and ``INVARIANT_N_RANGES``
 below to change the grid, seed count, timeouts, memory limit, or verbosity.

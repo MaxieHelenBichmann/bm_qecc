@@ -10,7 +10,7 @@ from typing import Any
 from paper.experiments.common import COLLECTED_DATA_DIR, RESULTS_DIR, read_csv, write_csv
 
 INPUT = COLLECTED_DATA_DIR / "signature_space.csv"
-OUTPUT = RESULTS_DIR / "signature_space" / "by_cell.csv"
+OUTPUT = RESULTS_DIR / "a2" / "by_cell.csv"
 FIELDS = (
     "problem", "n", "k", "r", "num_requested", "num_valid",
     "mean_distinct_pair_fraction", "stddev_distinct_pair_fraction",

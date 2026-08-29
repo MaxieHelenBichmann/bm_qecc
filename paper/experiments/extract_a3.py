@@ -20,7 +20,7 @@ from paper.experiments.common import (
 )
 
 INVARIANT_INPUT = COLLECTED_DATA_DIR / "invariant_timings.csv"
-OUTPUT = RESULTS_DIR / "invariant_cost" / "by_cell.csv"
+OUTPUT = RESULTS_DIR / "a3" / "by_cell.csv"
 FIELDS = (
     "problem", "invariant", "n", "k", "r", "invariant_mean_seconds",
     "invariant_stddev_seconds", "backend_algorithm", "backend_mean_seconds",

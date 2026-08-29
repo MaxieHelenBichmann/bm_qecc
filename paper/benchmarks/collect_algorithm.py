@@ -13,27 +13,46 @@ Edit ``ALGORITHM_N_RANGES`` and the constants below to change the inclusive
 per-algorithm range, master seed, cases per cell, timeout, memory limit, or
 verbosity. The generated files are deliberately complete shared measurements:
 the A3, A4, A5, and A6 experiment scripts later select only the rows they need.
+Positive cases retain the established random-suite construction. Negative
+cases reuse A1's invariant-neutral proposals and problem-specific
+certification; generation and certification occur before the timed backend
+call. The seed derivation matches A1, so selected backends receive the same
+deterministic case family.
 """
 
 from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from collections.abc import Callable
+from dataclasses import dataclass
+import hashlib
 from pathlib import Path
+from typing import Any
 
-from benchmarks.experiments.statistics import run_statistics
+from benchmarks.experiments.generators_random import NonPEqCodePairGenerator
+from benchmarks.experiments.run import run
+from benchmarks.experiments.statistics import BenchmarkCase, run_statistics
 from benchmarks.thesis import resolve_names
 from benchmarks.thesis.thesis_prototypes import (
     ALGORITHMS,
     RandomCaseGenerator,
     measurement_dimensions,
 )
+from src.algorithms.lc_stb.lc_stb_sat import are_lceq_sat
+from src.algorithms.p_css.p_css_matroid import are_peq_css_matroid
+from src.algorithms.p_css.p_css_sat import are_peq_css_sat
+from src.algorithms.p_stb.p_stab_sat import are_peq_stab_sat
 
 ROOT = Path(__file__).resolve().parents[2]
 MASTER_SEED = 42
 NUM_SEEDS = 10
 TIMEOUT_SECONDS = 5_400.0
+CERTIFICATION_TIMEOUT_SECONDS = 600.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
+CSS_SAT_MAX_R = 9
+CSS_MATROID_MAX_N = 28
+STABILIZER_CLIFFORD_GATE_STEPS = 2
 VERBOSE = True
 OUTPUT_DIRECTORY = ROOT / "paper" / "data" / "collected" / "algorithms"
 
@@ -56,6 +75,135 @@ ALGORITHM_N_RANGES: dict[str, tuple[int, int]] = {
     "lc_stb_sat": (3, 47),
 }
 PAPER_ALGORITHMS = {name: ALGORITHMS[name] for name in ALGORITHM_N_RANGES}
+CERTIFIERS: dict[str, Callable[..., bool]] = {
+    "pm_stb": are_peq_stab_sat,
+    "lc_stb": are_lceq_sat,
+}
+
+
+def _problem_for_algorithm(algorithm_name: str) -> str:
+    for problem in ("pm_stb", "pm_css", "lc_stb"):
+        if algorithm_name.startswith(f"{problem}_"):
+            return problem
+    raise ValueError(f"unknown paper algorithm family: {algorithm_name!r}")
+
+
+def _attempt_seed(problem: str, n: int, k: int, seed: int, attempt: int) -> int:
+    population = f"{problem}_negative_matching=False"
+    value = f"{population}|{n}|{k}|{seed}|{attempt}".encode()
+    return int.from_bytes(hashlib.sha256(value).digest()[:8], "big") % (2**32)
+
+
+def _candidate_pair(problem: str, n: int, k: int, seed: int) -> tuple[Any, Any]:
+    if problem == "pm_css":
+        rx = seed % (n - k + 1)
+        return NonPEqCodePairGenerator.css_codes_independent_candidate(
+            n, k, seed, rx=rx
+        )
+    return NonPEqCodePairGenerator.stabilizer_codes_clifford_candidate(
+        n,
+        k,
+        seed,
+        gate_steps=STABILIZER_CLIFFORD_GATE_STEPS,
+    )
+
+
+def _css_certifier(n: int, k: int) -> Callable[..., bool] | None:
+    if n - k <= CSS_SAT_MAX_R:
+        return are_peq_css_sat
+    if n <= CSS_MATROID_MAX_N:
+        return are_peq_css_matroid
+    return None
+
+
+def _certified_inequivalent(
+    problem: str,
+    pair: tuple[Any, Any],
+    n: int,
+    k: int,
+) -> bool:
+    certifier = _css_certifier(n, k) if problem == "pm_css" else CERTIFIERS[problem]
+    if certifier is None:
+        raise RuntimeError(f"no independent CSS certifier configured for [[{n},{k}]]")
+    result = run(
+        certifier,
+        pair,
+        False,
+        timeout=CERTIFICATION_TIMEOUT_SECONDS,
+        max_memory_bytes=MEMORY_LIMIT_BYTES,
+    )
+    if result.timed_out:
+        raise RuntimeError("inequivalence certification timed out")
+    if result.memory_exceeded:
+        raise RuntimeError("inequivalence certification exceeded memory limit")
+    if result.error is not None:
+        raise RuntimeError(f"inequivalence certification failed: {result.error}")
+    return result.result is False
+
+
+def certified_negative_pair(
+    problem: str,
+    n: int,
+    k: int,
+    seed: int,
+    *,
+    max_attempts: int = 1_000,
+) -> tuple[Any, Any]:
+    use_css_fallback = problem == "pm_css" and _css_certifier(n, k) is None
+    for attempt in range(max_attempts):
+        attempt_seed = _attempt_seed(problem, n, k, seed, attempt)
+        pair = (
+            NonPEqCodePairGenerator.css_codes_cascaded(n, k, attempt_seed)
+            if use_css_fallback
+            else _candidate_pair(problem, n, k, attempt_seed)
+        )
+        if use_css_fallback or _certified_inequivalent(problem, pair, n, k):
+            return pair
+    raise RuntimeError(
+        f"could not generate a certified {problem} negative for [[{n},{k}]], "
+        f"seed {seed}"
+    )
+
+
+@dataclass(frozen=True)
+class CertifiedRandomCaseGenerator:
+    """Use invariant-neutral, exactly certified negatives for paper runtimes."""
+
+    algorithm_name: str
+    n: int
+    k: int
+    positive: bool
+
+    seed_upper_bound = 1_000
+
+    @property
+    def __name__(self) -> str:
+        label = "positive" if self.positive else "certified_negative"
+        return f"random_{self.algorithm_name}_{self.n}_{self.k}_{label}"
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        return {
+            "algorithm": self.algorithm_name,
+            "generator": self.__name__,
+            "name": None,
+            "n": self.n,
+            "k": self.k,
+            "positive": self.positive,
+            "density": None,
+            "symmetry": None,
+        }
+
+    def __call__(self, seed: int) -> BenchmarkCase:
+        if self.positive:
+            case = RandomCaseGenerator(
+                self.algorithm_name, self.n, self.k, True
+            )(seed)
+            inputs = case.inputs
+        else:
+            problem = _problem_for_algorithm(self.algorithm_name)
+            inputs = certified_negative_pair(problem, self.n, self.k, seed)
+        return BenchmarkCase(tuple(inputs), self.positive, self.metadata)
 
 
 def validate_configuration() -> None:
@@ -91,7 +239,7 @@ def collect(algorithm_names: Sequence[str]) -> None:
                     print(f"    [[{n},{k}]] {label}", flush=True)
                 run_statistics(
                     algorithm,
-                    RandomCaseGenerator(algorithm_name, n, k, positive),
+                    CertifiedRandomCaseGenerator(algorithm_name, n, k, positive),
                     MASTER_SEED,
                     NUM_SEEDS,
                     output_file,
@@ -107,9 +255,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--algorithm",
         action="append",
         metavar="SELECTOR",
-        help="Exact algorithm name, shell wildcard, or regex; repeatable.",
+        help=(
+            "Exact algorithm name, shell wildcard, or regex; repeatable. "
+            "Omit to run every configured algorithm."
+        ),
     )
     args = parser.parse_args(argv)
+    if args.algorithm is None:
+        args.algorithm = list(ALGORITHM_N_RANGES)
+        return args
     try:
         args.algorithm = resolve_names(args.algorithm, PAPER_ALGORITHMS)
     except ValueError as exc:

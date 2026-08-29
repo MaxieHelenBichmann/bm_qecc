@@ -145,9 +145,9 @@ def aggregate_cells(
     return grouped
 
 
-def parameter_axis(ax, title: str) -> None:
+def parameter_axis(ax, title: str, *, nmax: int = 47) -> None:
     """Draw the closed integer ``(n, r)`` triangle as edge-to-edge squares."""
-    for n in range(3, 48):
+    for n in range(3, nmax + 1):
         for r in range(1, n + 1):
             ax.add_patch(
                 Rectangle(
@@ -160,11 +160,13 @@ def parameter_axis(ax, title: str) -> None:
                     zorder=0,
                 )
             )
-    ax.plot([2.5, 47.5], [2.5, 47.5], color=GRID, linewidth=0.55, zorder=3)
-    ax.set_xlim(2.5, 47.5)
-    ax.set_ylim(0.5, 47.5)
+    ax.plot([2.5, nmax + 0.5], [2.5, nmax + 0.5], color=GRID, linewidth=0.55, zorder=3)
+    ax.set_xlim(2.5, nmax + 0.5)
+    ax.set_ylim(0.5, nmax + 0.5)
     ax.set_aspect("equal", adjustable="box")
-    ticks = [3, 5, 10, 15, 20, 25, 30, 35, 40, 47]
+    ticks = [tick for tick in (3, 5, 10, 15, 20, 25, 30, 35, 40, 47) if tick <= nmax]
+    if nmax not in ticks:
+        ticks.append(nmax)
     ax.set_xticks(ticks)
     ax.set_yticks(ticks)
     ax.grid(False)

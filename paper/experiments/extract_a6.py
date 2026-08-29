@@ -8,7 +8,7 @@ from typing import Any
 from paper.experiments.common import ALGORITHM_DATA_DIR, COLLECTED_DATA_DIR, RESULTS_DIR, aggregate_statistics, load_algorithm, read_statistics, write_csv
 
 EXTRA_INPUT = COLLECTED_DATA_DIR / "pm_stb_sat_on_css.csv"
-OUTPUT = RESULTS_DIR / "sat_css" / "by_cell.csv"
+OUTPUT = RESULTS_DIR / "a6" / "by_cell.csv"
 VARIANTS = (
     ("pm_stb_sat_on_stabilizer", "pm_stb_sat", "stabilizer"),
     ("pm_css_sat_on_css", "pm_css_sat", "css"),

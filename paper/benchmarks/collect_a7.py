@@ -2,7 +2,7 @@
 
 Usage::
 
-    python3 -m paper.benchmarks.collect_hybrids
+    python3 -m paper.benchmarks.collect_a7
 
 There is no command line: every run measures all three hybrids on every
 compatible named structured code. The three diagnostic hybrids in

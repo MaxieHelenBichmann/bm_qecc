@@ -2,7 +2,7 @@
 
 Run with no arguments::
 
-    python3 -m paper.visualizations.plot_invariant_rejection
+    python3 -m paper.visualizations.visualize_a1
 
 The permutation panel combines the PM-STB and PM-CSS populations. A point is
 split into invariant-colored sectors; an absent sector means that invariant
@@ -23,8 +23,8 @@ from matplotlib.patches import Patch
 
 from paper.visualizations.common import RESULTS_DIR, load_plot_rows, mark_synthetic, parameter_axis, partition_cell, save_png, scalar_mappable, use_style
 
-INPUT = RESULTS_DIR / "invariant_rejection" / "by_cell.csv"
-OUTPUT = RESULTS_DIR / "invariant_rejection" / "invariant_rejection.png"
+INPUT = RESULTS_DIR / "a1" / "by_cell.csv"
+OUTPUT = RESULTS_DIR / "a1" / "a1.png"
 
 CMAPS = {
     "linear_dependency": LinearSegmentedColormap.from_list("linear_dependency", ["#F2FAE9", "#98D256", "#57891F"]),

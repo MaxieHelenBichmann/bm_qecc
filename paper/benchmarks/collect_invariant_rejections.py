@@ -53,7 +53,9 @@ CSS_MATROID_MAX_N = 28
 STABILIZER_CLIFFORD_GATE_STEPS = 2
 
 OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "invariant_rejections.csv"
-PROBLEMS = ("pm_stb", "pm_css", "lc_stb")
+# TEMP: pm_stb was collected in a separate run (2026-08-29, dims up to n=28);
+# restore to ("pm_stb", "pm_css", "lc_stb") when done.
+PROBLEMS = ("pm_css", "lc_stb")
 INVARIANTS = {
     "pm_stb": ("linear_dependency", "signatures"),
     "pm_css": ("linear_dependency", "signatures"),

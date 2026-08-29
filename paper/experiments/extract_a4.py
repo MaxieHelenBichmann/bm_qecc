@@ -8,7 +8,7 @@ from typing import Any
 from paper.experiments.common import ALGORITHM_DATA_DIR, RESULTS_DIR, aggregate_statistics, load_algorithm, write_csv
 
 ALGORITHMS = ("pm_stb_graph_iso", "lc_stb_graph_iso")
-OUTPUT = RESULTS_DIR / "representation_cost" / "by_cell.csv"
+OUTPUT = RESULTS_DIR / "a4" / "by_cell.csv"
 FIELDS = (
     "problem", "algorithm", "n", "k", "r", "num_requested", "num_successful",
     "mean_total_seconds", "stddev_total_seconds", "maximum_total_seconds",

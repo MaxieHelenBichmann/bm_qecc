@@ -9,7 +9,7 @@ from typing import Any
 from paper.experiments.common import COLLECTED_DATA_DIR, RESULTS_DIR, as_bool, read_csv, write_csv
 
 INPUT = COLLECTED_DATA_DIR / "invariant_rejections.csv"
-OUTPUT_DIRECTORY = RESULTS_DIR / "invariant_rejection"
+OUTPUT_DIRECTORY = RESULTS_DIR / "a1"
 CELL_FIELDS = ("problem", "n", "k", "r", "invariant", "num_requested", "num_valid", "num_rejected", "rejection_percentage", "num_censored")
 OVERALL_FIELDS = ("problem", "invariant", "num_valid", "num_rejected", "rejection_percentage")
 

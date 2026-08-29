@@ -2,7 +2,7 @@
 
 Usage::
 
-    python3 -m paper.benchmarks.collect_signature_space
+    python3 -m paper.benchmarks.collect_a2
 
 There are no CLI arguments. For every configured ``(problem, n, k, seed)``,
 the collector generates exactly one random code and measures how its Sendrier

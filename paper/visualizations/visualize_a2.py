@@ -2,7 +2,7 @@
 
 Run with no arguments::
 
-    python3 -m paper.visualizations.plot_signature_space
+    python3 -m paper.visualizations.visualize_a2
 
 Independently seeded random codes are aggregated into one mean per parameter
 cell. Color shows the fraction of distinct ordered qubit pairs that remain in
@@ -30,8 +30,8 @@ from paper.visualizations.common import (
     use_style,
 )
 
-INPUT = RESULTS_DIR / "signature_space" / "by_cell.csv"
-OUTPUT = RESULTS_DIR / "signature_space" / "signature_space.png"
+INPUT = RESULTS_DIR / "a2" / "by_cell.csv"
+OUTPUT = RESULTS_DIR / "a2" / "a2.png"
 
 
 def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:

@@ -2,7 +2,7 @@
 
 Usage::
 
-    python3 -m paper.benchmarks.collect_css_sat_encoding
+    python3 -m paper.benchmarks.collect_a6
 
 There are no CLI arguments. Edit the constants below to change the inclusive
 ``N_RANGE``, seed schedule, timeout, memory limit, or verbosity. The script uses
@@ -14,7 +14,9 @@ file with the normal ``pm_stb_sat.csv`` and ``pm_css_sat.csv`` files.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -22,18 +24,77 @@ from benchmarks.experiments.generators_random import (
     NonPEqCodePairGenerator,
     PEqCodePairGenerator,
 )
+from benchmarks.experiments.run import run
 from benchmarks.experiments.statistics import BenchmarkCase, run_statistics
 from benchmarks.thesis.thesis_prototypes import DecisionAlgorithm, measurement_dimensions
+from src.algorithms.p_css.p_css_matroid import are_peq_css_matroid
+from src.algorithms.p_css.p_css_sat import are_peq_css_sat
 from src.algorithms.p_stb.p_stab_sat import are_peq_stab_sat
 
 ROOT = Path(__file__).resolve().parents[2]
 MASTER_SEED = 42
 NUM_SEEDS = 10
 TIMEOUT_SECONDS = 5_400.0
+CERTIFICATION_TIMEOUT_SECONDS = 600.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
+CSS_SAT_MAX_R = 9
+CSS_MATROID_MAX_N = 28
 VERBOSE = True
 N_RANGE = (3, 47)
 OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "pm_stb_sat_on_css.csv"
+
+
+def _attempt_seed(n: int, k: int, seed: int, attempt: int) -> int:
+    population = "pm_css_negative_matching=False"
+    value = f"{population}|{n}|{k}|{seed}|{attempt}".encode()
+    return int.from_bytes(hashlib.sha256(value).digest()[:8], "big") % (2**32)
+
+
+def _css_certifier(n: int, k: int) -> Callable[..., bool] | None:
+    if n - k <= CSS_SAT_MAX_R:
+        return are_peq_css_sat
+    if n <= CSS_MATROID_MAX_N:
+        return are_peq_css_matroid
+    return None
+
+
+def _certified_negative_pair(
+    n: int,
+    k: int,
+    seed: int,
+    *,
+    max_attempts: int = 1_000,
+) -> tuple[Any, Any]:
+    certifier = _css_certifier(n, k)
+    use_fallback = certifier is None
+    for attempt in range(max_attempts):
+        attempt_seed = _attempt_seed(n, k, seed, attempt)
+        if use_fallback:
+            return NonPEqCodePairGenerator.css_codes_cascaded(n, k, attempt_seed)
+
+        rx = attempt_seed % (n - k + 1)
+        pair = NonPEqCodePairGenerator.css_codes_independent_candidate(
+            n, k, attempt_seed, rx=rx
+        )
+        result = run(
+            certifier,
+            pair,
+            False,
+            timeout=CERTIFICATION_TIMEOUT_SECONDS,
+            max_memory_bytes=MEMORY_LIMIT_BYTES,
+        )
+        if result.timed_out:
+            raise RuntimeError("inequivalence certification timed out")
+        if result.memory_exceeded:
+            raise RuntimeError("inequivalence certification exceeded memory limit")
+        if result.error is not None:
+            raise RuntimeError(f"inequivalence certification failed: {result.error}")
+        if result.result is False:
+            return pair
+    raise RuntimeError(
+        f"could not generate a certified pm_css negative for [[{n},{k}]], "
+        f"seed {seed}"
+    )
 
 
 @dataclass(frozen=True)
@@ -63,7 +124,7 @@ class CSSCaseGenerator:
         pair = (
             PEqCodePairGenerator.css_codes_basis_changed(self.n, self.k, seed)
             if self.positive
-            else NonPEqCodePairGenerator.css_codes_cascaded(self.n, self.k, seed)
+            else _certified_negative_pair(self.n, self.k, seed)
         )
         return BenchmarkCase(tuple(pair), self.positive, self.metadata)
 
