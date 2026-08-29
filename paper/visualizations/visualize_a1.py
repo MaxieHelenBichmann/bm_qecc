@@ -12,8 +12,8 @@ from matplotlib.patches import Patch
 
 from paper.visualizations.common import (
     COLOR_PAPER_GREEN_RAMP,
-    COLOR_PAPER_LILA_RAMP,
     COLOR_PAPER_ORANGE_RAMP,
+    COLOR_PAPER_PINK_RAMP,
     RESULTS_DIR,
     load_rows,
     parameter_axis,
@@ -28,7 +28,7 @@ OUTPUT = RESULTS_DIR / "a1" / "a1.png"
 
 CMAPS = {
     "linear_dependency": LinearSegmentedColormap.from_list("linear_dependency", COLOR_PAPER_GREEN_RAMP),
-    "signatures": LinearSegmentedColormap.from_list("signatures", COLOR_PAPER_LILA_RAMP),
+    "signatures": LinearSegmentedColormap.from_list("signatures", COLOR_PAPER_PINK_RAMP),
     "local_invariant": LinearSegmentedColormap.from_list("local_invariant", COLOR_PAPER_ORANGE_RAMP),
 }
 LABELS = {"linear_dependency": "Linear column dependencies", "signatures": "Signatures", "local_invariant": "Local invariant"}
