@@ -79,6 +79,27 @@ def _write_rows(path: Path, fields: tuple[str, ...], rows: list[dict[str, object
         writer.writerows(rows)
 
 
+def _invariant_timing_rows(
+    problem: str,
+    invariant: str,
+    runtime: float,
+) -> list[dict[str, object]]:
+    return [
+        {
+            "problem": problem,
+            "invariant": invariant,
+            "seed": seed,
+            "n": 3,
+            "k": 1,
+            "positive": positive,
+            "runtime_seconds": runtime,
+            "status": "success",
+        }
+        for positive in (True, False)
+        for seed in range(5)
+    ]
+
+
 def test_a1_computes_component_and_combined_rejections(tmp_path: Path) -> None:
     source = tmp_path / "rejections.csv"
     fields = ("problem", "instance_id", "n", "k", "r", "invariant", "rejected", "status")
@@ -162,12 +183,11 @@ def test_a3_backend_choice_is_parameter_dependent(tmp_path: Path) -> None:
     _algorithm(algorithms, "pm_stb_sat", 2.0, 2.0)
     _algorithm(algorithms, "pm_stb_graph_iso", 1.0, 1.0)
     invariant_file = tmp_path / "invariants.csv"
-    _write_statistics(
+    invariant_rows = _invariant_timing_rows("pm_stb", "signatures", 0.2)
+    _write_rows(
         invariant_file,
-        [
-            _stat_row("pm_stb_signatures", True, 0.2),
-            _stat_row("pm_stb_signatures", False, 0.2),
-        ],
+        tuple(invariant_rows[0]),
+        invariant_rows,
     )
 
     rows = extract_a3(invariant_file, algorithms, tmp_path / "a3.csv")
@@ -180,18 +200,15 @@ def test_a3_excludes_incomplete_invariant_cells(tmp_path: Path) -> None:
     algorithms = tmp_path / "algorithms"
     _algorithm(algorithms, "lc_stb_sat", 1.0, 1.0)
     invariant_file = tmp_path / "invariants.csv"
-    _write_statistics(
+    invariant_rows = _invariant_timing_rows(
+        "lc_stb", "local_invariant", 0.2
+    )
+    invariant_rows[-1]["status"] = "generation_error"
+    invariant_rows[-1]["runtime_seconds"] = ""
+    _write_rows(
         invariant_file,
-        [
-            _stat_row("lc_stb_local_invariant", True, 0.2),
-            _stat_row(
-                "lc_stb_local_invariant",
-                False,
-                0.2,
-                successful=9,
-                generation_errors=1,
-            ),
-        ],
+        tuple(invariant_rows[0]),
+        invariant_rows,
     )
 
     rows = extract_a3(invariant_file, algorithms, tmp_path / "a3.csv")

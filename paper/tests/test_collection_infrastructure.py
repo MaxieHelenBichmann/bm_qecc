@@ -99,7 +99,7 @@ def test_large_high_rank_css_uses_certified_generator_without_backend(
     ) is pair
 
 
-def test_invariant_timing_generator_uses_shared_certified_pair_before_preparing(
+def test_invariant_timing_generator_certifies_locally_before_preparing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pair = (
@@ -108,36 +108,30 @@ def test_invariant_timing_generator_uses_shared_certified_pair_before_preparing(
     )
     events: list[object] = []
 
-    class BaseGenerator:
-        def __init__(self, *args: object) -> None:
-            pass
-
-        def __call__(self, seed: int) -> object:
-            events.append(("generate", seed))
-            return timings.BenchmarkCase(pair, False)
-
     prepared = (object(), object())
-    monkeypatch.setattr(timings, "CertifiedRandomCaseGenerator", BaseGenerator)
+    monkeypatch.setattr(
+        timings,
+        "certified_negative_pair",
+        lambda *args: events.append(("certify", args)) or pair,
+    )
     monkeypatch.setattr(
         timings,
         "_prepared",
         lambda *inputs: events.append(("prepare", inputs)) or prepared,
     )
 
-    case = timings.InvariantCaseGenerator(
-        "lc_stb", "local_invariant", 3, 0, False
-    )(89)
+    generated = timings.generate_pair("lc_stb", 3, 0, False, 89)
+    matrices = timings._prepared("lc_stb", *generated)
 
-    assert case.inputs is prepared
-    assert [event[0] for event in events] == ["generate", "prepare"]
+    assert matrices is prepared
+    assert [event[0] for event in events] == ["certify", "prepare"]
 
 
-def test_runtime_negative_uses_a1_certified_generator_and_is_cached(
+def test_runtime_negative_uses_local_a1_style_generator(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pair = (object(), object())
     calls: list[tuple[object, ...]] = []
-    collect_algorithm._certified_negative_result.cache_clear()
     monkeypatch.setattr(
         collect_algorithm,
         "certified_negative_pair",
@@ -152,8 +146,7 @@ def test_runtime_negative_uses_a1_certified_generator_and_is_cached(
     )(89)
 
     assert first.inputs == second.inputs == pair
-    assert calls == [("pm_stb", 7, 3, 89)]
-    collect_algorithm._certified_negative_result.cache_clear()
+    assert calls == [("pm_stb", 7, 3, 89), ("pm_stb", 7, 3, 89)]
 
 
 def test_negative_certification_failure_becomes_generation_failure(
@@ -161,46 +154,51 @@ def test_negative_certification_failure_becomes_generation_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[object, ...]] = []
-    collect_algorithm._certified_negative_result.cache_clear()
     monkeypatch.setattr(
-        collect_algorithm,
+        timings,
         "certified_negative_pair",
         lambda *args: calls.append(args)
         or (_ for _ in ()).throw(RuntimeError("certification timed out")),
     )
 
-    statistic = timings.run_statistics(
-        timings.InvariantAlgorithm("lc_stb", "local_invariant"),
-        timings.InvariantCaseGenerator("lc_stb", "local_invariant", 3, 0, False),
-        42,
-        1,
-        tmp_path / "timings.csv",
+    monkeypatch.setattr(
+        timings,
+        "INVARIANTS",
+        {"lc_stb": ("local_invariant",)},
+    )
+    monkeypatch.setattr(
+        timings,
+        "INVARIANT_N_RANGES",
+        {("lc_stb", "local_invariant"): (3, 3)},
+    )
+    monkeypatch.setattr(timings, "VERBOSE", False)
+
+    rows = timings.collect(
+        dimensions=[(3, 0)],
+        seeds=(89,),
+        output_file=tmp_path / "timings.csv",
     )
 
-    assert statistic.num_cases == 0
-    assert statistic.num_generation_errors == 1
-    with pytest.raises(RuntimeError, match="certification timed out"):
-        collect_algorithm.CertifiedRandomCaseGenerator(
-            "lc_stb_sat", 3, 0, False
-        )(89)
+    negative = next(row for row in rows if row["positive"] is False)
+    assert negative["status"] == "generation_error"
+    assert negative["runtime_seconds"] is None
     assert calls == [("lc_stb", 3, 0, 89)]
-    collect_algorithm._certified_negative_result.cache_clear()
 
 
 def test_prepared_matrix_arity_matches_each_invariant_family() -> None:
-    pm_stb = timings.InvariantCaseGenerator(
-        "pm_stb", "linear_dependency", 3, 1, True
-    )(89)
-    pm_css = timings.InvariantCaseGenerator(
-        "pm_css", "linear_dependency", 3, 1, True
-    )(89)
-    lc_stb = timings.InvariantCaseGenerator(
-        "lc_stb", "local_invariant", 3, 1, True
-    )(89)
+    pm_stb = timings._prepared(
+        "pm_stb", *timings.generate_pair("pm_stb", 3, 1, True, 89)
+    )
+    pm_css = timings._prepared(
+        "pm_css", *timings.generate_pair("pm_css", 3, 1, True, 89)
+    )
+    lc_stb = timings._prepared(
+        "lc_stb", *timings.generate_pair("lc_stb", 3, 1, True, 89)
+    )
 
-    assert len(pm_stb.inputs) == 2
-    assert len(pm_css.inputs) == 4
-    assert len(lc_stb.inputs) == 2
+    assert len(pm_stb) == 2
+    assert len(pm_css) == 4
+    assert len(lc_stb) == 2
 
 
 def test_signature_collector_uses_css_then_stabilizer_order() -> None:
