@@ -21,15 +21,16 @@ from paper.visualizations.common import (
     RESULTS_DIR,
     RUNTIME_CMAP,
     aggregate_cells,
-    failure_legend,
+    decimal_ticks,
     failure_marks,
-    load_plot_rows,
-    mark_synthetic,
+    load_rows,
+    mark_timeout,
     parameter_axis,
     partition_cell,
     runtime_norm,
     save_png,
     scalar_mappable,
+    WIDE_TEXT_SCALE,
     use_style,
 )
 
@@ -37,9 +38,9 @@ INPUT = RESULTS_DIR / "a6" / "by_cell.csv"
 OUTPUT = RESULTS_DIR / "a6" / "a6.png"
 NMAX = 25
 PANELS = (
-    ("pm_stb_sat_on_stabilizer", "PM-STB SAT\non stabilizer codes"),
-    ("pm_css_sat_on_css", "PM-CSS SAT\non CSS codes"),
-    ("pm_stb_sat_on_css", "PM-STB SAT\non CSS codes"),
+    ("pm_stb_sat_on_stabilizer", "Tableau Encoding\non General Stabilizer Codes"),
+    ("pm_css_sat_on_css", "Check-Matrix Encoding\non CSS Codes"),
+    ("pm_stb_sat_on_css", "Tableau Encoding\non CSS Codes"),
 )
 
 
@@ -54,7 +55,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         "num_memory_limited",
         "num_errors",
     )
-    rows, synthetic = load_plot_rows(input_file, required)
+    rows = load_rows(input_file, required)
     rows = [row for row in rows if int(row["n"]) <= NMAX]
     for row in rows:
         row["num_runtime_samples"] = str(
@@ -77,9 +78,9 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         if int(cell["num_successful"])
     )
 
-    use_style()
+    use_style(scale=WIDE_TEXT_SCALE)
     figure, axes = plt.subplots(1, 3, figsize=(14.4, 5.5))
-    figure.subplots_adjust(left=0.055, right=0.90, bottom=0.16, top=0.82, wspace=0.18)
+    figure.subplots_adjust(left=0.055, right=0.90, bottom=0.08, top=0.82, wspace=0.18)
     for ax, (variant, title) in zip(axes, PANELS):
         parameter_axis(ax, title, nmax=NMAX)
         for (n, r), cell in aggregated[variant].items():
@@ -93,19 +94,13 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                     RUNTIME_CMAP(norm(float(cell["mean_value"]))),
                 )
             failure_marks(ax, n, r, cell)
-    figure.suptitle("SAT performance on stabilizer and CSS inputs", fontsize=12)
-    figure.legend(
-        handles=failure_legend(),
-        loc="lower center",
-        ncol=2,
-        frameon=False,
-        bbox_to_anchor=(0.5, 0.015),
-    )
+    figure.suptitle("Performance of SAT Encodings on Stabilizer and CSS inputs", fontsize=12 * WIDE_TEXT_SCALE)
     bar = figure.colorbar(
         scalar_mappable(RUNTIME_CMAP, norm), ax=axes, fraction=0.018, pad=0.015
     )
-    bar.set_label("mean runtime [s], positive + negative aggregate, logarithmic")
-    mark_synthetic(figure, synthetic)
+    decimal_ticks(bar)
+    mark_timeout(bar)
+    bar.set_label("Mean runtime [s]")
     return save_png(figure, output)
 
 

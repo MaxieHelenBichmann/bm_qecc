@@ -1,15 +1,4 @@
-"""Render A4 as two full-grid graph-isomorphism runtime maps.
-
-Run with no arguments::
-
-    python3 -m paper.visualizations.visualize_a4
-
-Positive and negative cases are aggregated into one runtime-observation-
-weighted mean per parameter cell. Completed runs and capped timeouts contribute
-to the color; memory failures do not. In these legacy graph-isomorphism
-measurements, both memory-limit and general error counts denote memory failures
-and are shown as blue crosses. Exactly one PNG is written.
-"""
+"""Render A4 as two full-grid graph-isomorphism runtime maps."""
 
 from __future__ import annotations
 
@@ -21,10 +10,11 @@ from paper.visualizations.common import (
     RESULTS_DIR,
     RUNTIME_CMAP,
     aggregate_cells,
+    decimal_ticks,
     failure_legend,
     failure_marks,
-    load_plot_rows,
-    mark_synthetic,
+    load_rows,
+    mark_timeout,
     parameter_axis,
     partition_cell,
     runtime_norm,
@@ -37,8 +27,8 @@ INPUT = RESULTS_DIR / "a4" / "by_cell.csv"
 OUTPUT = RESULTS_DIR / "a4" / "a4.png"
 NMAX = 25
 PANELS = (
-    ("pm_stb_graph_iso", "Permutation graph isomorphism"),
-    ("lc_stb_graph_iso", "Local-Clifford graph isomorphism"),
+    ("pm_stb_graph_iso", "Permutation Equivalence"),
+    ("lc_stb_graph_iso", "Local-Clifford Equivalence"),
 )
 
 
@@ -54,7 +44,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         "num_errors",
         "num_unexpected",
     )
-    rows, synthetic = load_plot_rows(input_file, required)
+    rows = load_rows(input_file, required)
     rows = [row for row in rows if int(row["n"]) <= NMAX]
     for row in rows:
         row["num_runtime_samples"] = str(
@@ -79,7 +69,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
 
     use_style()
     figure, axes = plt.subplots(1, 2, figsize=(10.2, 5.5))
-    figure.subplots_adjust(left=0.07, right=0.86, bottom=0.16, top=0.84, wspace=0.18)
+    figure.subplots_adjust(left=0.07, right=0.86, bottom=0.08, top=0.84, wspace=0.18)
     for ax, (algorithm, title) in zip(axes, PANELS):
         parameter_axis(ax, title, nmax=NMAX)
         for (n, r), cell in aggregated[algorithm].items():
@@ -100,19 +90,17 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                 "num_errors": 0,
             }
             failure_marks(ax, n, r, memory_cell)
-    figure.suptitle("Graph representation and search cost", fontsize=12)
-    figure.legend(
-        handles=failure_legend()[:1],
-        loc="lower center",
-        ncol=1,
-        frameon=False,
-        bbox_to_anchor=(0.5, 0.015),
-    )
+    figure.suptitle("Search Cost using Graph Representations", fontsize=12)
+    # The (n, r) triangle leaves the upper left of every panel empty, so the key
+    # sits there next to the marks it explains instead of in its own strip.
+    axes[0].legend(handles=failure_legend()[:1], loc="upper left", frameon=False, fontsize=10,
+        handlelength=0.8, handletextpad=0.4)
     bar = figure.colorbar(
         scalar_mappable(RUNTIME_CMAP, norm), ax=axes, fraction=0.025, pad=0.02
     )
-    bar.set_label("mean runtime [s], positive + negative aggregate, logarithmic")
-    mark_synthetic(figure, synthetic)
+    decimal_ticks(bar)
+    mark_timeout(bar)
+    bar.set_label("Mean runtime [s]")
     return save_png(figure, output)
 
 

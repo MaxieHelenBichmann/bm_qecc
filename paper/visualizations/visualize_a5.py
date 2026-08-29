@@ -17,13 +17,27 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch, Rectangle
 
 from paper.visualizations.common import (
+    COLOR_PAPER_BLUE,
+    COLOR_PAPER_CYAN,
+    COLOR_PAPER_DARK_GREEN,
+    COLOR_PAPER_DARK_LILA,
+    COLOR_PAPER_DARK_PINK,
+    COLOR_PAPER_DARK_RED,
+    COLOR_PAPER_GRAY_VERY_DARK,
+    COLOR_PAPER_GRAY_VERY_VERY_DARK,
+    COLOR_PAPER_LIGHT_CYAN,
+    COLOR_PAPER_SALMON,
+    COLOR_PAPER_ZX_GREEN_DARK,
+    COLOR_PAPER_DARK_GREEN,
+    COLOR_PAPER_GREEN,
+    COLOR_PAPER_ZX_ORANGE,
     EMPTY,
     RESULTS_DIR,
-    load_plot_rows,
-    mark_synthetic,
+    load_rows,
     parameter_axis,
     partition_cell,
     save_png,
+    WIDE_TEXT_SCALE,
     use_style,
 )
 
@@ -32,20 +46,19 @@ OUTPUT = RESULTS_DIR / "a5" / "a5.png"
 NEAR_TIE_RATIO = 1.05
 
 PANELS = (
-    ("pm_stb", "Permutation equivalence\nstabilizer codes"),
-    ("pm_css", "Permutation equivalence\nCSS codes"),
-    ("lc_stb", "Local-Clifford equivalence\nstabilizer codes"),
+    ("pm_stb", "Permutation Equivalence\nfor Stabilizer Codes"),
+    ("pm_css", "Permutation Equivalence\nfor CSS Codes"),
+    ("lc_stb", "Local Clifford Equivalence\nfor Stabilizer Codes"),
 )
 
-# The same algorithmic method has the same colour in every problem panel.
 METHODS = (
-    ("sat", "SAT", "#0072B2"),
-    ("bruteforce", "Brute force", "#CC79A7"),
-    ("classical", "Classical reduction", "#E69F00"),
-    ("graph_iso", "Graph isomorphism", "#56B4E9"),
-    ("matroid", "Matroid isomorphism", "#009E73"),
-    ("kls", "KLS", "#7B61A8"),
-    ("lse", "LSE / graph state", "#B07C00"),
+    ("sat", "SAT", COLOR_PAPER_CYAN),
+    ("bruteforce", "Brute force", COLOR_PAPER_ZX_ORANGE),
+    ("classical", "Classical Approaches", COLOR_PAPER_DARK_LILA),
+    ("graph_iso", "Graph Isomorphism", COLOR_PAPER_GREEN),
+    ("matroid", "Matroid Isomorphism", COLOR_PAPER_SALMON),
+    ("kls", "KLS Orbit", COLOR_PAPER_DARK_PINK),
+    ("lse", "Graph-State LSE", COLOR_PAPER_DARK_RED),
 )
 
 
@@ -53,7 +66,7 @@ def method(algorithm: str) -> tuple[str, str]:
     for suffix, label, color in METHODS:
         if algorithm.endswith(f"_{suffix}"):
             return label, color
-    return algorithm, "#666666"
+    return algorithm, COLOR_PAPER_GRAY_VERY_VERY_DARK
 
 
 def overlay_hatch(
@@ -86,21 +99,6 @@ def legend(rows: list[dict[str, str]]) -> list[Patch]:
         for _, label, color in METHODS
         if label in present
     ]
-    handles.extend(
-        [
-            Patch(
-                facecolor="#777777",
-                edgecolor="#222222",
-                hatch="///",
-                label="runner-up within 5%",
-            ),
-            Patch(
-                facecolor=EMPTY,
-                edgecolor="#D0D0D0",
-                label="no eligible winner / unmeasured",
-            ),
-        ]
-    )
     return handles
 
 
@@ -115,9 +113,9 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         "num_eligible_algorithms",
         "selection",
     )
-    rows, synthetic = load_plot_rows(input_file, required)
+    rows = load_rows(input_file, required)
 
-    use_style()
+    use_style(scale=WIDE_TEXT_SCALE)
     figure, axes = plt.subplots(1, 3, figsize=(14.4, 5.7))
     figure.subplots_adjust(left=0.055, right=0.985, bottom=0.22, top=0.80, wspace=0.18)
 
@@ -141,8 +139,8 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                 overlay_hatch(ax, n, r, "///", runner_color)
 
     figure.suptitle(
-        "Preferred algorithm per parameter regime",
-        fontsize=12,
+        "Best-Performing Prototype per Parameter Setting",
+        fontsize=12 * WIDE_TEXT_SCALE,
         y=0.96,
     )
     figure.legend(
@@ -150,9 +148,9 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         loc="lower center",
         ncol=5,
         frameon=False,
+        fontsize=11,
         bbox_to_anchor=(0.5, 0.025),
     )
-    mark_synthetic(figure, synthetic)
     return save_png(figure, output)
 
 

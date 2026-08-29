@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, LogNorm, Normalize
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
+from matplotlib.ticker import FixedFormatter, FixedLocator, FuncFormatter
 
 from benchmarks.thesis.thesis_prototypes import measurement_dimensions
 
@@ -22,32 +23,102 @@ ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = ROOT / "paper" / "results"
 DIMENSIONS = tuple(measurement_dimensions())
 
-EMPTY = "#FCFCFC"
-GRID = "#B9B9B9"
-TEXT = "#202020"
-MEMORY_BLUE = "#2E61F1"
-ERROR_PURPLE = "#7F5DC9"
+# Thesis palette, mirrored from settings/commands.tex so figures and text match.
+COLOR_PAPER_ZX_GREEN = "#74D374"
+COLOR_PAPER_ZX_ORANGE = "#FFA404"
+COLOR_PAPER_ZX_GREEN_MUTED = "#CCFFBF"
+COLOR_PAPER_ZX_ORANGE_MUTED = "#FFD9B2"
+COLOR_PAPER_ZX_GREEN_DARK = "#199900"
+COLOR_PAPER_ZX_ORANGE_DARK = "#FF7C00"
+COLOR_PAPER_ZX_BLUE = "#2E6DF1"
+
+COLOR_PAPER_LIGHT_RED = "#F39385"
+COLOR_PAPER_RED = "#E9341A"
+COLOR_PAPER_DARK_RED = "#A72512"
+
+COLOR_PAPER_LIGHT_BLUE = "#D5DEF8"
+COLOR_PAPER_MEDIUM_BLUE = "#94ABEA"
+COLOR_PAPER_BLUE = "#2E61F1"
+COLOR_PAPER_DARK_BLUE = "#1F45B2"
+
+COLOR_PAPER_LIGHT_GREEN = "#C3DCA7"
+COLOR_PAPER_GREEN = "#98D256"
+COLOR_PAPER_DARK_GREEN = "#57891F"
+
+COLOR_PAPER_YELLOW_LIGHT = "#FDFAC8"
+COLOR_PAPER_YELLOW_DARK = "#FFF56D"
+
+COLOR_PAPER_SALMON_LIGHT = "#FFDEDF"
+COLOR_PAPER_SALMON = "#FFC9CA"
+COLOR_PAPER_SALMON_DARK = "#FFA7A9"
+
+COLOR_PAPER_LIGHT_LILA = "#CAB6E6"
+COLOR_PAPER_LILA = "#A283CD"
+COLOR_PAPER_DARK_LILA = "#7F5DC9"
+
+COLOR_PAPER_LIGHT_CYAN = "#81C9CE"
+COLOR_PAPER_CYAN = "#3B969C"
+COLOR_PAPER_DARK_CYAN = "#1F6367"
+
+COLOR_PAPER_LIGHT_PINK = "#FEBAFF"
+COLOR_PAPER_PINK = "#F794F9"
+COLOR_PAPER_DARK_PINK = "#EC71EE"
+
+COLOR_PAPER_GRAY_VERY_LIGHT = "#F9F9F9"
+COLOR_PAPER_GRAY_LIGHT = "#F2F2F2"
+COLOR_PAPER_GRAY_MEDIUM = "#E8E8E8"
+COLOR_PAPER_GRAY_DARK = "#DFDFDF"
+COLOR_PAPER_GRAY_VERY_DARK = "#CCCCCC"
+COLOR_PAPER_GRAY_VERY_VERY_DARK = "#808080"
+
+COLOR_PAPER_GREEN_RAMP = ("#EFF8E5", "#D5EDBB", "#ACDB76", "#7AB931", "#476B1F")
+COLOR_PAPER_LILA_RAMP = ("#EBE6F7", "#CCBEE9", "#987DD4", "#603BB0", "#392466")
+COLOR_PAPER_ORANGE_RAMP = ("#FFF3DE", "#FFE0A8", "#FFC052", "#EB9600", "#865703")
+COLOR_PAPER_CYAN_RAMP = ("#E7F5F6", "#C0E5E7", "#81CBCF", "#40A4AA", "#275F62")
+
+COLOR_PAPER_WHITE = "#FFFFFF"
+
+WIDE_TEXT_SCALE = 1.3
+
+TIMEOUT_SECONDS = 5_400.0
+
+EMPTY = COLOR_PAPER_GRAY_VERY_LIGHT
+MEMORY_BLUE = COLOR_PAPER_BLUE
+ERROR_PURPLE = COLOR_PAPER_DARK_LILA
 
 RUNTIME_CMAP = LinearSegmentedColormap.from_list(
-    "runtime", ["#FDFAC8", "#FFD9B2", "#F39385", "#E9341A", "#A72512"]
+    "runtime",
+    [
+        COLOR_PAPER_YELLOW_LIGHT,
+        COLOR_PAPER_ZX_ORANGE_MUTED,
+        COLOR_PAPER_LIGHT_RED,
+        COLOR_PAPER_RED,
+        COLOR_PAPER_DARK_RED,
+    ],
 )
+
 SIGNATURE_CMAP = LinearSegmentedColormap.from_list(
-    "signature_space", ["#FDFAC8", "#FFA404", "#E9341A", "#A72512"]
+    "signature_space", tuple(reversed(COLOR_PAPER_CYAN_RAMP))
 )
 
 
-def use_style() -> None:
-    """Apply compact, paper-friendly plotting defaults."""
+def use_style(scale: float = 1.0) -> None:
+    """Apply compact, paper-friendly plotting defaults.
+
+    ``scale`` enlarges every text size together. The three-panel figures are the
+    widest, so the page shrinks them furthest and their type has to start larger
+    to land at the same printed size as the two-panel ones.
+    """
     plt.rcParams.update(
         {
             "figure.dpi": 150,
             "savefig.dpi": 300,
-            "font.size": 8,
-            "axes.titlesize": 10,
-            "axes.labelsize": 9,
-            "xtick.labelsize": 7,
-            "ytick.labelsize": 7,
-            "legend.fontsize": 7,
+            "font.size": 8 * scale,
+            "axes.titlesize": 10 * scale,
+            "axes.labelsize": 9 * scale,
+            "xtick.labelsize": 7 * scale,
+            "ytick.labelsize": 7 * scale,
+            "legend.fontsize": 7 * scale,
             "axes.linewidth": 0.7,
             "font.family": "sans-serif",
         }
@@ -69,33 +140,6 @@ def load_rows(path: Path, required: Sequence[str]) -> list[dict[str, str]]:
                 "rerun the corresponding experiment extractor"
             )
         return list(reader)
-
-
-def load_plot_rows(path: Path, required: Sequence[str]) -> tuple[list[dict[str, str]], bool]:
-    """Prefer real collector data, falling back explicitly to temporary fixtures."""
-    try:
-        return load_rows(path, required), False
-    except (FileNotFoundError, ValueError) as primary_error:
-        synthetic = path.with_name("synthetic_by_cell.csv")
-        if not synthetic.is_file():
-            raise primary_error
-        print(f"warning: {primary_error}; using {synthetic}", flush=True)
-        return load_rows(synthetic, required), True
-
-
-def mark_synthetic(figure, synthetic: bool) -> None:
-    """Make it impossible to mistake a temporary fixture render for paper data."""
-    if synthetic:
-        figure.text(
-            0.99,
-            0.01,
-            "SYNTHETIC PLACEHOLDER DATA",
-            ha="right",
-            va="bottom",
-            color="#9A1B1B",
-            fontsize=7,
-            fontweight="bold",
-        )
 
 
 def boolean(value: str) -> bool:
@@ -155,12 +199,11 @@ def parameter_axis(ax, title: str, *, nmax: int = 47) -> None:
                     1,
                     1,
                     facecolor=EMPTY,
-                    edgecolor="#F7F7F7",
+                    edgecolor=COLOR_PAPER_WHITE,
                     linewidth=0.12,
                     zorder=0,
                 )
             )
-    ax.plot([2.5, nmax + 0.5], [2.5, nmax + 0.5], color=GRID, linewidth=0.55, zorder=3)
     ax.set_xlim(2.5, nmax + 0.5)
     ax.set_ylim(0.5, nmax + 0.5)
     ax.set_aspect("equal", adjustable="box")
@@ -170,8 +213,8 @@ def parameter_axis(ax, title: str, *, nmax: int = 47) -> None:
     ax.set_xticks(ticks)
     ax.set_yticks(ticks)
     ax.grid(False)
-    ax.set_xlabel("physical qubits $n$")
-    ax.set_ylabel("stabilizer rank $r=n-k$")
+    ax.set_xlabel("Physical qubits $n$")
+    ax.set_ylabel("Stabilizer rank $r=n-k$")
     ax.set_title(title, pad=6)
     ax.spines[["top", "right"]].set_visible(False)
 
@@ -192,7 +235,7 @@ def partition_cell(
             width,
             1,
             facecolor=color,
-            edgecolor="#FFFFFF",
+            edgecolor=COLOR_PAPER_WHITE,
             linewidth=0.16,
             zorder=2,
         )
@@ -211,25 +254,57 @@ def failure_marks(ax, n: int, r: int, row: Mapping[str, Any], side: int = 0) -> 
     """Overlay explicit memory, timeout, and other-error glyphs."""
     x = n + side * 0.17
     if integer(row.get("num_memory_limited")):
-        ax.scatter(x, r, marker="x", s=17, linewidths=0.8, color=MEMORY_BLUE, zorder=5)
+        ax.scatter(x, r, marker="x", s=34, linewidths=1.1, color=MEMORY_BLUE, zorder=5)
     if integer(row.get("num_errors")):
         ax.scatter(x, r, marker="*", s=14, linewidths=0.3, color=ERROR_PURPLE, zorder=5)
 
 
-def runtime_norm(values: Iterable[float]) -> LogNorm:
+def runtime_norm(values: Iterable[float], *, timeout: float = TIMEOUT_SECONDS) -> LogNorm:
+    """Scale runtimes logarithmically, always reaching the collector timeout.
+
+    Measured means stay below the cap, so without stretching the top the timeout
+    would fall off the colorbar and ``mark_timeout`` would have nothing to draw.
+    """
     positive = [value for value in values if value > 0]
     if not positive:
-        return LogNorm(vmin=1e-3, vmax=1.0)
-    low, high = min(positive), max(positive)
+        return LogNorm(vmin=1e-3, vmax=timeout)
+    low, high = min(positive), max(max(positive), timeout)
     if low == high:
         low, high = low / 2, high * 2
     return LogNorm(vmin=low, vmax=high)
 
 
+def decimal_ticks(bar) -> None:
+    """Label a logarithmic colorbar with plain decimals rather than powers of ten."""
+    bar.ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}"))
+
+
+def mark_timeout(bar, timeout: float = TIMEOUT_SECONDS) -> None:
+    """Draw the collector timeout onto a runtime colorbar.
+
+    Cells at the cap are means over runs that hit it, so the reader needs to see
+    where the measurable range ends rather than inferring it from the top tick.
+    """
+    if not bar.norm.vmin <= timeout <= bar.norm.vmax:
+        return
+    if timeout < bar.norm.vmax:
+        # Only worth a rule when it falls inside the bar; at the top it would
+        # sit under the frame and read as a border rather than a threshold.
+        bar.ax.axhline(
+            timeout,
+            color=COLOR_PAPER_GRAY_VERY_VERY_DARK,
+            linewidth=0.9,
+            zorder=5,
+        )
+    bar.ax.yaxis.set_minor_locator(FixedLocator([timeout]))
+    bar.ax.yaxis.set_minor_formatter(FixedFormatter([f"{timeout:g}"]))
+    bar.ax.tick_params(axis="y", which="minor", length=3)
+
+
 def save_png(figure, path: Path) -> Path:
     """Write exactly one cropped PNG and close the figure."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(path, bbox_inches="tight", facecolor="white")
+    figure.savefig(path, bbox_inches="tight", facecolor=COLOR_PAPER_WHITE)
     plt.close(figure)
     print(f"wrote {path}", flush=True)
     return path
@@ -237,14 +312,14 @@ def save_png(figure, path: Path) -> Path:
 
 def polarity_legend() -> list[Line2D]:
     return [
-        Line2D([], [], marker="s", fillstyle="left", markerfacecolor="#555555", markerfacecoloralt="#FFFFFF", markeredgecolor="#777777", linestyle="none", markersize=7, label="left half: equivalent"),
-        Line2D([], [], marker="s", fillstyle="right", markerfacecolor="#555555", markerfacecoloralt="#FFFFFF", markeredgecolor="#777777", linestyle="none", markersize=7, label="right half: inequivalent"),
+        Line2D([], [], marker="s", fillstyle="left", markerfacecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, markerfacecoloralt=COLOR_PAPER_WHITE, markeredgecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, linestyle="none", markersize=7, label="left half: equivalent"),
+        Line2D([], [], marker="s", fillstyle="right", markerfacecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, markerfacecoloralt=COLOR_PAPER_WHITE, markeredgecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK, linestyle="none", markersize=7, label="right half: inequivalent"),
     ]
 
 
 def failure_legend() -> list[Line2D]:
     return [
-        Line2D([], [], marker="x", linestyle="none", color=MEMORY_BLUE, label="memory limit"),
+        Line2D([], [], marker="x", linestyle="none", color=MEMORY_BLUE, label="OOM"),
         Line2D([], [], marker="*", linestyle="none", color=ERROR_PURPLE, label="error / wrong result"),
     ]
 

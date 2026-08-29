@@ -1,15 +1,4 @@
-"""Render A1 as two full-grid rejection maps.
-
-Run with no arguments::
-
-    python3 -m paper.visualizations.visualize_a1
-
-The permutation panel combines the PM-STB and PM-CSS populations. A point is
-split into invariant-colored sectors; an absent sector means that invariant
-rejected none of the measured negatives. Color depth is the rejection fraction.
-The LC panel shows the local invariant. Exactly one PNG is written next to the
-input CSV.
-"""
+"""Render A1 as two full-grid rejection maps."""
 
 from __future__ import annotations
 
@@ -21,17 +10,28 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.patches import Patch
 
-from paper.visualizations.common import RESULTS_DIR, load_plot_rows, mark_synthetic, parameter_axis, partition_cell, save_png, scalar_mappable, use_style
+from paper.visualizations.common import (
+    COLOR_PAPER_GREEN_RAMP,
+    COLOR_PAPER_LILA_RAMP,
+    COLOR_PAPER_ORANGE_RAMP,
+    RESULTS_DIR,
+    load_rows,
+    parameter_axis,
+    partition_cell,
+    save_png,
+    scalar_mappable,
+    use_style,
+)
 
 INPUT = RESULTS_DIR / "a1" / "by_cell.csv"
 OUTPUT = RESULTS_DIR / "a1" / "a1.png"
 
 CMAPS = {
-    "linear_dependency": LinearSegmentedColormap.from_list("linear_dependency", ["#F2FAE9", "#98D256", "#57891F"]),
-    "signatures": LinearSegmentedColormap.from_list("signatures", ["#FBF3FF", "#C79AE8", "#7F3FB8"]),
-    "local_invariant": LinearSegmentedColormap.from_list("local_invariant", ["#FFF4DF", "#FFA404", "#B85B00"]),
+    "linear_dependency": LinearSegmentedColormap.from_list("linear_dependency", COLOR_PAPER_GREEN_RAMP),
+    "signatures": LinearSegmentedColormap.from_list("signatures", COLOR_PAPER_LILA_RAMP),
+    "local_invariant": LinearSegmentedColormap.from_list("local_invariant", COLOR_PAPER_ORANGE_RAMP),
 }
-LABELS = {"linear_dependency": "linear dependencies", "signatures": "signatures", "local_invariant": "local invariant"}
+LABELS = {"linear_dependency": "Linear column dependencies", "signatures": "Signatures", "local_invariant": "Local invariant"}
 
 
 def _aggregate(rows: Sequence[dict[str, str]], problems: set[str]) -> dict[tuple[int, int, str], tuple[int, int]]:
@@ -65,28 +65,29 @@ def _overall(values: dict[tuple[int, int, str], tuple[int, int]], invariant: str
 
 
 def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
-    rows, synthetic = load_plot_rows(input_file, ("problem", "n", "r", "invariant", "num_valid", "num_rejected"))
+    rows = load_rows(input_file, ("problem", "n", "r", "invariant", "num_valid", "num_rejected"))
     pm = _aggregate(rows, {"pm_stb", "pm_css"})
     lc = _aggregate(rows, {"lc_stb"})
     use_style()
     figure, axes = plt.subplots(1, 2, figsize=(10.2, 5.5))
     figure.subplots_adjust(left=0.07, right=0.86, bottom=0.16, top=0.84, wspace=0.18)
-    parameter_axis(axes[0], "Permutation equivalence")
-    parameter_axis(axes[1], "Local-Clifford equivalence")
+    parameter_axis(axes[0], "Permutation Equivalence")
+    parameter_axis(axes[1], "Local Clifford Equivalence")
     _draw(axes[0], pm, ("linear_dependency", "signatures"))
     _draw(axes[1], lc, ("local_invariant",))
 
     handles = []
     for name, values in (("linear_dependency", pm), ("signatures", pm), ("local_invariant", lc)):
         handles.append(Patch(facecolor=CMAPS[name](0.72), label=f"{LABELS[name]} ({_overall(values, name):.1f}% overall)"))
-    figure.legend(handles=handles, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 0.015))
-    figure.suptitle("Invariant rejection of certified inequivalent pairs", fontsize=12)
-    # A small common depth scale is sufficient because every invariant uses the
-    # same 0..100% normalization, even though their hue families differ.
+    figure.legend(handles=handles, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 0.015), fontsize=9)
+    figure.suptitle("Invariants' Rejection Patterns and Rates of Inequivalent Codes", fontsize=12)
+
     bar = figure.colorbar(scalar_mappable("Greys", Normalize(0, 1)), ax=axes, fraction=0.025, pad=0.02)
-    bar.set_label("color depth = rejected fraction")
-    bar.set_ticks([0, 0.5, 1], labels=["0%", "50%", "100%"])
-    mark_synthetic(figure, synthetic)
+    bar.set_label(
+        "Deeper color means\n"
+        "more rejected instances"
+    )
+    bar.set_ticks([0, 0.25, 0.5, 0.75, 1], labels=["0%", "25%", "50%", "75%", "100%"])
     return save_png(figure, output)
 
 
