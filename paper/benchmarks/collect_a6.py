@@ -1,15 +1,11 @@
 """Collect the additional PM-STB SAT measurements on CSS inputs.
 
-Usage::
-
-    python3 -m paper.benchmarks.collect_a6
-
-There are no CLI arguments. Edit the constants below to change the inclusive
-``N_RANGE``, seed schedule, timeout, memory limit, or verbosity. The script uses
-the same positive and negative CSS populations as the ordinary PM-CSS random
-suite and appends statistics to
-``paper/data/collected/pm_stb_sat_on_css.csv``. The A6 experiment combines this
-file with the normal ``pm_stb_sat.csv`` and ``pm_css_sat.csv`` files.
+The script uses the same positive and negative CSS populations as the ordinary 
+PM-CSS random suite and appends statistics to
+``paper/data/collected/pm_stb_sat_on_css.csv``.
+The A6 experiment combines this file with the normal ``pm_stb_sat.csv`` and 
+``pm_css_sat.csv`` files.
+Restarting skips keys already present, while the A6 experiment performs all aggregation later.
 """
 
 from __future__ import annotations

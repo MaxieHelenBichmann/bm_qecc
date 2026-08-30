@@ -1,17 +1,17 @@
-"""Collect raw marginal invariant runtimes for A3.
+"""Collect raw marginal invariant runtimes.
 
-Usage::
-
-    python3 -m paper.benchmarks.collect_a3
-
-There are no CLI arguments. Edit the constants and ``INVARIANT_N_RANGES``
-below to change the grid, seed count, timeouts, memory limit, or verbosity.
+For each fixed ``(n, k, seed)``, PM-STB and LC-STB apply a small, configurable number of 
+random Clifford gates to one source code, while PM-CSS normally uses two independent 
+codes with matching X- and Z-check ranks.
+Each candidate is certified with an admissible exact backend (SAT) before the script
+records whether the relevant invariants reject it. PM-CSS uses a SAT- and 
+matroid-based  verification method, and a scalable certified CSS code pair generator
+due to runtime constraints.
 
 Each seeded result is appended immediately to
-``paper/data/collected/invariant_timings.csv``. Case generation,
-inequivalence certification, and row-basis normalization happen before the
-timed invariant call. The A3 extractor validates complete cells, aggregates
-the raw runtimes, chooses the fastest valid backend, and computes the ratio.
+``paper/data/collected/invariant_timings.csv``. Practical feasibility
+(runtime and memory consumption) is measured here, so it should be run on the according platform.
+Restarting skips keys already present, while the A3 experiment performs all aggregation later.
 """
 
 from __future__ import annotations

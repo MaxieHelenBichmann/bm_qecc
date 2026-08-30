@@ -1,49 +1,47 @@
 """Collect mean runtimes and deciding components of the diagnostic hybrids.
 
-Usage::
+For each fixed ``(n, k, seed)``, PM-STB and LC-STB apply a small, configurable number of 
+random Clifford gates to one source code, while PM-CSS normally uses two independent 
+codes with matching X- and Z-check ranks.
+Each candidate is certified with an admissible exact backend (SAT) before the script
+records whether the relevant invariants reject it. PM-CSS uses a SAT- and 
+matroid-based  verification method, and a scalable certified CSS code pair generator
+due to runtime constraints.
 
-    python3 -m paper.benchmarks.collect_a7
+The three diagnostic hybrid implementations in ``paper/hybrids`` 
+(``pm_stb``, ``pm_css``, ``lc_stb``) return a ``(decision, component)`` pair 
+and print the tag of every stage they enter, so a run yields two things 
+the plain algorithm collector cannot express: which component actually decided a case, 
+and, for a case that never finishes, which component it was stuck in. 
+Every call is supervised by ``benchmarks/experiments/run.py`` exactly like the other 
+collectors; what is added here is only the callable it runs, a :class:`TracedHybrid` wrapper that
+redirects standard output, so the trace survives the kill that ends a timed-out call.
 
-There is no command line: every run measures all three hybrids on every
-compatible named structured code. The three diagnostic hybrids in
-``paper/hybrids`` (``pm_stb``, ``pm_css``, ``lc_stb``) return a
-``(decision, component)`` pair and print the tag of every stage they enter, so a
-run yields two things the plain algorithm collector cannot express: which
-component actually decided a case, and, for a case that never finishes, which
-component it was stuck in. Every call is supervised by
-``benchmarks/experiments/run.py`` exactly like the other collectors; what is
-added here is only the callable it runs, a :class:`TracedHybrid` wrapper that
-redirects standard output line-buffered into a log file inside the supervised
-process, so the trace survives the kill that ends a timed-out call.
-
-Component tags: ``CI`` cheap invariants, ``EI`` expensive invariants,
-``S`` signatures, and the decision procedures ``BF`` (brute force), ``MI``
-(matroid isomorphism), ``GI`` (graph isomorphism), ``SAT``, and ``LSE``.
+Component tags: 
+``CI`` cheap invariants, 
+``EI`` expensive invariants,
+``S`` signatures,
+``BF`` (brute force), 
+``MI`` (matroid isomorphism), 
+``GI`` (graph isomorphism), 
+``SAT``,
+``LSE``(graph-sate linear system of equations).
 
 Two files are written per hybrid, both append-only, under
 ``paper/data/collected/hybrids/``:
 
 ``<algorithm>.csv``
     One row per (named code, label) cell: mean/stddev/maximum runtime over the
-    completed instances, the distribution of deciding components, and the
-    distribution of stages that timed-out instances were stuck in.
+    completed and timeout-capped instances, the distribution of deciding
+    components, and the distribution of stages that timed-out instances were
+    stuck in.
 ``<algorithm>_instances.csv``
     One row per instance: its runtime, status, deciding component, and the full
     stage trace it printed.
 
-``mean_seconds`` averages only instances that ran to completion; instances that
-timed out, exceeded memory, or raised are excluded and counted separately.
-``mean_seconds_capped`` is the alternative convention used by
-``benchmarks/experiments/statistics.py``: completed instances plus timed-out
-ones contributing their capped runtime.
-
-Edit ``HYBRID_N_RANGES`` and the constants below to change which named codes a
-hybrid sees, the master seed, instances per cell, timeout, memory limit, or
-verbosity. Every instance row is persisted as soon as its call returns and the
-summary row as soon as its cell finishes, so a crash loses at most the instance
-that was running. Restarting skips cells already present in the summary CSV and
-reuses individual instances already present in the instance CSV, so an
-interrupted server run continues without duplicating work.
+Practical feasibility (runtime and memory consumption) is measured here, 
+so it should be run on the according platform.
+Restarting skips keys already present, while the A7 experiment performs all aggregation later.
 """
 
 from __future__ import annotations
@@ -93,6 +91,7 @@ UNREACHED = "start"
 #: Prefix under which the traced call records the component that decided.
 DECIDED_MARKER = "#decided_by "
 
+# CSV persistence -------------------------------------------------------------------------------
 
 def execution_status(result: RunResult) -> str:
     if result.timed_out:
@@ -141,6 +140,7 @@ def append_csv_row(
             writer.writeheader()
         writer.writerow(row)
 
+# Hybrids -------------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Hybrid:
@@ -160,8 +160,7 @@ HYBRIDS: dict[str, Hybrid] = {
     )
 }
 
-# Inclusive block-length ranges, intentionally centralized so server runs can be
-# tuned by editing one table without adding more command-line configuration.
+# inclusive ranges, intentionally centralized so server runs can be tuned
 HYBRID_N_RANGES: dict[str, tuple[int, int]] = {
     "pm_stb_hybrid": (2, 144),
     "pm_css_hybrid": (2, 144),
@@ -189,7 +188,6 @@ SUMMARY_FIELDS = (
     "mean_seconds",
     "stddev_seconds",
     "maximum_seconds",
-    "mean_seconds_capped",
     "deciders",
     "stuck_at",
 )
@@ -245,9 +243,7 @@ def validate_configuration() -> None:
         raise ValueError("seed count and resource limits must be positive")
 
 
-# ----------------------------------------------------------------------------------------------------
-# case generation
-# ----------------------------------------------------------------------------------------------------
+# Case generation ----------------------------------------------------------------------
 
 def generate_inputs(
     algorithm_name: str, code_name: str, positive: bool, seed: int
@@ -290,9 +286,7 @@ def selected_codes(algorithm_name: str) -> list[tuple[str, Any]]:
     return codes
 
 
-# ----------------------------------------------------------------------------------------------------
-# supervised execution with captured stage traces
-# ----------------------------------------------------------------------------------------------------
+# Supervision ------------------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class TracedHybrid:
@@ -388,9 +382,7 @@ def run_instance(
     )
 
 
-# ----------------------------------------------------------------------------------------------------
-# collection
-# ----------------------------------------------------------------------------------------------------
+# Collection ------------------------------------------------------------------------------------
 
 def _distribution(values: Sequence[str]) -> str:
     """Encode a tag distribution as ``TAG:count`` pairs, most frequent first."""
@@ -414,7 +406,7 @@ def summary_row(
 ) -> dict[str, Any]:
     """Aggregate one (named code, label) cell into a single summary row."""
     completed = [result.runtime for result in results if result.completed]
-    capped = completed + [
+    measured = completed + [
         result.runtime for result in results if result.status == "timeout"
     ]
     return {
@@ -439,10 +431,9 @@ def summary_row(
         "num_generation_errors": sum(
             result.status == "generation_error" for result in results
         ),
-        "mean_seconds": _number(mean(completed)) if completed else "",
-        "stddev_seconds": _number(stdev(completed)) if len(completed) > 1 else "0.0",
-        "maximum_seconds": _number(max(completed)) if completed else "",
-        "mean_seconds_capped": _number(mean(capped)) if capped else "",
+        "mean_seconds": _number(mean(measured)) if measured else "",
+        "stddev_seconds": _number(stdev(measured)) if len(measured) > 1 else "0.0",
+        "maximum_seconds": _number(max(measured)) if measured else "",
         "deciders": _distribution([result.decided_by for result in results]),
         "stuck_at": _distribution([result.stuck_at for result in results]),
     }

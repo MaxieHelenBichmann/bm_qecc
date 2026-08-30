@@ -1,23 +1,19 @@
 """Collect raw invariant decisions on certified inequivalent pairs.
 
-Usage::
-
-    python3 -m paper.benchmarks.collect_invariant_rejections
-
-There are no CLI arguments. For each fixed ``(n, k, seed)``, PM-STB and LC-STB
-apply a small, configurable number of random Clifford gates to one source code,
-while PM-CSS normally uses two independent codes with matching X- and Z-check
-ranks.
-Each candidate is certified with an admissible exact backend before the script
-records whether the relevant invariants reject it. PM-CSS uses SAT for
-``r<=9``, matroid isomorphism for ``r>9,n<=28``, and the scalable certified CSS
-generator beyond those limits.
+For each fixed ``(n, k, seed)``, PM-STB and LC-STB apply a small, configurable number of 
+random Clifford gates to one source code, while PM-CSS normally uses two independent 
+codes with matching X- and Z-check ranks.
+Each candidate is certified with an admissible exact backend (SAT) before the script
+records whether the relevant invariants reject it. PM-CSS uses a SAT- and 
+matroid-based  verification method, and a scalable certified CSS code pair generator
+due to runtime constraints.
 
 Every result is appended immediately to
 ``paper/data/collected/invariant_rejections.csv``. Practical feasibility
-(runtime and memory consumption) is not important here; errors are merely
-recorded. Restarting skips keys already present, while the A1 experiment
-performs all aggregation later.
+(runtime and memory consumption) is not important here, so it can be run on any platform.
+The invariants and input generation are still run a resource limit and errors are recorded, 
+to not unnecessarily exhaust resources. 
+Restarting skips keys already present, while the A1 experiment performs all aggregation later.
 """
 
 from __future__ import annotations
@@ -53,9 +49,7 @@ CSS_MATROID_MAX_N = 28
 STABILIZER_CLIFFORD_GATE_STEPS = 2
 
 OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "invariant_rejections.csv"
-# TEMP: pm_stb was collected in a separate run (2026-08-29, dims up to n=28);
-# restore to ("pm_stb", "pm_css", "lc_stb") when done.
-PROBLEMS = ("pm_css", "lc_stb")
+PROBLEMS = ("pm_stb", "pm_css", "lc_stb")
 INVARIANTS = {
     "pm_stb": ("linear_dependency", "signatures"),
     "pm_css": ("linear_dependency", "signatures"),
@@ -178,18 +172,12 @@ def _attempt_seed(problem: str, n: int, k: int, seed: int, attempt: int) -> int:
 
 def _candidate_pair(problem: str, n: int, k: int, seed: int) -> CodePair:
     if problem == "pm_css":
-        # The attempt seed is uniformly hash-derived, so this selects one
-        # deterministic X-check rank for the pair. Passing it explicitly makes
-        # both independent draws have the same r_x and, because r_x+r_z=n-k,
-        # the same r_z. Rank mismatch must not make A1 negatives trivial.
+        # same dimensions of the check matrices to emulate practically relevant instances and not make the problem too trivial
         rx = seed % (n - k + 1)
         return NonPEqCodePairGenerator.css_codes_independent_candidate(
             n, k, seed, rx=rx
         )
-    # A short random Clifford circuit keeps the two stabilizer codes related
-    # without consulting any measured invariant. Entangling gates can leave
-    # both the permutation and LC orbit; the exact problem-specific backend
-    # below decides whether the candidate is retained.
+    # keeps the two stabilizer codes related somehow to emulate practically relevant instances
     return NonPEqCodePairGenerator.stabilizer_codes_clifford_candidate(
         n,
         k,

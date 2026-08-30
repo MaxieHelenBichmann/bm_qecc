@@ -337,10 +337,10 @@ def _sat(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.nd
     return solver.check() != z3.sat, "SAT"
 
 
-def _graph_iso(c1: np.ndarray, c2: np.ndarray) -> tuple[bool, str]:
+def _graph_iso(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.ndarray, partition2: dict[tuple[int, ...], list[int]]) -> tuple[bool, str]:
     """pm_stb_graph_iso.py"""
     print("GI")
-    def _graph_from_code(code: np.ndarray) -> Graph:
+    def _graph_from_code_and_partition(code: np.ndarray, partition: dict[tuple[int, ...], list[int]]) -> Graph:
         r = code.shape[0]
         n = code.shape[1] // 2
 
@@ -395,16 +395,21 @@ def _graph_iso(c1: np.ndarray, c2: np.ndarray) -> tuple[bool, str]:
         z_anchor = edge_id
         x_anchor = edge_id + 1
 
+        qubit_colors = [
+                    set(columns)
+                    for _, columns in sorted(partition.items())
+        ]
+
         return Graph(number_of_vertices=edge_id + 2,
                     directed=False,
-                    vertex_coloring=[set(range(n)), set(range(n, n + stabilizer_group_size)), z_edges | {z_anchor}, x_edges | {x_anchor}],
+                    vertex_coloring=qubit_colors + [set(range(n, n + stabilizer_group_size)), z_edges | {z_anchor}, x_edges | {x_anchor}],
                     adjacency_dict=adj_dict)
 
-    graph_1 = _graph_from_code(c1)
+    graph_1 = _graph_from_code_and_partition(c1, partition1)
     cert1 = certificate(graph_1)
     del graph_1
 
-    graph_2 = _graph_from_code(c2)
+    graph_2 = _graph_from_code_and_partition(c2, partition2)
     cert2 = certificate(graph_2)
     del graph_2
 

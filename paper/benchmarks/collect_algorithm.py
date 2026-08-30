@@ -9,9 +9,7 @@ shell wildcard, or regular expression and may be repeated; omitting it runs all
 configured paper algorithms. Every selected algorithm appends to its own file,
 ``paper/data/collected/algorithms/<algorithm>.csv``.
 
-Edit ``ALGORITHM_N_RANGES`` and the constants below to change the inclusive
-per-algorithm range, master seed, cases per cell, timeout, memory limit, or
-verbosity. The generated files are deliberately complete shared measurements:
+The generated files are deliberately complete shared measurements:
 the A3, A4, A5, and A6 experiment scripts later select only the rows they need.
 Positive cases retain the established random-suite construction. Negative
 cases reuse A1's invariant-neutral proposals and problem-specific
@@ -56,8 +54,7 @@ STABILIZER_CLIFFORD_GATE_STEPS = 2
 VERBOSE = True
 OUTPUT_DIRECTORY = ROOT / "paper" / "data" / "collected" / "algorithms"
 
-# Inclusive ranges, intentionally centralized so server runs can be tuned by
-# editing one table without adding more command-line configuration.
+# inclusive ranges, intentionally centralized so server runs can be tuned
 ALGORITHM_N_RANGES: dict[str, tuple[int, int]] = {
     "pm_stb_bruteforce": (3, 47),
     "pm_stb_classical": (3, 47),

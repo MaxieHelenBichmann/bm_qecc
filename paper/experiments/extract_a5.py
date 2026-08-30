@@ -1,4 +1,4 @@
-"""Choose the fastest completed algorithm, with a timeout-only fallback."""
+"""Choose the fastest completed algorithm with no memory or general errors, with a timeout-only fallback."""
 
 from __future__ import annotations
 
@@ -66,16 +66,7 @@ def select_winners(methods: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
             timed_out = [cell for cell in methods_in_cell if timeout_candidate(cell)]
             if not timed_out:
                 continue
-            # Multiple timeout-only candidates occur in the imported server
-            # data. Prefer SAT as the requested fallback; order the remainder
-            # by their timeout-inclusive mean.
-            ordered = sorted(
-                timed_out,
-                key=lambda cell: (
-                    not cell["algorithm"].endswith("_sat"),
-                    cell["mean_seconds"],
-                ),
-            )
+            ordered = sorted(timed_out, key=lambda cell: cell["mean_seconds"])
             selection = "timeout_fallback"
         winner = ordered[0]
         runner_up = ordered[1] if len(ordered) > 1 else None
