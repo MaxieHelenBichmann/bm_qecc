@@ -222,7 +222,7 @@ class RandomCaseGenerator:
             )
         elif self.algorithm_name.startswith("pm_stb"):
             inputs = (
-                PEqCodePairGenerator.stabilizer_codes_permuted(n, k, seed)
+                PEqCodePairGenerator.stabilizer_codes_basis_changed(n, k, seed)
                 if self.positive
                 else NonPEqCodePairGenerator.stabilizer_codes_x_z_rank_projection(
                     n, k, seed
