@@ -12,6 +12,7 @@ from matplotlib.patches import Patch
 from paper.visualizations.common import (
     COLOR_PAPER_DARK_BLUE,
     COLOR_PAPER_DARK_RED,
+    COLOR_PAPER_GRAY_LIGHT,
     COLOR_PAPER_GRAY_VERY_VERY_DARK,
     COLOR_PAPER_WHITE,
     RELATIVE_CMAP,
@@ -90,7 +91,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
     figure.subplots_adjust(left=0.055, right=0.90, bottom=0.22, top=0.80, wspace=0.18)
 
     for ax, (invariant, title, problems) in zip(axes, PANELS):
-        parameter_axis(ax, title)
+        parameter_axis(ax, title, empty_color=COLOR_PAPER_GRAY_LIGHT)
         panel_rows = [row for row in rows if row["invariant"] == invariant]
         if not draw_panel(ax, panel_rows, problems, norm):
             ax.text(

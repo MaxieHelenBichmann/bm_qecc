@@ -265,7 +265,13 @@ def aggregate_cells(
     return grouped
 
 
-def parameter_axis(ax, title: str, *, nmax: int = 47) -> None:
+def parameter_axis(
+    ax,
+    title: str,
+    *,
+    nmax: int = 47,
+    empty_color: Any = EMPTY,
+) -> None:
     """Draw the closed integer ``(n, r)`` triangle as edge-to-edge squares."""
     for n in range(3, nmax + 1):
         for r in range(1, n + 1):
@@ -274,7 +280,7 @@ def parameter_axis(ax, title: str, *, nmax: int = 47) -> None:
                     (n - 0.5, r - 0.5),
                     1,
                     1,
-                    facecolor=EMPTY,
+                    facecolor=empty_color,
                     edgecolor=COLOR_PAPER_WHITE,
                     linewidth=0.12,
                     zorder=0,
