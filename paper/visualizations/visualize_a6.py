@@ -8,7 +8,9 @@ The panels show PM-STB SAT on stabilizer inputs, PM-CSS SAT on CSS inputs, and
 PM-STB SAT on the same CSS population. Positive and negative cases are
 aggregated into one runtime-observation-weighted mean per cell. Completed runs
 and capped timeouts contribute to the color; memory and execution failures do
-not. Resource failures remain explicit. Exactly one PNG is written.
+not. Resource failures remain explicit. The annotation reports the mean
+absolute difference between the CSS panels as a percentage of their shared
+logarithmic color scale. Exactly one PNG is written.
 """
 
 from __future__ import annotations
@@ -50,6 +52,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         "n",
         "r",
         "mean_seconds",
+        "pm_stb_log_scale_difference_percentage",
         "num_successful",
         "num_timeouts",
         "num_memory_limited",
@@ -71,6 +74,13 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         )
         for variant, _ in PANELS
     }
+    differences = [
+        float(row["pm_stb_log_scale_difference_percentage"])
+        for row in rows
+        if row["variant"] == "pm_stb_sat_on_css"
+        and row["pm_stb_log_scale_difference_percentage"].strip()
+    ]
+    mean_difference = sum(differences) / len(differences) if differences else None
     norm = runtime_norm(
         float(cell["mean_value"])
         for cells in aggregated.values()
@@ -80,7 +90,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
 
     use_style(scale=WIDE_TEXT_SCALE)
     figure, axes = plt.subplots(1, 3, figsize=(14.4, 5.5))
-    figure.subplots_adjust(left=0.055, right=0.90, bottom=0.08, top=0.82, wspace=0.18)
+    figure.subplots_adjust(left=0.055, right=0.90, bottom=0.08, top=0.79, wspace=0.18)
     for ax, (variant, title) in zip(axes, PANELS):
         parameter_axis(ax, title, nmax=NMAX)
         for (n, r), cell in aggregated[variant].items():
@@ -95,6 +105,19 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                 )
             failure_marks(ax, n, r, cell)
     figure.suptitle("Performance of SAT Encodings on Stabilizer and CSS inputs", fontsize=12 * WIDE_TEXT_SCALE)
+    if mean_difference is not None:
+        css_panels_center = (
+            axes[1].get_position().x0 + axes[2].get_position().x1
+        ) / 2
+        figure.text(
+            css_panels_center,
+            0.885,
+            f"Mean absolute difference between CSS panels on the logarithmic color scale: "
+            f"{mean_difference:.2f}%",
+            ha="center",
+            va="center",
+            fontsize=8 * WIDE_TEXT_SCALE,
+        )
     bar = figure.colorbar(
         scalar_mappable(RUNTIME_CMAP, norm), ax=axes, fraction=0.018, pad=0.015
     )
