@@ -16,7 +16,7 @@ from src.core.stabilizer_code import StabilizerCode
 def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> tuple[bool, str]:
     """Check whether two stabilizer codes are permutation-equivalent.
 
-    Returns: None if they are not permutation-equivalent, otherwise returns a permutation p with p[i] = j iff c1[i] -> c2[j]
+    Returns: A tuple of (is_equivalent, diagnostic_info) where is_equivalent is a boolean indicating whether the codes are equivalent, and diagnostic_info is a string providing information about the equivalence check.
     """
     cheap_invariants = (
         preserved_n,
@@ -280,7 +280,7 @@ def _bruteforce(c1: np.ndarray, c2: np.ndarray) -> tuple[bool, str]:
 
     return False, "BF"
 
-def _sat(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.ndarray, partition2: dict[tuple[int, ...], list[int]]) -> None | list[int]:
+def _sat(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.ndarray, partition2: dict[tuple[int, ...], list[int]]) -> tuple[bool, str]:
     """p_stab_sat.py"""
     print("SAT")
     def _elementwise_map(normal_bool, variables):
@@ -334,7 +334,7 @@ def _sat(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.nd
 
             solver.add(aux_tableau[row * (2*n) + q] == _xor_list(row_contributions))
 
-    return solver.check() != z3.sat, "SAT"
+    return solver.check() == z3.sat, "SAT"
 
 
 def _graph_iso(c1: np.ndarray, partition1: dict[tuple[int, ...], list[int]], c2: np.ndarray, partition2: dict[tuple[int, ...], list[int]]) -> tuple[bool, str]:

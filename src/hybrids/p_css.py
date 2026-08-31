@@ -42,7 +42,7 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> None | list[int]:
     reduced_Hz2 = _row_basis(c2.Hz)
 
     if reduced_Hx1.shape[0] == 0 and reduced_Hz1.shape[0] == 0:
-        return None
+        return list(range(c1.n))
     
     if c1.n <= 5:
         return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
@@ -304,6 +304,8 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
 
         hx_offset = n
         hz_offset = n + n_hx
+        hx_anchor = n + n_hx + n_hz
+        hz_anchor = hx_anchor + 1
 
         _add_edges_from_circuits(circuits_hx, hx_offset)
         _add_edges_from_circuits(circuits_hz, hz_offset)
@@ -314,12 +316,12 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
         ]
 
         return Graph(
-            number_of_vertices=n + n_hx + n_hz, 
+            number_of_vertices=n + n_hx + n_hz + 2,
             directed=False,
             adjacency_dict=adj,
             vertex_coloring= qubit_colors + [
-                set(range(hx_offset, hx_offset + n_hx)),
-                set(range(hz_offset, hz_offset + n_hz)),
+                set(range(hx_offset, hx_offset + n_hx)) | {hx_anchor},
+                set(range(hz_offset, hz_offset + n_hz)) | {hz_anchor},
             ]
         )
     

@@ -10,7 +10,7 @@ import numpy.typing as npt
 
 import ldpc.mod2.mod2_numpy as mod2
 
-from pynauty import Graph, certificate, canon_label
+from pynauty import Graph, certificate
 import z3
 
 from src.core.css_code import CSSCode
@@ -18,7 +18,7 @@ from src.core.css_code import CSSCode
 def are_peq_css(c1: CSSCode, c2: CSSCode) -> tuple[bool, str]:
     """Check whether two CSS codes are permutation-equivalent.
 
-    Returns: None if they are not permutation-equivalent, otherwise returns a permutation p with p[i] = j iff c1[i] -> c2[j]
+    Returns: A tuple of (is_equivalent, diagnostic_info) where is_equivalent is a boolean indicating whether the codes are equivalent, and diagnostic_info is a string providing information about the equivalence check.
     """
     cheap_invariants = (
         preserved_n,
@@ -42,7 +42,7 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> tuple[bool, str]:
     reduced_Hz2 = _row_basis(c2.Hz)
 
     if reduced_Hx1.shape[0] == 0 and reduced_Hz1.shape[0] == 0:
-        return False, "CI"
+        return True, "CI"
     
     if c1.n <= 5:
         return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
@@ -308,6 +308,8 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
 
         hx_offset = n
         hz_offset = n + n_hx
+        hx_anchor = n + n_hx + n_hz
+        hz_anchor = hx_anchor + 1
 
         _add_edges_from_circuits(circuits_hx, hx_offset)
         _add_edges_from_circuits(circuits_hz, hz_offset)
@@ -318,12 +320,12 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
         ]
 
         return Graph(
-            number_of_vertices=n + n_hx + n_hz, 
+            number_of_vertices=n + n_hx + n_hz + 2,
             directed=False,
             adjacency_dict=adj,
             vertex_coloring= qubit_colors + [
-                set(range(hx_offset, hx_offset + n_hx)),
-                set(range(hz_offset, hz_offset + n_hz)),
+                set(range(hx_offset, hx_offset + n_hx)) | {hx_anchor},
+                set(range(hz_offset, hz_offset + n_hz)) | {hz_anchor},
             ]
         )
 
@@ -346,18 +348,18 @@ def _matroid_graph_iso(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, l
 
     circuits_c2_hx = _circuits_binary_matroid(Hx2)
     if len_circuits_c1_hx != len(circuits_c2_hx):
-        return None
+        return False, "MI"
     
     circuits_c2_hz = _circuits_binary_matroid(Hz2)
     if len_circuits_c1_hz != len(circuits_c2_hz):
-        return None
+        return False, "MI"
     
     graph_c2 = _graph_from_circuits_and_invariants(n, circuits_c2_hx, circuits_c2_hz, partition2)
 
     del circuits_c2_hx
     del circuits_c2_hz
 
-    return cert_c1 != certificate(graph_c2), "MI"
+    return cert_c1 == certificate(graph_c2), "MI"
 
 
 def _sat(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2: np.ndarray, Hz2: np.ndarray, partition2: dict[int, list[int]]) -> tuple[bool, str]:
@@ -429,7 +431,7 @@ def _sat(Hx1: np.ndarray, Hz1: np.ndarray, partition1: dict[int, list[int]], Hx2
 
             solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
 
-    return solver.check() != z3.sat, "SAT"
+    return solver.check() == z3.sat, "SAT"
 
 # ----------------------------------------------------------------------------------------------------
 # small helpers

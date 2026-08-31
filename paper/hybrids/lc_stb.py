@@ -28,7 +28,7 @@ def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> tuple[bool, str]:
         return False, "CI"
     
     if c1.n < 1:
-        return False, ""
+        return True, ""
     
     reduced_symplectic_1 = _row_basis(c1.symplectic)
     reduced_symplectic_2 = _row_basis(c2.symplectic)
@@ -66,7 +66,7 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
     """
     print("EI")
     n = c1.shape[1] // 2
-    rk = n - c1.shape[0]
+    stabilizer_rank = c1.shape[0]
 
     def _supp_subcode_dim(code: np.ndarray, subset: tuple[int, ...]) -> int:
         """
@@ -85,10 +85,10 @@ def preserved_low_degree_local_invariant(c1: np.ndarray, c2: np.ndarray) -> bool
         cols = outside + [i + n for i in outside]
 
         if not cols:
-            return rk
+            return stabilizer_rank
         
         restricted = G[:, cols]
-        return rk - _rank(restricted)
+        return stabilizer_rank - _rank(restricted)
     
     max_subset_size = 2
     for a in range(max_subset_size + 1):
@@ -140,7 +140,7 @@ def _lse(c1: StabilizerCode, c2: StabilizerCode, reduced_symplectic_1: np.ndarra
 
         return np.vstack([stabilizer_part, logical_x_part, logical_z_part]).astype(np.int8)
 
-    def _stab_state_to_graph_state(tableau: np.ndarray) -> tuple[np.ndarray, list[str]]:
+    def _stab_state_to_graph_state(tableau: np.ndarray) -> np.ndarray:
         """Convert a stabilizer state into a graph state under local Clifford operations.
         Returns the adjacency matrix of the graph state."""
         n = tableau.shape[1] // 2
@@ -377,7 +377,7 @@ def _sat(reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> 
     solver = z3.Solver()
 
     n = reduced_symplectic_1.shape[1] // 2
-    r = n - reduced_symplectic_1.shape[0]
+    r = reduced_symplectic_1.shape[0]
 
     # local cliffords
     aux_tableau = [z3.Bool(f'aux_{row}_{col}') for row in range(r) for col in range(2*n)]
@@ -432,10 +432,10 @@ def _sat(reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> 
 
             solver.add(aux_tableau[row * (2*n) + q] == _xor_list(row_contributions))
 
-    return solver.check() != z3.sat, "SAT"
+    return solver.check() == z3.sat, "SAT"
 
 
-def _graph_iso(reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> bool:
+def _graph_iso(reduced_symplectic_1: np.ndarray, reduced_symplectic_2: np.ndarray) -> tuple[bool, str]:
     """lc_stb_graph_iso.py"""
     print("GI")
     def _graph_from_code(reduced_symplectic: np.ndarray) -> Graph:

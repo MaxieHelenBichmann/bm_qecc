@@ -24,6 +24,12 @@ def test_are_peq_css_preserves_n() -> None:
     assert are_peq_css(CSSCode(n=3), CSSCode(n=4)) is None
 
 
+def test_are_peq_css_trivial_codes_are_equivalent() -> None:
+    code = CSSCode(n=6)
+
+    assert are_peq_css(code, code) == list(range(code.n))
+
+
 def test_are_peq_css_preserves_k() -> None:
     code1 = CSSCode(n=4)
     code2 = CSSCode(Hx=np.array([[1, 0, 0, 0]], dtype=np.int8))

@@ -85,9 +85,9 @@ def test_graph_from_circuits_small_incidence_graph() -> None:
         circuits_hz=[(1 << 1) | (1 << 2)],
     )
 
-    assert graph.number_of_vertices == 5
+    assert graph.number_of_vertices == 7
     assert graph.directed is False
-    assert graph.vertex_coloring == [{0, 1, 2}, {3}, {4}]
+    assert graph.vertex_coloring == [{0, 1, 2}, {3, 5}, {4, 6}]
     assert {v: set(neighbors) for v, neighbors in graph.adjacency_dict.items()} == {
         0: {3},
         1: {4},
@@ -95,6 +95,13 @@ def test_graph_from_circuits_small_incidence_graph() -> None:
         3: {0, 2},
         4: {1, 2},
     }
+
+
+def test_graph_from_circuits_anchors_empty_color_classes() -> None:
+    graph = _graph_from_circuits(2, circuits_hx=[], circuits_hz=[0b11])
+
+    assert graph.number_of_vertices == 5
+    assert graph.vertex_coloring == [{0, 1}, {3}, {2, 4}]
 
 # ----------------------------------------------------------------------------------------------------
 # are_peq_css_matroid

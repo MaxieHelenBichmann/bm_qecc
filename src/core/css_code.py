@@ -46,7 +46,18 @@ class CSSCode(StabilizerCode):
             self.Lx = np.eye(n, dtype=np.int8)
             self.Lz = np.eye(n, dtype=np.int8)
             triv = StabilizerCode.get_trivial_code(n)
-            super().__init__(triv.generators, triv.distance, triv.x_logicals, triv.z_logicals)
+            super().__init__(
+                triv.generators,
+                distance=distance,
+                z_logicals=triv.z_logicals,
+                x_logicals=triv.x_logicals,
+            )
+            self.x_distance = x_distance if x_distance is not None else self.distance
+            self.z_distance = z_distance if z_distance is not None else self.distance
+
+            if self.x_distance < self.distance or self.z_distance < self.distance:
+                msg = "The x and z distances must be greater than or equal to the distance"
+                raise InvalidCSSCodeError(msg)
             return
 
         self._check_valid_check_matrices(Hx, Hz)
