@@ -31,7 +31,8 @@ Figures are referred to everywhere in this package as **A1 … A7**, and figure-
 | **A4** | How do methods eliminating the representation degree of freedom perform? | `results/a4/a4.png` |
 | **A5** | Which exact method performs best? | `results/a5/a5.png` |
 | **A6** | Is SAT's poor CSS behavior caused by the encoding or by the CSS inputs? | `results/a6/a6.png` |
-| **A7** | How do the hybrids perform? | `results/a7/a7.png` |
+| **A7** | Why does SAT perform so poorly on CSS Permutations? | `results/a7/a7.png` |
+| **A8** | How do the hybrids perform? | `results/a8/a8.png` |
 
 As the paper focuses on pairwise equivalence checking, three problems are in scope: `pm_stb` (permutation equivalence of stabilizer codes), `pm_css` (permutation equivalence of CSS codes), and `lc_stb` (local-Clifford equivalence of stabilizer codes). `lc_css` is out of scope.
 
@@ -159,14 +160,38 @@ Methods measured: `pm_css_sat` and `pm_stb_sat` on CSS codes, and `pm_stb_sat` o
 
 The visualizer creates standard mean runtime heatmaps.
 
+### A7 - SAT Encodings on CSS-Code Permutation Equivalence
+*Why*
 
-### A7 — Hybrid Component Attribution
+### A8 — Hybrid Component Attribution
 *What runtimes do the hybrids achieve and which component actually decides the input?*
 Methods measured: paper hybrids (NOT thesis hybrids, as those are designed with maintainability in mind due to their integration in MQT-QECC, and follow a different design strategy)
 10 positive and 10 negative instances based on real structures codes such as the Steane code or bivariate bicycle codes.
 
 The result value is the measured runtime as well as diagnostic information about which component decided the input.
 Component tags are `CI` (cheap invariants), `EI` (expensive invariants), `S` (signatures), and the decision procedures `BF` (brute force), `MI` (matroid isomorphism), `GI` (graph isomorphism), `SAT`, and `LSE`.
+
+The extractor selects the most frequent deciding component per named-code and
+polarity cell. The visualizer prints that abbreviation in the cell and colors
+its background by mean runtime using the standard logarithmic runtime scale:
+
+```bash
+python3 -m paper.experiments.extract_a8
+python3 -m paper.visualizations.visualize_a8
+```
+
+For layout development without real benchmark results, generate and render the
+separate synthetic fixture (it does not overwrite `collected/hybrids/`):
+
+```bash
+python3 -m paper.benchmarks.generate_synthetic_a8
+python3 -m paper.experiments.extract_a8 \
+  --input-directory paper/data/collected/hybrids_synthetic \
+  --output-file paper/results/a8_synthetic/by_cell.csv
+python3 -m paper.visualizations.visualize_a8 \
+  --input-file paper/results/a8_synthetic/by_cell.csv \
+  --output paper/results/a8_synthetic/a8.png
+```
 
 ---
 
