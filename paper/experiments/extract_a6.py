@@ -1,13 +1,14 @@
 """Combine normal SAT files with the extra PM-STB-on-CSS collection.
 
-For CSS cells measured by both encodings, the PM-STB row also records their
-absolute distance on A6's shared logarithmic runtime scale::
+For CSS cells measured by both encodings, the PM-STB row also records the
+improvement from using the Hx/Hz encoding instead of the tableau encoding on
+A6's shared logarithmic runtime scale::
 
-    100 * abs(log(PM-CSS mean) - log(PM-STB mean)) / log(scale_max / scale_min)
+    100 * (log(PM-STB mean) - log(PM-CSS mean)) / log(scale_max / scale_min)
 
 The scale covers all displayed A6 cells and extends to the timeout cap, exactly
-like the figure's colorbar. The visualization averages these per-cell
-percentages to summarize how different its two CSS panels look.
+like the figure's colorbar. The visualization averages these signed per-cell
+percentages, so positive values indicate an improvement from the Hx/Hz encoding.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ VARIANTS = (
 FIELDS = (
     "variant", "algorithm", "code_family", "n", "k", "r", "num_requested",
     "num_successful", "mean_seconds", "stddev_seconds", "maximum_seconds",
-    "pm_stb_log_scale_difference_percentage",
+    "hx_hz_log_scale_improvement_percentage",
     "num_timeouts", "num_memory_limited", "num_errors", "num_unexpected",
     "num_generation_errors",
 )
@@ -58,7 +59,7 @@ def extract(
                     **cell,
                     "variant": variant,
                     "code_family": family,
-                    "pm_stb_log_scale_difference_percentage": "",
+                    "hx_hz_log_scale_improvement_percentage": "",
                 }
             )
 
@@ -86,8 +87,8 @@ def extract(
         css_mean = css_means.get((row["n"], row["k"]))
         stb_mean = row["mean_seconds"]
         if css_mean is not None and stb_mean is not None and stb_mean > 0:
-            row["pm_stb_log_scale_difference_percentage"] = (
-                100.0 * abs(math.log(css_mean) - math.log(stb_mean)) / log_span
+            row["hx_hz_log_scale_improvement_percentage"] = (
+                100.0 * (math.log(stb_mean) - math.log(css_mean)) / log_span
             )
     write_csv(output_file, output, FIELDS)
     return output

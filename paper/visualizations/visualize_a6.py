@@ -9,8 +9,8 @@ PM-STB SAT on the same CSS population. Positive and negative cases are
 aggregated into one runtime-observation-weighted mean per cell. Completed runs
 and capped timeouts contribute to the color; memory and execution failures do
 not. Resource failures remain explicit. The annotation reports the mean
-absolute difference between the CSS panels as a percentage of their shared
-logarithmic color scale. Exactly one PNG is written.
+improvement from the Hx/Hz encoding over the tableau encoding as a percentage
+of their shared logarithmic color scale. Exactly one PNG is written.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         "n",
         "r",
         "mean_seconds",
-        "pm_stb_log_scale_difference_percentage",
+        "hx_hz_log_scale_improvement_percentage",
         "num_successful",
         "num_timeouts",
         "num_memory_limited",
@@ -74,13 +74,13 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         )
         for variant, _ in PANELS
     }
-    differences = [
-        float(row["pm_stb_log_scale_difference_percentage"])
+    improvements = [
+        float(row["hx_hz_log_scale_improvement_percentage"])
         for row in rows
         if row["variant"] == "pm_stb_sat_on_css"
-        and row["pm_stb_log_scale_difference_percentage"].strip()
+        and row["hx_hz_log_scale_improvement_percentage"].strip()
     ]
-    mean_difference = sum(differences) / len(differences) if differences else None
+    mean_improvement = sum(improvements) / len(improvements) if improvements else None
     norm = runtime_norm(
         float(cell["mean_value"])
         for cells in aggregated.values()
@@ -105,15 +105,15 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                 )
             failure_marks(ax, n, r, cell)
     figure.suptitle("Performance of SAT Encodings on Stabilizer and CSS inputs", fontsize=12 * WIDE_TEXT_SCALE)
-    if mean_difference is not None:
+    if mean_improvement is not None:
         css_panels_center = (
             axes[1].get_position().x0 + axes[2].get_position().x1
         ) / 2
         figure.text(
             css_panels_center,
             0.885,
-            f"Mean absolute difference between CSS panels on the logarithmic color scale: "
-            f"{mean_difference:.2f}%",
+            rf"Mean log-scale improvement of check-matrix encoding over tableau for CSS Codes: "
+            f"{mean_improvement:.2f}%",
             ha="center",
             va="center",
             fontsize=8 * WIDE_TEXT_SCALE,
