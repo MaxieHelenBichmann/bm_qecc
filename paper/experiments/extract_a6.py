@@ -1,15 +1,4 @@
-"""Combine normal SAT files with the extra PM-STB-on-CSS collection.
-
-For CSS cells measured by both encodings, the PM-STB row also records the
-improvement from using the Hx/Hz encoding instead of the tableau encoding on
-A6's shared logarithmic runtime scale::
-
-    100 * (log(PM-STB mean) - log(PM-CSS mean)) / log(scale_max / scale_min)
-
-The scale covers all displayed A6 cells and extends to the timeout cap, exactly
-like the figure's colorbar. The visualization averages these signed per-cell
-percentages, so positive values indicate an improvement from the Hx/Hz encoding.
-"""
+"""Combine normal SAT files with the extra PM-STB-on-CSS collection and extract normalized difference."""
 
 from __future__ import annotations
 

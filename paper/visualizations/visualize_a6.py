@@ -1,17 +1,4 @@
-"""Render A6 as three full-grid SAT runtime maps.
-
-Run with no arguments::
-
-    python3 -m paper.visualizations.visualize_a6
-
-The panels show PM-STB SAT on stabilizer inputs, PM-CSS SAT on CSS inputs, and
-PM-STB SAT on the same CSS population. Positive and negative cases are
-aggregated into one runtime-observation-weighted mean per cell. Completed runs
-and capped timeouts contribute to the color; memory and execution failures do
-not. Resource failures remain explicit. The annotation reports the mean
-improvement from the Hx/Hz encoding over the tableau encoding as a percentage
-of their shared logarithmic color scale. Exactly one PNG is written.
-"""
+"""Render A6 as three full-grid SAT runtime maps."""
 
 from __future__ import annotations
 

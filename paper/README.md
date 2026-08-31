@@ -21,7 +21,7 @@ The artifacts of this pipeline are not the exact same figures used in the paper,
 
 ## Figures
 
-Figures are referred to everywhere in this package as **A1 … A7**, and figure-specific files carry **only** the `aN` identifier:
+Figures are referred to everywhere in this package as **A1 … A8**, and figure-specific files carry **only** the `aN` identifier:
 
 | ID | Related Question | Figure |
 |---|---|---|
@@ -161,7 +161,12 @@ Methods measured: `pm_css_sat` and `pm_stb_sat` on CSS codes, and `pm_stb_sat` o
 The visualizer creates standard mean runtime heatmaps.
 
 ### A7 - SAT Encodings on CSS-Code Permutation Equivalence
-*Why*
+*Why does SAT perform so poorly on CSS permutation equivalence, even with the Hx/Hz encoding?*
+Methods measured: `pm_stb_sat` on unrestricted and block-structured general stabilizer codes, and `pm_css_sat` on balanced CSS codes. 
+10 positive randomized instances per parameter setting.
+
+Two experiments are measured, first the number of solver decisions required to solve an code size and the number of decisions required to reject deliberately wrong qubit mappings. Both on instances with different amount of (in)dependent (un)coupled row-transformations. 
+The second compares clean/separated and fully row-mixed presentations of the same CSS groups using the `pm_stb_sat` encoding.
 
 ### A8 — Hybrid Component Attribution
 *What runtimes do the hybrids achieve and which component actually decides the input?*

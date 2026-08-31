@@ -21,15 +21,12 @@ def _xor_list(variables):
         acc = z3.Xor(acc, v)
     return acc
 
-def are_peq_css_sat(c1: CSSCode, c2: CSSCode) -> bool:
-    """Check permutation equivalence by reducing it to a SAT problem and using a SAT solver.
 
-    The idea is to create boolean variables for the permutation and the row operations, and then add constraints that enforce that the permuted matrices of c1 are equal to the row-operated matrices of c2.
-    1.) Create a auxiliary matrices for Hx and Hz that encode the column permutations of c1, and the row operations of c2.
-    2.) Create boolean variables p_{i,j} for the permutation, where p_{i,j} is true if the i-th qubit of c1 is mapped to the j-th qubit of the auxiliary matrices.
-    3.) Create boolean variables r_x/z_{i,j} for the row operations of the Hx or Hz matrix, where r_x/z_{i,j} is true if the j-th row is added to the i-th row in the auxiliary matrices.
-    4.) Check satisfiability of the resulting formula. If it is satisfiable, then c1 and c2 are permutation equivalent, otherwise they are not.
-    """
+def _build_peq_css_sat_solver(
+    c1: CSSCode,
+    c2: CSSCode,
+) -> z3.Solver:
+    """Build the SAT instance."""
     solver = z3.Solver()
 
     n = c1.n
@@ -83,4 +80,16 @@ def are_peq_css_sat(c1: CSSCode, c2: CSSCode) -> bool:
 
             solver.add(aux_tableau_z[row * n + q] == _xor_list(row_contributions))
 
-    return solver.check() == z3.sat
+    return solver
+
+
+def are_peq_css_sat(c1: CSSCode, c2: CSSCode) -> bool:
+    """Check permutation equivalence by reducing it to a SAT problem and using a SAT solver.
+
+    The idea is to create boolean variables for the permutation and the row operations, and then add constraints that enforce that the permuted matrices of c1 are equal to the row-operated matrices of c2.
+    1.) Create a auxiliary matrices for Hx and Hz that encode the column permutations of c1, and the row operations of c2.
+    2.) Create boolean variables p_{i,j} for the permutation, where p_{i,j} is true if the i-th qubit of c1 is mapped to the j-th qubit of the auxiliary matrices.
+    3.) Create boolean variables r_x/z_{i,j} for the row operations of the Hx or Hz matrix, where r_x/z_{i,j} is true if the j-th row is added to the i-th row in the auxiliary matrices.
+    4.) Check satisfiability of the resulting formula. If it is satisfiable, then c1 and c2 are permutation equivalent, otherwise they are not.
+    """
+    return _build_peq_css_sat_solver(c1, c2).check() == z3.sat

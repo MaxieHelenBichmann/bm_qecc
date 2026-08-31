@@ -1,17 +1,4 @@
-"""Extract the structured-code hybrid table used by A8.
-
-The A8 collector writes one summary CSV per hybrid with one row for every
-``(code, polarity)`` pair.  This extractor keeps the measured runtime and
-reduces the ``TAG:count`` decider distribution to the stage (or tied stages)
-that decided the largest number of instances.
-
-Run from the repository root with::
-
-    python3 -m paper.experiments.extract_a8
-
-The resulting ``paper/results/a8/by_cell.csv`` is figure-ready: the visualizer
-does not need to inspect collector output or make any selection decisions.
-"""
+"""Extract the structured-code hybrid table used by A8."""
 
 from __future__ import annotations
 
