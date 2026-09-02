@@ -302,45 +302,24 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
     _render_experiment2(experiment2_ax, rows)
 
     figure.suptitle(
-        "Why CSS structure increases SAT search",
+        "Uncoupled and Independent CSS Structure INHERENTLY increases SAT Search",
         x=0.5,
         y=0.97,
         fontsize=13,
         fontweight="bold",
     )
     figure.text(
-        0.045,
-        0.245,
-        "A  General code, unrestricted basis change, one R\n"
-        "B1 General code, two actual row blocks, one unrestricted R\n"
-        "B2 Same B1 pair, blocks exposed as R1 and R2; both see X and Z\n"
-        "C  Balanced CSS code, independent Rx and Rz; each sees only X or Z",
-        ha="left",
-        va="top",
-        fontsize=8.4,
-        linespacing=1.45,
-    )
-    figure.text(
-        0.045,
-        0.075,
-        "Invalid-mapping decisions count the decisions required to prove that a deliberately "
-        "wrong qubit mapping cannot extend to a permutation. Larger values mean that the "
-        "wrong choice survives deeper into the SAT search.",
-        ha="left",
-        va="bottom",
-        fontsize=8.2,
-        wrap=True,
-    )
-    figure.text(
         0.70,
-        0.405,
-        "Both columns use the full-tableau encoding on the same CSS stabilizer groups. "
-        "Mixed applies independent invertible full row transformations to both displayed "
-        "tableaus.",
+        0.455,
+        "A   General code, unrestricted R\n"
+        "B1  Two actual row blocks, unrestricted R\n"
+        "B2  Same B1 pair, exposed R1/R2; both blocks see X and Z\n"
+        "C   Balanced CSS, independent Rx/Rz; each block sees only X or Z",
         ha="left",
         va="top",
-        fontsize=8.2,
-        wrap=True,
+        fontsize=6.4,
+        linespacing=1.45,
+        family="monospace",
     )
     return save_png(figure, output)
 
