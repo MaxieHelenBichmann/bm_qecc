@@ -1,6 +1,6 @@
 # ***E******Q***uivalence Checking for ***Q***uantum ***E***rror ***C***orrection **C**odes
 
-This repository benchmarks different approaches to equivalence checking for quantum error-correcting codes (QECCs) under different equivalence notions. It is part of the implementation for my Bachelor's thesis, "Automated Equivalence Checking of Stabilizer Codes" [WIP], which contributes to [MQT QECC](https://github.com/munich-quantum-toolkit/qecc). The required infrastructure and code representation classes are taken from that project.
+This repository benchmarks different approaches to equivalence checking for quantum error-correcting codes (QECCs) under different equivalence notions. It is part of the implementation for my Bachelor's thesis, "Automated Equivalence Checking of Stabilizer Codes", which contributes to [MQT QECC](https://github.com/munich-quantum-toolkit/qecc). The required infrastructure and code representation classes are taken from that project.
 
 This README does not discuss the examined equivalence notions or their theoretical foundations in depth; those are covered in the thesis. References for the implemented algorithms are cited in the corresponding source files.
 
