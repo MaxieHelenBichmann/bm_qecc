@@ -181,6 +181,8 @@ benchmarks/
 data/                # structured case inputs
 
 results/             # plotting tools; generated result artifacts are ignored by git
+
+paper/               # replication package for the subsequent paper 
 ```
 
 ## Running the benchmarks
