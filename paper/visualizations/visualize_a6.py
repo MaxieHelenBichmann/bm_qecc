@@ -1,4 +1,4 @@
-"""Render A6 as three full-grid SAT runtime maps."""
+"""Render A6 as two complementary pairs of SAT runtime maps."""
 
 from __future__ import annotations
 
@@ -19,21 +19,76 @@ from paper.visualizations.common import (
     runtime_norm,
     save_png,
     scalar_mappable,
-    WIDE_TEXT_SCALE,
     use_style,
 )
 
 INPUT = RESULTS_DIR / "a6" / "by_cell.csv"
 OUTPUT = RESULTS_DIR / "a6" / "a6.png"
+CSS_OUTPUT = RESULTS_DIR / "a6" / "a6_css.png"
 NMAX = 25
-PANELS = (
+GENERAL_AND_CSS_PANELS = (
     ("pm_stb_sat_on_stabilizer", "Tableau Encoding\non General Stabilizer Codes"),
+    ("pm_css_sat_on_css", "Check-Matrix Encoding\non CSS Codes"),
+)
+CSS_PANELS = (
     ("pm_css_sat_on_css", "Check-Matrix Encoding\non CSS Codes"),
     ("pm_stb_sat_on_css", "Tableau Encoding\non CSS Codes"),
 )
+PANELS = (*GENERAL_AND_CSS_PANELS, CSS_PANELS[1])
 
 
-def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
+def _render_panels(
+    aggregated,
+    norm,
+    panels,
+    output: Path,
+    title: str,
+    subtitle: str | None = None,
+) -> Path:
+    """Render one coordinated two-panel A6 figure."""
+    use_style()
+    figure, axes = plt.subplots(1, 2, figsize=(10.2, 5.5))
+    figure.subplots_adjust(
+        left=0.07,
+        right=0.86,
+        bottom=0.08,
+        top=0.79 if subtitle else 0.84,
+        wspace=0.18,
+    )
+    for ax, (variant, panel_title) in zip(axes, panels):
+        parameter_axis(ax, panel_title, nmax=NMAX)
+        for (n, r), cell in aggregated[variant].items():
+            if int(cell["num_successful"]):
+                partition_cell(
+                    ax,
+                    n,
+                    r,
+                    0,
+                    1,
+                    RUNTIME_CMAP(norm(float(cell["mean_value"]))),
+                )
+            failure_marks(ax, n, r, cell)
+    figure.suptitle(title, fontsize=12)
+    if subtitle:
+        panels_center = (axes[0].get_position().x0 + axes[-1].get_position().x1) / 2
+        figure.text(
+            panels_center,
+            0.885,
+            subtitle,
+            ha="center",
+            va="center",
+            fontsize=8,
+        )
+    bar = figure.colorbar(
+        scalar_mappable(RUNTIME_CMAP, norm), ax=axes, fraction=0.025, pad=0.02
+    )
+    decimal_ticks(bar)
+    mark_timeout(bar)
+    bar.set_label("Mean runtime [s]")
+    return save_png(figure, output)
+
+
+def render(input_file: Path = INPUT, output: Path = OUTPUT, css_output: Path | None = None) -> Path:
     required = (
         "variant",
         "n",
@@ -75,43 +130,34 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         if int(cell["num_successful"])
     )
 
-    use_style(scale=WIDE_TEXT_SCALE)
-    figure, axes = plt.subplots(1, 3, figsize=(14.4, 5.5))
-    figure.subplots_adjust(left=0.055, right=0.90, bottom=0.08, top=0.79, wspace=0.18)
-    for ax, (variant, title) in zip(axes, PANELS):
-        parameter_axis(ax, title, nmax=NMAX)
-        for (n, r), cell in aggregated[variant].items():
-            if int(cell["num_successful"]):
-                partition_cell(
-                    ax,
-                    n,
-                    r,
-                    0,
-                    1,
-                    RUNTIME_CMAP(norm(float(cell["mean_value"]))),
-                )
-            failure_marks(ax, n, r, cell)
-    figure.suptitle("Performance of SAT Encodings on Stabilizer and CSS inputs", fontsize=12 * WIDE_TEXT_SCALE)
-    if mean_improvement is not None:
-        css_panels_center = (
-            axes[1].get_position().x0 + axes[2].get_position().x1
-        ) / 2
-        figure.text(
-            css_panels_center,
-            0.885,
-            rf"Mean log-scale improvement of check-matrix encoding over tableau for CSS Codes: "
-            f"{mean_improvement:.2f}%",
-            ha="center",
-            va="center",
-            fontsize=8 * WIDE_TEXT_SCALE,
-        )
-    bar = figure.colorbar(
-        scalar_mappable(RUNTIME_CMAP, norm), ax=axes, fraction=0.018, pad=0.015
+    main_output = _render_panels(
+        aggregated,
+        norm,
+        GENERAL_AND_CSS_PANELS,
+        output,
+        "SAT Encoding Performance on Stabilizer and CSS Codes",
     )
-    decimal_ticks(bar)
-    mark_timeout(bar)
-    bar.set_label("Mean runtime [s]")
-    return save_png(figure, output)
+    if css_output is None:
+        css_output = (
+            CSS_OUTPUT
+            if output == OUTPUT
+            else output.with_name(f"{output.stem}_css{output.suffix}")
+        )
+    subtitle = None
+    if mean_improvement is not None:
+        subtitle = (
+            "Mean log-scale improvement of check-matrix encoding over tableau "
+            f"for CSS Codes: {mean_improvement:.2f}%"
+        )
+    _render_panels(
+        aggregated,
+        norm,
+        CSS_PANELS,
+        css_output,
+        "SAT Encoding Performance on CSS Codes",
+        subtitle,
+    )
+    return main_output
 
 
 if __name__ == "__main__":
