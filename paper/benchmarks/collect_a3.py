@@ -2,7 +2,8 @@
 
 For each fixed ``(n, k, seed)``, PM-STB and LC-STB apply a small, configurable number of 
 random Clifford gates to one source code, while PM-CSS normally uses two independent 
-codes with matching X- and Z-check ranks.
+codes with matching X- and Z-check ranks, as selection bias does not have a significant impact
+on the runtime of the invariants.
 Each candidate is certified with an admissible exact backend (SAT) before the script
 records whether the relevant invariants reject it. PM-CSS uses a SAT- and 
 matroid-based  verification method, and a scalable certified CSS code pair generator

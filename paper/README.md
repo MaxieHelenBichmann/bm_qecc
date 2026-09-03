@@ -214,3 +214,9 @@ These are the constraints the code is written to:
 
 - **Every collector is self-contained.** Its constants, input generation, certification choices, invariant calls, resume keys, and CSV persistence are all visible in that one file. Some small helpers are intentionally duplicated between collectors so that a server-side run does not depend on any paper-specific helper package. Collectors reuse only the repository's generic generators, supervised runner, and statistics machinery.
 - **Paired inputs.** Every method in one comparison receives the exact same serialized code pair for a given `instance_id`. Generate an input once and reuse it; never regenerate an allegedly matching input per algorithm.
+
+---
+
+## AI Usage Transparency
+
+For components shared with the main project, AI usage is disclosed in the top-level README. Within this replication package, AI tools assisted with implementing collectors, extractors, and visualizers, but not with their conceptual design. The research ideas, experimental methodology, data flow, visualization design, supervision strategy, and documentation were developed by the human author. All AI-assisted code was reviewed and validated by the author.

@@ -1,26 +1,16 @@
 """Collect signature-partition sizes on typical random codes.
 
-Usage::
-
-    python3 -m paper.benchmarks.collect_a2
-
-There are no CLI arguments. This continuation run is restricted to PM-STB on
-the thesis grid points with ``30 <= n <= 47``, ordered by increasing
-``r = n-k`` so the cheapest remaining ranks run first. For every configured
-``(n, k, seed)``, the collector generates exactly one random code and measures
-how its Sendrier signature partitions the physical qubits. It does not
-construct or filter code pairs, and it does not condition samples on
-equivalence, inequivalence, or two signatures matching.
-
+For each fixed ``(n, k, seed)`` a random non-CSS or CSS code is generated, 
+and its signature partition is computed. 
 The raw metric is ``sum(|s_i|^2) / n^2``, where ``|s_i|`` are the signature
 class sizes. It is the probability that two qubits sampled independently with
 replacement have the same signature; the extractor converts it to the
-fraction of distinct pairs separated by the signature. Every result is
-appended immediately to
-``paper/data/collected/signature_space.csv``. Restarting skips completed
-``(problem, n, k, seed)`` keys. Generation and signature-computation failures
-are retained as explicit rows. The file is opened only in append mode; existing
-measurements are never rewritten or deleted.
+fraction of distinct pairs separated by the signature. 
+
+Every result is appended immediately to ``paper/data/collected/signature_space.csv``. 
+Restarting skips completed ``(problem, n, k, seed)`` keys. Generation and 
+signature-computation failures are retained as explicit rows. The file is opened only 
+in append mode; existing measurements are never rewritten or deleted.
 """
 
 from __future__ import annotations

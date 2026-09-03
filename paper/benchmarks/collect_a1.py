@@ -5,7 +5,7 @@ random Clifford gates to one source code, while PM-CSS applies a short physical-
 circuit that preserves the CSS form. The X- and Z-check ranks therefore match too.
 Each candidate is certified with an admissible exact backend (SAT) before the script
 records whether the relevant invariants reject it. PM-CSS uses a SAT- and 
-matroid-based  verification method, and a scalable certified CSS code pair generator
+matroid-based verification method, and a scalable certified CSS code pair generator
 due to runtime constraints.
 
 Every result is appended immediately to
