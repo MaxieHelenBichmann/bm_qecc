@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import paper.hybrids.pm_css as paper_p_css
 import src.hybrids.p_css as p_css
 
 from benchmarks.experiments.utils import RandomizeError, random_non_permuted_css_pair, random_permuted_css_pair
@@ -51,8 +52,8 @@ def test_are_peq_css_preserves_x_and_z_ranks() -> None:
     [
         pytest.param(5, 1, "bruteforce", id="small-bruteforce"),
         pytest.param(6, 1, "graph", id="small-matroid-graph"),
-        pytest.param(18, 1, "graph", id="medium-low-rank-matroid-graph"),
-        pytest.param(18, 10, "sat", id="medium-high-rank-sat"),
+        pytest.param(18, 1, "sat", id="medium-low-rank-sat"),
+        pytest.param(18, 10, "graph", id="medium-high-rank-matroid-graph"),
         pytest.param(30, 1, "sat", id="large-sat"),
     ],
 )
@@ -89,6 +90,43 @@ def test_hybrid_routes_to_expected_backend(
     monkeypatch.setattr(p_css, "_sat", backend("sat"))
 
     assert are_peq_css(code, code) == sentinel
+    assert calls == [expected_backend]
+
+
+@pytest.mark.parametrize(
+    ("rank", "expected_backend"),
+    [
+        pytest.param(1, "sat", id="medium-low-rank-sat"),
+        pytest.param(10, "graph", id="medium-high-rank-matroid-graph"),
+    ],
+)
+def test_paper_hybrid_routes_medium_codes_to_expected_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    rank: int,
+    expected_backend: str,
+) -> None:
+    n = 18
+    code = _ranked_x_code(n, rank)
+    partition = {0: list(range(n))}
+    calls: list[str] = []
+
+    monkeypatch.setattr(
+        paper_p_css,
+        "preserved_punctured_hull_weight_enumerator",
+        lambda *_args: (True, partition, partition),
+    )
+
+    def backend(name: str):
+        def run(*_args: object) -> tuple[bool, str]:
+            calls.append(name)
+            return True, name
+
+        return run
+
+    monkeypatch.setattr(paper_p_css, "_sat", backend("sat"))
+    monkeypatch.setattr(paper_p_css, "_matroid_graph_iso", backend("graph"))
+
+    assert paper_p_css.are_peq_css(code, code) == (True, expected_backend)
     assert calls == [expected_backend]
 
 

@@ -68,7 +68,9 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> tuple[bool, str]:
         return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
     elif c1.n < 30:
         r = reduced_Hx1.shape[0] + reduced_Hz1.shape[0]
-        return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2) if r < 10 else _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
+        if r < 10:
+            return _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
+        return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
     else:
         return _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
 
