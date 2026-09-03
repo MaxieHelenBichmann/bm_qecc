@@ -1,4 +1,4 @@
-"""Select and aggregate the two graph-isomorphism algorithm files for A4."""
+"""Select and aggregate the three graph-representation algorithm files for A4."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any
 
 from paper.experiments.common import ALGORITHM_DATA_DIR, RESULTS_DIR, aggregate_statistics, load_algorithm, write_csv
 
-ALGORITHMS = ("pm_stb_graph_iso", "lc_stb_graph_iso")
+ALGORITHMS = ("pm_stb_graph_iso", "pm_css_matroid", "lc_stb_graph_iso")
 OUTPUT = RESULTS_DIR / "a4" / "by_cell.csv"
 FIELDS = (
     "problem", "algorithm", "n", "k", "r", "num_requested", "num_successful",
