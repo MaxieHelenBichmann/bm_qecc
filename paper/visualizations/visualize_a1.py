@@ -12,9 +12,13 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
 from paper.visualizations.common import (
+    COLOR_PAPER_BLUE,
+    COLOR_PAPER_GRAY_DARK,
+    COLOR_PAPER_GRAY_VERY_LIGHT,
     COLOR_PAPER_GREEN_RAMP,
     COLOR_PAPER_ORANGE_RAMP,
     COLOR_PAPER_PINK_RAMP,
+    COLOR_PAPER_WHITE,
     RESULTS_DIR,
     half_cell_key,
     load_rows,
@@ -27,6 +31,7 @@ from paper.visualizations.common import (
 
 INPUT = RESULTS_DIR / "a1" / "by_cell.csv"
 OUTPUT = RESULTS_DIR / "a1" / "a1.png"
+OVERALL_OUTPUT = RESULTS_DIR / "a1" / "a1_overall.png"
 
 CMAPS = {
     "linear_dependency": LinearSegmentedColormap.from_list("linear_dependency", COLOR_PAPER_GREEN_RAMP),
@@ -73,7 +78,43 @@ def _label(invariant: str, values: dict[tuple[int, int, str], tuple[int, int]]) 
     return f"{LABELS[invariant]} ({overall:.1f}% overall)"
 
 
-def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
+def _render_overall_table(pm, lc, output: Path) -> Path:
+    """Render the three overall rejection rates in A7's table palette."""
+    entries = (
+        ("linear_dependency", _overall(pm, "linear_dependency")),
+        ("signatures", _overall(pm, "signatures")),
+        ("local_invariant", _overall(lc, "local_invariant")),
+    )
+    figure, ax = plt.subplots(figsize=(6.2, 1.15))
+    figure.subplots_adjust(left=0.02, right=0.98, bottom=0.08, top=0.72)
+    ax.axis("off")
+    table = ax.table(
+        cellText=[["—" if value is None else f"{value:.1f}%" for _, value in entries]],
+        colLabels=[LABELS[name] for name, _ in entries],
+        cellLoc="center",
+        colLoc="center",
+        bbox=(0, 0, 1, 1),
+    )
+    table.auto_set_font_size(False)
+    for column in range(len(entries)):
+        header = table[(0, column)]
+        header.set_facecolor(COLOR_PAPER_GRAY_DARK)
+        header.set_edgecolor(COLOR_PAPER_WHITE)
+        header.get_text().set_color("#202020")
+        header.get_text().set_fontsize(8)
+        header.get_text().set_fontweight("bold")
+
+        value = table[(1, column)]
+        value.set_facecolor(COLOR_PAPER_GRAY_VERY_LIGHT)
+        value.set_edgecolor(COLOR_PAPER_WHITE)
+        value.get_text().set_color(COLOR_PAPER_BLUE)
+        value.get_text().set_fontsize(10)
+        value.get_text().set_fontweight("bold")
+    figure.suptitle("Overall rejection rates", fontsize=11, fontweight="bold", y=0.96)
+    return save_png(figure, output)
+
+
+def render(input_file: Path = INPUT, output: Path = OUTPUT, overall_output: Path | None = None) -> Path:
     rows = load_rows(input_file, ("problem", "n", "r", "invariant", "num_valid", "num_rejected"))
     pm = _aggregate(rows, {"pm_stb", "pm_css"})
     lc = _aggregate(rows, {"lc_stb"})
@@ -102,7 +143,15 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         "more rejected instances"
     )
     bar.set_ticks([0, 0.25, 0.5, 0.75, 1], labels=["0%", "25%", "50%", "75%", "100%"])
-    return save_png(figure, output)
+    main_output = save_png(figure, output)
+    if overall_output is None:
+        overall_output = (
+            OVERALL_OUTPUT
+            if output == OUTPUT
+            else output.with_name(f"{output.stem}_overall{output.suffix}")
+        )
+    _render_overall_table(pm, lc, overall_output)
+    return main_output
 
 
 if __name__ == "__main__":
