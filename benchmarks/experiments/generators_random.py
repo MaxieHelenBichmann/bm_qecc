@@ -647,6 +647,45 @@ class NonPEqCodePairGenerator:
             random_css_code(n, k, right_rx, seed=right_seed),
         )
 
+    @staticmethod
+    def css_codes_cnot_candidate(
+        n: int,
+        k: int,
+        seed: int | None = None,
+        *,
+        rx: int | None = None,
+        gate_steps: int = 2,
+    ) -> tuple[CSSCode, CSSCode]:
+        """Return an uncertified CSS pair related by a short CNOT circuit.
+
+        The partner is obtained from the source by applying ``gate_steps``
+        physical CNOTs.  This preserves the CSS form, code dimensions, and
+        X/Z-check ranks while producing the same kind of nearby candidate that
+        a short Clifford perturbation produces for general stabilizer codes.
+        No invariant or equivalence backend is consulted; callers must certify
+        that the candidate left the source's permutation orbit.
+
+        Sampling bias: both codes share a source and the partner lies in its
+        short physical-CNOT orbit.  Exact-backend rejection additionally
+        conditions retained pairs on different permutation orbits.
+        NOT USABLE whenever the target requires independent CSS draws, a
+        uniform CNOT distribution, or an unconditional sample.
+        """
+        if gate_steps < 0:
+            raise ValueError("gate_steps must be non-negative.")
+
+        rng = np.random.default_rng(seed)
+        source_seed = _seed(rng)
+        partner_seed = _seed(rng)
+        x_rank = int(rng.integers(0, n - k + 1)) if rx is None else rx
+        code = random_css_code(n, k, x_rank, seed=source_seed)
+        hx, hz = _random_css_cnot_candidate_matrices(
+            code,
+            rng=np.random.default_rng(partner_seed),
+            gate_steps=gate_steps,
+        )
+        return code, _css_like(code, hx, hz)
+
 
 # --------------------------------------------------------------------------
 # local Clifford equivalence
@@ -1265,6 +1304,7 @@ def _random_css_cnot_candidate_matrices(
     code: CSSCode,
     *,
     rng: np.random.Generator,
+    gate_steps: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Apply a small random network of physical CNOTs to a CSS code.
 
@@ -1275,7 +1315,11 @@ def _random_css_cnot_candidate_matrices(
     """
     hx = np.asarray(code.Hx, dtype=np.int8).copy() % 2
     hz = np.asarray(code.Hz, dtype=np.int8).copy() % 2
-    steps = int(rng.integers(1, min(9, code.n) + 1))
+    steps = (
+        int(rng.integers(1, min(9, code.n) + 1))
+        if gate_steps is None
+        else gate_steps
+    )
     for _ in range(steps):
         control, target = (int(q) for q in rng.choice(code.n, size=2, replace=False))
         hx[:, target] ^= hx[:, control]
