@@ -100,8 +100,10 @@ RUNTIME_CMAP = LinearSegmentedColormap.from_list(
     ],
 )
 
+# A2 increases from no refinement to complete pairwise refinement, so stronger
+# results receive the darker end of the sequential palette.
 SIGNATURE_CMAP = LinearSegmentedColormap.from_list(
-    "signature_space", tuple(reversed(COLOR_PAPER_CYAN_RAMP))
+    "signature_space", COLOR_PAPER_CYAN_RAMP
 )
 
 # Diverging ratio scale: white at parity, blue where the invariant is cheaper

@@ -24,8 +24,8 @@ OUTPUT = RESULTS_DIR / "a2" / "a2.png"
 
 
 def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
-    value_field = "mean_distinct_pair_fraction"
-    required = ("problem", "n", "r", "num_valid", value_field)
+    value_field = "mean_pairwise_refinement"
+    required = ("problem", "n", "r", "num_valid", "num_censored", value_field)
     rows = load_rows(input_file, required)
     aggregated = {
         problem: aggregate_cells(
@@ -33,6 +33,14 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
             value_field,
             "num_valid",
         )
+        for problem in ("pm_stb", "pm_css")
+    }
+    censored = {
+        problem: {
+            (int(row["n"]), int(row["r"]))
+            for row in rows
+            if row["problem"] == problem and int(row["num_censored"])
+        }
         for problem in ("pm_stb", "pm_css")
     }
     norm = Normalize(vmin=0.0, vmax=1.0)
@@ -47,7 +55,9 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
     ):
         parameter_axis(ax, title)
         for (n, r), cell in aggregated[problem].items():
-            if int(cell["num_successful"]):
+            # A timeout can depend on the partition itself, so a successful-only
+            # mean may be biased. Leave every censored cell uncolored.
+            if int(cell["num_successful"]) and (n, r) not in censored[problem]:
                 partition_cell(
                     ax,
                     n,
@@ -56,13 +66,13 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                     1,
                     SIGNATURE_CMAP(norm(float(cell["mean_value"]))),
                 )
-    figure.suptitle("Signature-derived Refinement of the Permutation Search Space", fontsize=12)
+    figure.suptitle("Pairwise Refinement Induced by Permutation Signatures", fontsize=12)
     bar = figure.colorbar(
         scalar_mappable(SIGNATURE_CMAP, norm), ax=axes, fraction=0.025, pad=0.02
     )
     bar.set_label(
-        "Normalized reduction of search space\n"
-        "(0 = complete, 1 = no refinement)"
+        "Fraction of qubit pairs distinguished by signature\n"
+        "(0 = no refinement, 1 = complete refinement)"
     )
     return save_png(figure, output)
 

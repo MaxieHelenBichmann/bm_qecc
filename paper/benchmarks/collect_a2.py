@@ -13,7 +13,10 @@ construct or filter code pairs, and it does not condition samples on
 equivalence, inequivalence, or two signatures matching.
 
 The raw metric is ``sum(|s_i|^2) / n^2``, where ``|s_i|`` are the signature
-class sizes. Every result is appended immediately to
+class sizes. It is the probability that two qubits sampled independently with
+replacement have the same signature; the extractor converts it to the
+fraction of distinct pairs separated by the signature. Every result is
+appended immediately to
 ``paper/data/collected/signature_space.csv``. Restarting skips completed
 ``(problem, n, k, seed)`` keys. Generation and signature-computation failures
 are retained as explicit rows. The file is opened only in append mode; existing
