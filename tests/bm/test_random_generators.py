@@ -148,6 +148,32 @@ def test_independent_stabilizer_candidate_is_seeded_and_uncorrelated() -> None:
         for left, right in zip(first, second)
     )
     assert not np.array_equal(_matrix(first[0]), _matrix(first[1]))
+
+
+def test_css_cnot_candidate_is_seeded_css_preserving_and_uncertified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_if_certified(*_args, **_kwargs):
+        raise AssertionError("candidate generation must not consult a certificate")
+
+    monkeypatch.setattr(
+        "benchmarks.experiments.generators_random._certificate",
+        fail_if_certified,
+    )
+    first = NonPEqCodePairGenerator.css_codes_cnot_candidate(
+        7, 3, 123, rx=2, gate_steps=2
+    )
+    second = NonPEqCodePairGenerator.css_codes_cnot_candidate(
+        7, 3, 123, rx=2, gate_steps=2
+    )
+
+    for left, right in zip(first, second):
+        assert np.array_equal(left.Hx, right.Hx)
+        assert np.array_equal(left.Hz, right.Hz)
+        assert not np.any((left.Hx @ left.Hz.T) % 2)
+    assert (first[0].n, first[0].k) == (first[1].n, first[1].k) == (7, 3)
+    assert _rank_binary(first[0].Hx) == _rank_binary(first[1].Hx) == 2
+    assert _rank_binary(first[0].Hz) == _rank_binary(first[1].Hz) == 2
     assert (first[0].n, first[0].k) == (first[1].n, first[1].k) == (7, 3)
 
 

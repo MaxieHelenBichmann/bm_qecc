@@ -107,7 +107,7 @@ Additionally, the certification method of their inequivalence might introduce a 
 Therefore:
 
 - `pm_stb` / `lc_stb`: apply a short random Clifford circuit (`STABILIZER_CLIFFORD_GATE_STEPS`) to one source code, then keep the candidate only if the corresponding exact SAT backend proves inequivalence. This yields structurally related negatives selected by an exact backend rather than by a measured invariant.
-- `pm_css`: two independent draws sharing one X-check rank. Because `r_x + r_z = n - k`, this fixes a shared Z-check rank too and prevents trivial rank-mismatch negatives. Certification uses SAT for `r ≤ 9` and matroid isomorphism for `r > 9, n ≤ 28`, as the verification on those parameter sizes is practically possible. Parameter sizes outside this region falls back to `css_codes_cascaded`, which emits a negative carrying its own permutation-invariant certificate. That certificate can correlate with a measured invariant.
+- `pm_css`: apply a short physical-CNOT circuit (`CSS_CNOT_GATE_STEPS`) to one source code, then retain the candidate only when SAT (`r ≤ 9`) or matroid isomorphism (`r > 9, n ≤ 28`) proves inequivalence. The perturbation preserves the CSS form and both check ranks without consulting a measured invariant. Parameter sizes outside this exact-certifier region keep using `css_codes_cascaded`, which emits a negative carrying its own permutation-invariant certificate; that certificate can correlate with a measured invariant.
 
 ### A2 — Signature Space
 *How well does column partition induced by a signature refine the permutation search space?*
@@ -118,11 +118,19 @@ For a column partition $s_1, s_2, ...$ collector stores the quantity
 $$
   q = \sum\limits_{i} \frac{|s_i|^2}{n^2} \in [\frac{1}{n}, 1]
 $$
-which the extractor normalizes to 
+which is the probability that two qubits sampled independently with
+replacement belong to the same signature class. The extractor removes the
+unavoidable self-pairs and complements this value:
 $$
-  q_{\text{norm}} = \frac{q - \frac{1}{n}}{1 - \frac{1}{n}} \in [0, 1]
+  \rho = 1 - \frac{q - \frac{1}{n}}{1 - \frac{1}{n}}
+       = \frac{1-q}{1-\frac{1}{n}} \in [0, 1].
 $$
-representing `0` with every class being a singleton (complete refinement), and `1` as one undivided class (no refinement).
+Thus $\rho$ is exactly the fraction of distinct qubit pairs placed in different
+signature classes: `0` means one undivided class (no refinement), and `1` means
+every class is a singleton (complete refinement). This is a pairwise refinement
+score, not the literal fraction of the $n!$ permutation search space removed.
+Cells containing a censored measurement are left uncolored because a
+successful-only mean could be biased by signature-computation difficulty.
 
 ### A3 — Relative Preprocessing Cost
 *Does the computation of an invariant actually take longer than a full decision procedure backend?*

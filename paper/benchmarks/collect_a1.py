@@ -1,8 +1,8 @@
 """Collect raw invariant decisions on certified inequivalent pairs.
 
-For each fixed ``(n, k, seed)``, PM-STB and LC-STB apply a small, configurable number of 
-random Clifford gates to one source code, while PM-CSS normally uses two independent 
-codes with matching X- and Z-check ranks.
+For each fixed ``(n, k, seed)``, PM-STB and LC-STB apply a small, configurable number of
+random Clifford gates to one source code, while PM-CSS applies a short physical-CNOT
+circuit that preserves the CSS form. The X- and Z-check ranks therefore match too.
 Each candidate is certified with an admissible exact backend (SAT) before the script
 records whether the relevant invariants reject it. PM-CSS uses a SAT- and 
 matroid-based  verification method, and a scalable certified CSS code pair generator
@@ -47,6 +47,7 @@ MEMORY_LIMIT_BYTES = 13 * 1024**3
 CSS_SAT_MAX_R = 9
 CSS_MATROID_MAX_N = 28
 STABILIZER_CLIFFORD_GATE_STEPS = 2
+CSS_CNOT_GATE_STEPS = 2
 
 OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "invariant_rejections.csv"
 PROBLEMS = ("pm_stb", "pm_css", "lc_stb")
@@ -174,8 +175,12 @@ def _candidate_pair(problem: str, n: int, k: int, seed: int) -> CodePair:
     if problem == "pm_css":
         # same dimensions of the check matrices to emulate practically relevant instances and not make the problem too trivial
         rx = seed % (n - k + 1)
-        return NonPEqCodePairGenerator.css_codes_independent_candidate(
-            n, k, seed, rx=rx
+        return NonPEqCodePairGenerator.css_codes_cnot_candidate(
+            n,
+            k,
+            seed,
+            rx=rx,
+            gate_steps=CSS_CNOT_GATE_STEPS,
         )
     # keeps the two stabilizer codes related somehow to emulate practically relevant instances
     return NonPEqCodePairGenerator.stabilizer_codes_clifford_candidate(
@@ -244,11 +249,15 @@ def collect(
     dimensions: Sequence[tuple[int, int]] = DIMENSIONS,
     seeds: Sequence[int] = SEEDS,
     output_file: Path = OUTPUT_FILE,
+    problems: Sequence[str] = PROBLEMS,
 ) -> list[dict[str, Any]]:
+    unknown = set(problems) - set(PROBLEMS)
+    if unknown:
+        raise ValueError(f"unknown A1 problems: {sorted(unknown)}")
     key_fields = ("problem", "n", "k", "seed", "invariant")
     completed = completed_csv_keys(output_file, key_fields)
     rows: list[dict[str, Any]] = []
-    for problem in PROBLEMS:
+    for problem in problems:
         print(f"invariant rejections: {problem}", flush=True)
         for n, k in dimensions:
             for seed in seeds:
