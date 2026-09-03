@@ -9,11 +9,12 @@ from typing import Sequence
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.lines import Line2D
-from matplotlib.patches import Patch
+from matplotlib.patches import Patch, Rectangle
 
 from paper.visualizations.common import (
     COLOR_PAPER_BLUE,
     COLOR_PAPER_GRAY_DARK,
+    COLOR_PAPER_GRAY_LIGHT,
     COLOR_PAPER_GRAY_VERY_LIGHT,
     COLOR_PAPER_GREEN_RAMP,
     COLOR_PAPER_ORANGE_RAMP,
@@ -84,54 +85,80 @@ def _format_rate(value: float | None) -> str:
 
 def _render_overall_table(pm_stb, pm_css, lc, output: Path) -> Path:
     """Render overall rejection rates, keeping the two permutation families separate."""
-    rows = (
-        (
-            "General stabilizer codes",
-            _overall(pm_stb, "linear_dependency"),
-            _overall(pm_stb, "signatures"),
-            None,
-        ),
-        (
-            "CSS codes",
-            _overall(pm_css, "linear_dependency"),
-            _overall(pm_css, "signatures"),
-            None,
-        ),
-        (
-            "General stabilizer codes (LC)",
-            None,
-            None,
-            _overall(lc, "local_invariant"),
-        ),
+    values = (
+        _overall(pm_stb, "linear_dependency"),
+        _overall(pm_css, "linear_dependency"),
+        _overall(pm_stb, "signatures"),
+        _overall(pm_css, "signatures"),
+        _overall(lc, "local_invariant"),
     )
-    figure, ax = plt.subplots(figsize=(7.2, 1.75))
-    figure.subplots_adjust(left=0.02, right=0.98, bottom=0.06, top=0.79)
+    subheaders = (
+        "General stabilizer",
+        "CSS",
+        "General stabilizer",
+        "CSS",
+        "General stabilizer (LC)",
+    )
+    widths = (0.2, 0.2, 0.2, 0.2, 0.2)
+    body_height = 0.67
+
+    figure, ax = plt.subplots(figsize=(7.2, 1.55))
+    figure.subplots_adjust(left=0.02, right=0.98, bottom=0.06, top=0.77)
     ax.axis("off")
     table = ax.table(
-        cellText=[[label, *(_format_rate(value) for value in values)] for label, *values in rows],
-        colLabels=("Code family", LABELS["linear_dependency"], LABELS["signatures"], LABELS["local_invariant"]),
+        cellText=[[_format_rate(value) for value in values]],
+        colLabels=subheaders,
+        colWidths=widths,
         cellLoc="center",
         colLoc="center",
-        bbox=(0, 0, 1, 1),
+        bbox=(0, 0, 1, body_height),
     )
     table.auto_set_font_size(False)
-    for column in range(4):
+    for column in range(5):
         header = table[(0, column)]
-        header.set_facecolor(COLOR_PAPER_GRAY_DARK)
+        header.set_facecolor(COLOR_PAPER_GRAY_LIGHT)
         header.set_edgecolor(COLOR_PAPER_WHITE)
         header.get_text().set_color("#202020")
-        header.get_text().set_fontsize(8)
+        header.get_text().set_fontsize(7.5)
         header.get_text().set_fontweight("bold")
 
-    for row in range(1, len(rows) + 1):
-        for column in range(4):
-            cell = table[(row, column)]
-            cell.set_facecolor(COLOR_PAPER_GRAY_VERY_LIGHT)
-            cell.set_edgecolor(COLOR_PAPER_WHITE)
-            cell.get_text().set_fontsize(8.5 if column == 0 else 10)
-            if column > 0 and cell.get_text().get_text() != "—":
-                cell.get_text().set_color(COLOR_PAPER_BLUE)
-                cell.get_text().set_fontweight("bold")
+    for column in range(5):
+        cell = table[(1, column)]
+        cell.set_facecolor(COLOR_PAPER_GRAY_VERY_LIGHT)
+        cell.set_edgecolor(COLOR_PAPER_WHITE)
+        cell.get_text().set_fontsize(10)
+        if cell.get_text().get_text() != "—":
+            cell.get_text().set_color(COLOR_PAPER_BLUE)
+            cell.get_text().set_fontweight("bold")
+
+    major_headers = (
+        (0.0, 0.4, LABELS["linear_dependency"]),
+        (0.4, 0.4, LABELS["signatures"]),
+        (0.8, 0.2, LABELS["local_invariant"]),
+    )
+    for x, width, label in major_headers:
+        ax.add_patch(
+            Rectangle(
+                (x, body_height),
+                width,
+                1 - body_height,
+                transform=ax.transAxes,
+                facecolor=COLOR_PAPER_GRAY_DARK,
+                edgecolor=COLOR_PAPER_WHITE,
+                linewidth=1.0,
+            )
+        )
+        ax.text(
+            x + width / 2,
+            body_height + (1 - body_height) / 2,
+            label,
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            color="#202020",
+            fontsize=8,
+            fontweight="bold",
+        )
     figure.suptitle("Overall rejection rates", fontsize=11, fontweight="bold", y=0.96)
     return save_png(figure, output)
 
