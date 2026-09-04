@@ -6,12 +6,16 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
+from matplotlib.patches import Patch
 
 from paper.visualizations.common import (
+    COLOR_PAPER_GRAY_VERY_LIGHT,
+    COLOR_PAPER_GRAY_VERY_VERY_DARK,
     RESULTS_DIR,
     SIGNATURE_CMAP,
     aggregate_cells,
     load_rows,
+    outline_partition,
     parameter_axis,
     partition_cell,
     save_png,
@@ -43,11 +47,12 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         }
         for problem in ("pm_stb", "pm_css")
     }
+
     norm = Normalize(vmin=0.0, vmax=1.0)
 
     use_style()
     figure, axes = plt.subplots(1, 2, figsize=(10.2, 5.5))
-    figure.subplots_adjust(left=0.07, right=0.86, bottom=0.12, top=0.84, wspace=0.18)
+    figure.subplots_adjust(left=0.07, right=0.86, bottom=0.17, top=0.84, wspace=0.18)
     for ax, problem, title in zip(
         axes,
         ("pm_stb", "pm_css"),
@@ -55,9 +60,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
     ):
         parameter_axis(ax, title)
         for (n, r), cell in aggregated[problem].items():
-            # A timeout can depend on the partition itself, so a successful-only
-            # mean may be biased. Leave every censored cell uncolored.
-            if int(cell["num_successful"]) and (n, r) not in censored[problem]:
+            if int(cell["num_successful"]):
                 partition_cell(
                     ax,
                     n,
@@ -66,7 +69,29 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
                     1,
                     SIGNATURE_CMAP(norm(float(cell["mean_value"]))),
                 )
+            elif (n, r) in censored[problem]:
+                # Every code in this cell timed out, so no mean survives. Outline
+                # it to keep the measured-but-unfinished corner distinct from the
+                # parameters that were never measured at all.
+                outline_partition(ax, n, r, 0, 1, COLOR_PAPER_GRAY_VERY_VERY_DARK)
     figure.suptitle("Pairwise Refinement Induced by Permutation Signatures", fontsize=12)
+    figure.legend(
+        handles=[
+            Patch(
+                facecolor=COLOR_PAPER_GRAY_VERY_LIGHT,
+                edgecolor=COLOR_PAPER_GRAY_VERY_VERY_DARK,
+                linewidth=0.9,
+                label=(
+                    "All instances timed out, no mean recoverable"
+                ),
+            )
+        ],
+        loc="lower center",
+        ncol=1,
+        frameon=False,
+        fontsize=9,
+        bbox_to_anchor=(0.47, 0.015),
+    )
     bar = figure.colorbar(
         scalar_mappable(SIGNATURE_CMAP, norm), ax=axes, fraction=0.025, pad=0.02
     )
