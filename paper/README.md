@@ -4,7 +4,7 @@ Everything needed to reproduce the figures of the associated paper lives in the 
 It contains server-side measurement scripts, the deterministic aggregation step, and plotting entry points.
 
 Nothing here is a library. Every stage is a runnable `python3 -m` entry point, run from the **repository root**.
-The artifacts of this pipeline are not the exact same figures used in the paper, as those are LaTeX-native, but they represent the data in the same way. The data in the paper was collected on a server with the following specifications:
+The artifacts of this pipeline are not the exact same figures used in the paper, as those are LaTeX-native, but they represent the data in the same way. The measurements in the paper were collected on a server with the following hardware and software configuration:
 
 
 | Hardware | | Software | |
@@ -21,7 +21,7 @@ The artifacts of this pipeline are not the exact same figures used in the paper,
 
 ## Figures
 
-Figures are referred to everywhere in this package as **A1 … A8**, and figure-specific files carry **only** the `aN` identifier:
+Figures and Tables are referred to everywhere in this package as **A1 … A8**, and figure-specific files carry **only** the `aN` identifier:
 
 | ID | Related Question | Figure |
 |---|---|---|
@@ -34,7 +34,7 @@ Figures are referred to everywhere in this package as **A1 … A8**, and figure-
 | **A7** | Why does SAT perform so poorly on CSS Permutations? | `results/a7/a7.png` |
 | **A8** | How do the hybrids perform? | `results/a8/a8.png` |
 
-As the paper focuses on pairwise equivalence checking, three problems are in scope: `pm_stb` (permutation equivalence of stabilizer codes), `pm_css` (permutation equivalence of CSS codes), and `lc_stb` (local-Clifford equivalence of stabilizer codes). `lc_css` is out of scope.
+As the paper focuses on pairwise equivalence checking, only three problems from the underlying thesis are in scope: `pm_stb` (permutation equivalence of stabilizer codes), `pm_css` (permutation equivalence of CSS codes), and `lc_stb` (local-Clifford equivalence of stabilizer codes).
 
 ---
 
@@ -88,132 +88,120 @@ Fast, deterministic, safe to re-run at any time.
 python3 -m paper.visualizations.visualize_a<N>
 ```
 
-Reads CSVs from `results/a<N>/` and writes exactly one PNG, `results/a<N>/a<N>.png`.
+Reads CSVs from `results/a<N>/` and writes one `results/a<N>/a<N>.png` or multiple PNGs, depending on the experiment.
 
 ---
 
 ## Measurement Definitions
 
 ### A1 — Rejection Rates
-*How many and which input instances are rejected by the utilized invariants?*
-Invariants measured: linear dependency and punctured-hull/Sendrier signatures for `pm_stb` and `pm_css`; the degree-2 low-degree local invariant for `lc_stb`. 
-10 certified-negative randomized instances per parameter setting; no runtime measurement. 
+
+|  |  |
+|---|---|
+| **Question** | How many—and which—input instances are rejected by the utilized invariants? |
+| **Invariants and signatures measured** | Linear dependency and punctured-hull/Sendrier signatures on general stabilizer and CSS codes; the degree-2 local invariant on general stabilizer codes |
+| **Method** | 10 certified-negative randomized instances per parameter setting and record rejection counts; no runtimes are measured directly |
+
 The result value is how many of the 10 were rejected, per invariant and combined per equivalence notion.
+The aggregated table shows the percentage of rejected instances per invariant and code family.
 
-The generation of randomized instances has to be carefully considered here, as otherwise selection bias has a significant effect on the results.
-Generating two tableaus (of the same dimensions) completely independently and certifying their inequivalence leads to high rejection rates,  as usually fully independent tableaus are structurally very different. This however might not represent practical instances considered in equivalence checking, as two actually compared codes might usually be somewhat related.
-Additionally, the certification method of their inequivalence might introduce a selection bias. When certifying their inequivalence by a mismatched invariant due to runtime constraints, this must not be the invariant whose rejection rate is being measured, or the estimate is circular and the pair will be rejected by construction.
-
-Therefore:
-
-- `pm_stb` / `lc_stb`: apply a short random Clifford circuit (`STABILIZER_CLIFFORD_GATE_STEPS`) to one source code, then keep the candidate only if the corresponding exact SAT backend proves inequivalence. This yields structurally related negatives selected by an exact backend rather than by a measured invariant.
-- `pm_css`: apply a short physical-CNOT circuit (`CSS_CNOT_GATE_STEPS`) to one source code, then retain the candidate only when SAT (`r ≤ 9`) or matroid isomorphism (`r > 9, n ≤ 28`) proves inequivalence. The perturbation preserves the CSS form and both check ranks without consulting a measured invariant. Parameter sizes outside this exact-certifier region keep using `css_codes_cascaded`, which emits a negative carrying its own permutation-invariant certificate; that certificate can correlate with a measured invariant.
+> The generation of randomized instances has to be carefully considered here, as otherwise selection bias has a significant effect on the results.
+> Generating two tableaus (of the same dimensions) completely independently and certifying their inequivalence leads to high rejection rates, as usually fully independent tableaus are structurally very different. This however might not represent practical instances considered in equivalence checking, as two actually compared codes might usually be somewhat related.
+> Additionally, the certification method of their inequivalence might introduce a selection bias. When certifying their inequivalence by a mismatched invariant due to runtime constraints, this must not be the invariant whose rejection rate is being measured, or the estimate is circular and the pair will be rejected by construction.
+>
+> Therefore:
+> - general stabilizer codes: apply a short random Clifford circuit (`STABILIZER_CLIFFORD_GATE_STEPS`) to one source code, then keep the candidate only if the corresponding exact SAT backend proves inequivalence. This yields structurally related negatives selected by an exact backend rather than by a measured invariant.
+> - CSS codes: apply a short physical-CNOT circuit (`CSS_CNOT_GATE_STEPS`) to one source code, then retain the candidate only when SAT or matroid isomorphism proves inequivalence. The perturbation preserves the CSS form and both check ranks without consulting a measured invariant. Parameter sizes outside this exact-certifier region keep using `css_codes_cascaded`, which emits a negative carrying its own permutation-invariant certificate; that certificate can correlate with a measured invariant.
 
 ### A2 — Signature Space
-*How well does column partition induced by a signature refine the permutation search space?*
-Signatures measured: Sendrier using implementation of `pm_css` and `pm_stb`
-No pairs, no equivalence labels, no runtime. For each seed, generate one unconditioned random code and measure how its Sendrier signature partitions the physical qubits. 
 
-For a column partition $s_1, s_2, ...$ collector stores the quantity
+|  |  |
+|---|---|
+| **Question** | How well does the column partition induced by a signature refine the permutation search space? |
+| **Signatures measured** | Sendrier signatures, as implemented for `pm_css` and `pm_stb`, on CSS and general stabilizer codes |
+| **Method** | 10 randomized codes per parameter setting; no code pairs, equivalence labels, or direct runtime measurements |
+
+The result value of a parameter setting is the mean of the 10 seeds, of how the Sendrier signatures partition the physical qubits of the code $J_1, J_2, ...$, as a normalized fraction
 $$
-  q = \sum\limits_{i} \frac{|s_i|^2}{n^2} \in [\frac{1}{n}, 1]
+  \bar{q} = 1 - \frac{q - \frac{1}{n}}{1 - \frac{1}{n}}
+       = \frac{1-q}{1-\frac{1}{n}} \in [0, 1] \text{ with } q = \sum\limits_{i} \frac{|J_i|^2}{n^2} \in [\frac{1}{n}, 1]
 $$
-which is the probability that two qubits sampled independently with
-replacement belong to the same signature class. The extractor removes the
-unavoidable self-pairs and complements this value:
-$$
-  \rho = 1 - \frac{q - \frac{1}{n}}{1 - \frac{1}{n}}
-       = \frac{1-q}{1-\frac{1}{n}} \in [0, 1].
-$$
-Thus $\rho$ is exactly the fraction of distinct qubit pairs placed in different
-signature classes: `0` means one undivided class (no refinement), and `1` means
+Here, `0` means one undivided class (no refinement), and `1` means
 every class is a singleton (complete refinement). This is a pairwise refinement
 score, not the literal fraction of the $n!$ permutation search space removed.
-Cells containing a censored measurement are left uncolored because a
-successful-only mean could be biased by signature-computation difficulty.
+Parameter settings where each seed is censored (due to timeout) are left uncolored.
 
 ### A3 — Relative Preprocessing Cost
-*Does the computation of an invariant actually take longer than a full decision procedure backend?*
-Invariants measured: linear dependency and punctured-hull/Sendrier signatures for `pm_stb` and `pm_css`; the degree-2 low-degree local invariant for `lc_stb`. 
-5 positive and 5 negative randomized instances per parameter setting.
 
-For negative instances similar concerns about the generation method occur as for A1, to not bias the mean runtime due to an unrepresentative number of early rejections.
+|  |  |
+|---|---|
+| **Question** | Does computing an invariant take longer than running a complete decision-procedure backend? |
+| **Invariants and signatures measured** | Linear dependency and punctured-hull/Sendrier signatures on general stabilizer and CSS codes; the degree-2 local invariant on general stabilizer codes |
+| **Method** | 5 positive and 5 negative randomized instances per parameter setting; invariant runtime compared with the best-performing backend from A5 |
 
-The extractor compared the runtime of the invariants to the runtimes of the best-performing backend for this parameter setting (see A5), thus showcasing the worst-case for invariant usability
+The result value is the mean of the comparisons of the runtime of the invariants to the runtimes of the best-performing backend for this parameter setting (see A5), thus showcasing the worst-case for invariant usability
 $$
  \frac{T_{\text{invariant}}}{T_{\text{backend}}}
 $$
 
-The visualizer creates one temperature map per invariant.
+### A4 — Representation Cost
 
-### A4 - Representation Cost
-*Where do methods trade fast search for excessive representation cost?*
-Methods measured: graph-isomorphism based methods for `pm_stb` and `lc_stb` on general stabilizer codes.
-10 positive and 10 negative randomized instances per parameter setting.
+|  |  |
+|---|---|
+| **Question** | Where do methods trade fast search for excessive representation cost? |
+| **Algorithms measured** | Graph-isomorphism-based algorithms for `pm_stb` and `lc_stb` on general stabilizer codes; the matroid-isomorphism-based algorithm for `pm_css` on CSS codes |
+| **Method** | 10 positive and 10 negative randomized instances per parameter setting; mean runtime and occurrence of memory errors |
 
-The visualizer creates standard mean runtime heatmaps, explicitly marking runs where at least one instance resulted in a memory error.
+The result value for a parameter setting is the mean runtime of the instances, explicitly marking runs where at least one instance resulted in a memory error.
 
 
-### A5 - Best-Performing Methods
-*Which method performs best for each parameter setting?*
-Methods measured: all methods discussed in the paper for `pm_stb`, `pm_css` and `lc_stb` on their corresponding input codes.
-10 positive and 10 negative randomized instances per parameter setting.
+### A5 — Best-Performing Methods
+
+|  |  |
+|---|---|
+| **Question** | Which exact algorithm performs best for each parameter setting? |
+| **Algorithms measured** | All algorithms discussed in the paper for `pm_stb`, `pm_css`, and `lc_stb` on their corresponding code families |
+| **Method** | 10 positive and 10 negative randomized instances per parameter setting; eligible algorithm with the lowest mean runtime selected per setting |
 
 For each parameter setting, the method with the lowest mean runtime is extracted, under the condition that is has no memory errors. A memory error is considered a more sever type of error than a timeout.
 
-### A6 - SAT on CSS-Code Permutation Equivalence 
-*How does the SAT method perform using the tableau or parity-check-matrix encoding on CSS codes, compared to general stabilizer codes?*
-Methods measured: `pm_css_sat` and `pm_stb_sat` on CSS codes, and `pm_stb_sat` on general stabilizer codes.
-10 positive and 10 negative randomized instances per parameter setting.
+### A6 — SAT on CSS-Code Permutation Equivalence
 
-The visualizer creates standard mean runtime heatmaps.
+|  |  |
+|---|---|
+| **Question** | How does SAT perform with the tableau and check-matrix encodings on CSS codes, compared with its performance on general stabilizer codes? |
+| **Algorithms measured** | `pm_css_sat` and `pm_stb_sat` on CSS codes; `pm_stb_sat` on general stabilizer codes |
+| **Method** | 10 positive and 10 negative randomized instances per parameter setting; comparison of mean runtimes |
 
-### A7 - SAT Encodings on CSS-Code Permutation Equivalence
-*Why does SAT perform so poorly on CSS permutation equivalence, even with the Hx/Hz encoding?*
-Methods measured: `pm_stb_sat` on unrestricted and block-structured general stabilizer codes, and `pm_css_sat` on balanced CSS codes. 
-10 positive randomized instances per parameter setting.
+The result value for a parameter setting is the mean runtime of the instances.
+
+### A7 — SAT Encodings on CSS-Code Permutation Equivalence
+
+|  |  |
+|---|---|
+| **Question** | Why does SAT perform so poorly on CSS permutation equivalence, even with the check-matrix encoding? |
+| **Algorithms measured** | `pm_stb_sat` on unrestricted and block-structured general stabilizer codes; `pm_css_sat` on balanced CSS codes |
+| **Method** | 10 positive randomized instances per parameter setting; no direct runtime measurements |
 
 Two experiments are measured, first the number of solver decisions required to solve an code size and the number of decisions required to reject deliberately wrong qubit mappings. Both on instances with different amount of (in)dependent (un)coupled row-transformations. 
 The second compares clean/separated and fully row-mixed presentations of the same CSS groups using the `pm_stb_sat` encoding.
 
 ### A8 — Hybrid Component Attribution
-*What runtimes do the hybrids achieve and which component actually decides the input?*
-Methods measured: paper hybrids (NOT thesis hybrids, as those are designed with maintainability in mind due to their integration in MQT-QECC, and follow a different design strategy)
-10 positive and 10 negative instances based on real structures codes such as the Steane code or bivariate bicycle codes.
 
-The result value is the measured runtime as well as diagnostic information about which component decided the input.
+|  |  |
+|---|---|
+| **Question** | What runtimes do the hybrids achieve, and which component actually decides each input? |
+| **Algorithms measured** | Paper hybrids, rather than the thesis hybrids whose MQT-QECC integration follows a maintainability-oriented design strategy |
+| **Method** | 10 positive and 10 negative instances derived from structured codes, such as the Steane and bivariate bicycle codes; runtime and deciding component recorded |
+
+The result value is comprised of measured runtime as well as diagnostic information about which component decided the input.
 Component tags are `CI` (cheap invariants), `EI` (expensive invariants), `S` (signatures), and the decision procedures `BF` (brute force), `MI` (matroid isomorphism), `GI` (graph isomorphism), `SAT`, and `LSE`.
-
-The extractor selects the most frequent deciding component per named-code and
-polarity cell. The visualizer prints that abbreviation in the cell and colors
-its background by mean runtime using the standard logarithmic runtime scale:
-
-```bash
-python3 -m paper.experiments.extract_a8
-python3 -m paper.visualizations.visualize_a8
-```
-
-For layout development without real benchmark results, generate and render the
-separate synthetic fixture (it does not overwrite `collected/hybrids/`):
-
-```bash
-python3 -m paper.benchmarks.generate_synthetic_a8
-python3 -m paper.experiments.extract_a8 \
-  --input-directory paper/data/collected/hybrids_synthetic \
-  --output-file paper/results/a8_synthetic/by_cell.csv
-python3 -m paper.visualizations.visualize_a8 \
-  --input-file paper/results/a8_synthetic/by_cell.csv \
-  --output paper/results/a8_synthetic/a8.png
-```
 
 ---
 
 ## Design Rules
 
-These are the constraints the code is written to:
-
-- **Every collector is self-contained.** Its constants, input generation, certification choices, invariant calls, resume keys, and CSV persistence are all visible in that one file. Some small helpers are intentionally duplicated between collectors so that a server-side run does not depend on any paper-specific helper package. Collectors reuse only the repository's generic generators, supervised runner, and statistics machinery.
-- **Paired inputs.** Every method in one comparison receives the exact same serialized code pair for a given `instance_id`. Generate an input once and reuse it; never regenerate an allegedly matching input per algorithm.
+**Every collector is self-contained.** Its constants, input generation, certification choices, invariant calls, resume keys, and CSV persistence are all visible in that one file. Some small helpers are intentionally duplicated between collectors so that a server-side run does not depend on any paper-specific helper package. Collectors reuse only the repository's generic generators, supervised runner, and statistics machinery.
 
 ---
 
