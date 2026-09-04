@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from pathlib import Path
 from statistics import mean, stdev
 from typing import Any
@@ -14,11 +15,11 @@ from paper.experiments.common import (
     aggregate_statistics,
     as_bool,
     as_float,
-    load_all_algorithms,
+    load_algorithm,
     read_csv,
     write_csv,
 )
-from paper.experiments.extract_a5 import select_winners
+from paper.experiments.extract_a5 import A5_ALGORITHMS, select_winners
 
 INVARIANT_INPUT = COLLECTED_DATA_DIR / "invariant_timings.csv"
 OUTPUT = RESULTS_DIR / "a3" / "by_cell.csv"
@@ -94,9 +95,15 @@ def extract(
     invariant_input: Path = INVARIANT_INPUT,
     algorithm_directory: Path = ALGORITHM_DATA_DIR,
     output_file: Path = OUTPUT,
+    algorithm_names: Sequence[str] = A5_ALGORITHMS,
 ) -> list[dict[str, Any]]:
     invariant_cells = read_invariant_cells(invariant_input)
-    backend_statistics = aggregate_statistics(load_all_algorithms(algorithm_directory))
+    algorithm_rows = [
+        row
+        for algorithm in algorithm_names
+        for row in load_algorithm(algorithm, algorithm_directory)
+    ]
+    backend_statistics = aggregate_statistics(algorithm_rows)
     # The comparison baseline is A5's winner, including its timeout fallback: a
     # backend that only finishes by timing out still bounds what the invariant
     # has to beat, and dropping those cells would silently hide the region

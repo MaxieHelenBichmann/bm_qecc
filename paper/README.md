@@ -43,26 +43,26 @@ As the paper focuses on pairwise equivalence checking, only three problems from 
 ```text
   PHASE 1  collect                 PHASE 2  extract              PHASE 3  visualize
   benchmarks/collect_*.py          experiments/extract_a<N>.py   visualizations/visualize_a<N>.py
-  - resource-supervised,           - deterministic, local,       - plotting only, 
-    hours-to-days, server            seconds, pure CSV→CSV         no selection logic
+  - primarily collection,          - deterministic, local,       - primarily plotting
+    hours-to-days, server            seconds, CSV→CSV
          │                                   │                             │
          ▼                                   ▼                             ▼
-  data/collected/*.csv  ───────────►  results/a<N>/by_cell.csv  ─────────►  results/a<N>/a<N>.png
-     (raw, per instance)                (figure-ready, per cell)
+  data/collected/       ───────────►  results/a<N>/by_cell.csv  ─────────►  results/a<N>/a<N>.png
+   (raw or batch summaries)             (figure-ready, per cell)
 ```
 
-This pipeline hss three phases for each experiment, with strict boundaries, making the package replicable:
+This pipeline has three phases for each experiment, with strict boundaries, making the package replicable:
 
-- Phase 1 is the only phase that generates codes, runs algorithms, or consumes meaningful compute time. It produces the necessary data for the following steps, but never aggregates or writes into `results/`.
-- Phase 2 is the only phase that selects and aggregates (winner choice, backend choice, eligibility rules, normalization). It never generates inputs and never runs a benchmark algorithm.
-- Phase 3 is the only phase that draws. It reads `results/` exclusively and never touches `data/collected/`.
+- Phase 1 primarily collects measurements and is the only phase that generates codes, runs algorithms, or consumes meaningful compute time. Depending on the collector, it stores either per-instance rows or summaries of a seeded batch, but never writes into `results/`.
+- Phase 2 performs deterministic extraction, including the main selection and aggregation steps (winner choice, backend choice, eligibility rules, and normalization). It never generates inputs or runs a benchmark algorithm.
+- Phase 3 primarily draws the figures from `results/`. Visualizers may apply presentation-specific grouping, range restrictions, or annotations, but never read from `data/collected/`.
 
 Phase 1 normally runs on a benchmark server; phases 2 and 3 run locally. The transfer between machines is exactly the contents of `data/collected/`.
 
 ### Phase 1 — Data Collection
 
-Long-running. Run under `tmux` or an equivalent; each collector appends to its CSV incrementally and **resumes** by skipping keys already present, so an interrupted run continues without duplicating completed work. Delete an output file only to deliberately restart that collection from scratch.
-Collected data from `collect_algorithm.py` is not figure-specific, but used by  multiple aggregators in the next steps.
+Long-running. Run under `tmux` or an equivalent. Almost every collector appends incrementally and resumes by skipping keys already present. Collectors based on shared batch statistics instead append one summary row per completed batch; re-running such a batch may repeat its computation, while extraction keeps its latest row. Delete the relevant output file or files only to deliberately restart a collection from scratch.
+Collected data from `collect_algorithm.py` is not figure-specific, but used by multiple aggregators in the next steps.
 
 ```bash
 python3 -m paper.benchmarks.collect_*
@@ -201,7 +201,7 @@ Component tags are `CI` (cheap invariants), `EI` (expensive invariants), `S` (si
 
 ## Design Rules
 
-**Every collector is self-contained.** Its constants, input generation, certification choices, invariant calls, resume keys, and CSV persistence are all visible in that one file. Some small helpers are intentionally duplicated between collectors so that a server-side run does not depend on any paper-specific helper package. Collectors reuse only the repository's generic generators, supervised runner, and statistics machinery.
+Collector-specific constants, input populations, certification choices, and output paths are kept close to each collection entry point. Most collectors also expose their resume keys and CSV persistence directly; shared generators, supervision/statistics utilities, and the diagnostic paper hybrids are reused where appropriate.
 
 ---
 

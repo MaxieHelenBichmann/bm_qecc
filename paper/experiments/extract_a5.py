@@ -109,10 +109,11 @@ def select_winners(methods: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
 def extract(
     algorithm_directory: Path = ALGORITHM_DATA_DIR,
     output_directory: Path = OUTPUT_DIRECTORY,
+    algorithm_names: Sequence[str] = A5_ALGORITHMS,
 ) -> list[dict[str, Any]]:
     rows = [
         row
-        for algorithm in A5_ALGORITHMS
+        for algorithm in algorithm_names
         for row in load_algorithm(algorithm, algorithm_directory)
     ]
     methods = aggregate_statistics(rows)

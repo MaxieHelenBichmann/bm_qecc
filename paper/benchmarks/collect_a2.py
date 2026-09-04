@@ -36,7 +36,7 @@ NUM_SEEDS = 10
 SEEDS = deterministic_seeds(MASTER_SEED, NUM_SEEDS, upper_bound=1_000)
 DIMENSIONS = tuple(
     sorted(
-        measurement_dimensions(30, 47),
+        measurement_dimensions(),
         key=lambda dimension: (
             dimension[0] - dimension[1],
             dimension[0],
@@ -48,7 +48,7 @@ TIMEOUT_SECONDS = 5_400.0
 MEMORY_LIMIT_BYTES = 13 * 1024**3
 
 OUTPUT_FILE = ROOT / "paper" / "data" / "collected" / "signature_space.csv"
-PROBLEMS = ("pm_stb",)
+PROBLEMS = ("pm_stb", "pm_css")
 FIELDS = (
     "problem",
     "seed",
