@@ -7,7 +7,30 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from paper.experiments.common import ALGORITHM_DATA_DIR, RESULTS_DIR, aggregate_statistics, load_all_algorithms, write_csv
+from paper.experiments.common import (
+    ALGORITHM_DATA_DIR,
+    RESULTS_DIR,
+    aggregate_statistics,
+    load_algorithm,
+    write_csv,
+)
+
+A5_ALGORITHMS = (
+    "pm_stb_aut",
+    "pm_stb_bruteforce",
+    "pm_stb_classical",
+    "pm_stb_graph_iso",
+    "pm_stb_sat",
+    "pm_css_bruteforce",
+    "pm_css_classical",
+    "pm_css_matroid",
+    "pm_css_sat",
+    "lc_stb_lse",
+    "lc_stb_bruteforce",
+    "lc_stb_graph_iso",
+    "lc_stb_kls",
+    "lc_stb_sat",
+)
 
 OUTPUT_DIRECTORY = RESULTS_DIR / "a5"
 METHOD_FIELDS = (
@@ -87,7 +110,12 @@ def extract(
     algorithm_directory: Path = ALGORITHM_DATA_DIR,
     output_directory: Path = OUTPUT_DIRECTORY,
 ) -> list[dict[str, Any]]:
-    methods = aggregate_statistics(load_all_algorithms(algorithm_directory))
+    rows = [
+        row
+        for algorithm in A5_ALGORITHMS
+        for row in load_algorithm(algorithm, algorithm_directory)
+    ]
+    methods = aggregate_statistics(rows)
     winners = select_winners(methods)
     write_csv(output_directory / "by_method.csv", methods, METHOD_FIELDS)
     write_csv(output_directory / "by_cell.csv", winners, WINNER_FIELDS)

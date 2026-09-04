@@ -56,13 +56,13 @@ OUTPUT_DIRECTORY = ROOT / "paper" / "data" / "collected" / "algorithms"
 
 # inclusive ranges, intentionally centralized so server runs can be tuned
 ALGORITHM_N_RANGES: dict[str, tuple[int, int]] = {
+    "pm_stb_aut": (3, 13),
     "pm_stb_bruteforce": (3, 47),
     "pm_stb_classical": (3, 47),
     "pm_stb_graph_iso": (3, 47),
     "pm_stb_sat": (3, 47),
     "pm_css_bruteforce": (3, 47),
     "pm_css_classical": (3, 47),
-    "pm_css_graph_iso": (3, 47),
     "pm_css_matroid": (3, 47),
     "pm_css_sat": (3, 47),
     "lc_stb_lse": (3, 47),

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.legend_handler import HandlerBase
-from matplotlib.patches import Patch, Polygon, Rectangle
+from matplotlib.patches import Patch, Polygon
 
 from paper.visualizations.common import (
     COLOR_PAPER_CYAN_STRONG,
@@ -19,7 +19,6 @@ from paper.visualizations.common import (
     COLOR_PAPER_GRAY_VERY_VERY_DARK,
     COLOR_PAPER_LIGHT_RED,
     COLOR_PAPER_GREEN_DEEP,
-    EMPTY,
     RESULTS_DIR,
     load_rows,
     parameter_axis,
@@ -41,12 +40,13 @@ PANELS = (
 
 METHODS = (
     ("sat", "SAT", COLOR_PAPER_DARK_CYAN),
-    ("bruteforce", "Brute force", COLOR_PAPER_DARK_RED),
-    ("classical", "Classical Approaches", COLOR_PAPER_DARK_PINK),
+    ("lse", "Graph-State LSE", COLOR_PAPER_DARK_PINK),
     ("graph_iso", "Graph Isomorphism", COLOR_PAPER_GREEN_DEEP),
     ("matroid", "Matroid Isomorphism", COLOR_PAPER_LIGHT_RED),
+    ("bruteforce", "Brute force", COLOR_PAPER_DARK_RED),
     ("kls", "KLS Orbit", COLOR_PAPER_ZX_BLUE),
-    ("lse", "Graph-State LSE", COLOR_PAPER_LILA),
+    ("classical", "Classical Approaches", COLOR_PAPER_LILA),
+    ("aut", "Automorphism Group", COLOR_PAPER_CYAN_STRONG),
 )
 
 
