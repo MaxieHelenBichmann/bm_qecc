@@ -156,7 +156,7 @@ The visualizer creates standard mean runtime heatmaps, explicitly marking runs w
 
 ### A5 - Best-Performing Methods
 *Which method performs best for each parameter setting?*
-Methods measured: all proposed methods for `pm_stb`, `pm_css` and `lc_stb` on their according input codes.
+Methods measured: all methods discussed in the paper for `pm_stb`, `pm_css` and `lc_stb` on their corresponding input codes.
 10 positive and 10 negative randomized instances per parameter setting.
 
 For each parameter setting, the method with the lowest mean runtime is extracted, under the condition that is has no memory errors. A memory error is considered a more sever type of error than a timeout.
