@@ -72,6 +72,8 @@ def preserved_k(c1: StabilizerCode, c2: StabilizerCode) -> bool:
 
 def preserved_d(c1: StabilizerCode, c2: StabilizerCode) -> bool:
     """Check whether the distance is preserved, which is a necessary condition for P-equivalence."""
+    if c1.distance is None or c2.distance is None:
+        return True
     return c1.distance == c2.distance
     
 def preserved_rank(c1: StabilizerCode, c2: StabilizerCode) -> bool:

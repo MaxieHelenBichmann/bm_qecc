@@ -88,6 +88,13 @@ def preserved_k(c1: CSSCode, c2: CSSCode) -> bool:
 
 def preserved_d(c1: CSSCode, c2: CSSCode) -> bool:
     """Check whether the distance is preserved, which is a necessary condition for P-equivalence."""
+    if (
+        c1.x_distance is None
+        or c1.z_distance is None
+        or c2.x_distance is None
+        or c2.z_distance is None
+    ):
+        return True
     return c1.x_distance == c2.x_distance and c1.z_distance == c2.z_distance
 
 def preserved_rank(c1: CSSCode, c2: CSSCode) -> bool:
