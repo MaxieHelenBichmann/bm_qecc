@@ -20,7 +20,9 @@ from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 
 from .generators_random import (
+    _css_like,
     _perturbed_stabilizer_code,
+    _random_css_cnot_candidate_matrices,
     non_lc_equivalent_code,
     non_permutation_equivalent_css_code,
     non_permutation_equivalent_css_code_cnot,
@@ -263,6 +265,30 @@ class NonPEqCodePairGenerator:
         return code, _perturbed_stabilizer_code(
             code, seed=seed, gate_steps=gate_steps
         )
+
+    @staticmethod
+    def css_codes_cnot_candidate(
+        name: str, seed: int | None = None, *, gate_steps: int = 2
+    ) -> tuple[CSSCode, CSSCode]:
+        """Return a named CSS code and an uncertified short-CNOT perturbation.
+
+        The partner applies ``gate_steps`` physical CNOTs to the named code,
+        which preserves the CSS form, the dimensions, and both check ranks.
+        No invariant or equivalence backend is consulted; callers must certify
+        that the candidate left the source's permutation orbit.
+
+        Sampling bias: the partner is correlated with one named source and its
+        distribution depends on the perturbation depth.
+        NOT USABLE whenever two independent structured codes or an unconditional
+        negative label are required; certify inequivalence with an exact backend.
+        """
+        if gate_steps < 0:
+            raise ValueError("gate_steps must be non-negative.")
+        code = _load_css_code(name)
+        hx, hz = _random_css_cnot_candidate_matrices(
+            code, rng=np.random.default_rng(seed), gate_steps=gate_steps
+        )
+        return code, _css_like(code, hx, hz)
 
     @staticmethod
     def css_codes_cascaded(

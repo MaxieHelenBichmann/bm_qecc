@@ -41,7 +41,7 @@ Figures and Tables are referred to everywhere in this package as **A1 … A8**, 
 | **A5** | Which exact method performs best? | `collect_algorithm` | `algorithms/*.csv` (all configured methods) | `paper/results/a5/a5.png` |
 | **A6** | Is SAT's poor CSS behavior caused by the encoding or by the CSS inputs? | `collect_a6` + `collect_algorithm` | `pm_stb_sat_on_css.csv`, `algorithms/pm_{stb,css}_sat.csv` | `paper/results/a6/a6.png`<br>`paper/results/a6/a6_css.png` (direct CSS-encoding comparison) |
 | **A7** | Why does SAT perform so poorly on CSS Permutations? | `collect_a7` | `a7_sat_css_structure.csv` | `paper/results/a7/a7.png` |
-| **A8** | How do the hybrids perform? | `collect_a8` | `hybrids_a8_v4/{campaign.json,inputs/,proposals/,stages/,instances.csv,summary.csv}` | `paper/results/a8/a8.png` |
+| **A8** | How do the hybrids perform? | `collect_a8` | `hybrids/{pm_stb,pm_css,lc_stb}_{instances,raw}.csv` | `paper/results/a8/a8.png` |
 
 All collected-file paths in this table are relative to
 `paper/data/collected/`. The top-level `data/` and `results/` directories
@@ -245,116 +245,49 @@ The second compares clean/separated and fully row-mixed presentations of the sam
 
 |  |  |
 |---|---|
-| **Question** | What runtimes do the hybrids achieve, and which component actually decides each input? |
-| **Algorithms measured** | Paper hybrids, rather than the thesis hybrids whose MQT-QECC integration follows a maintainability-oriented design strategy |
-| **Method** | 10 constructive positive controls and 10 A1-style certified negatives per named code; runtime and decision-stage outcomes are reported separately |
+| **Question** | What runtimes do the hybrids achieve on structured codes, and which stage actually decides each input? |
+| **Algorithms measured** | Paper hybrids in `paper/hybrids/` (`pm_stb`, `pm_css`, `lc_stb`), rather than the thesis hybrids whose MQT-QECC integration follows a maintainability-oriented design strategy |
+| **Method** | 10 positive and 10 certified-negative instances per named code and problem; mean runtime and the distribution of deciding stages |
 
-The fixed population is `bell`, `3q_rep`, `5q_prf`, `steane`, `shor`,
-`carbon`, `hamming_15`, `15q_optimal`, `tetrahedral`, `golay`,
-`rot_surf_d5`, `hamming_31`, `coco_488`, `coco_666`, `bb_72`, `bb_90`,
-`bb_108`, and `bb_144`. Gottesman and Bring are not part of A8. PM-STB and
-LC-STB run on all 18 codes. PM-CSS runs on the 16 CSS codes; the two non-CSS
-codes (`5q_prf` and `15q_optimal`) remain explicit `not_applicable` rows.
+The named codes are `bell`, `3q_rep`, `5q_prf`, `steane`, `shor`, `carbon`,
+`hamming_15`, `15q_optimal`, `tetrahedral`, `golay`, `rot_surf_d5`,
+`hamming_31`, `coco_488`, `coco_666`, `bb_72`, `bb_90`, `bb_108`, and
+`bb_144`. PM-STB and LC-STB run on all 18; PM-CSS skips the two non-CSS codes
+(`5q_prf`, `15q_optimal`), which the figure shows as `N/A`.
 
-Positive controls are known equivalent by their recorded construction and do
-not enter a certification backend. For
-PM-STB/PM-CSS they use one uniformly sampled physical-qubit permutation plus a
-fixed number of independently recorded invertible row additions (separate X/Z
-row operations for CSS), and both hybrids consume the identical CSS pair. LC
-controls use an independently uniform local Clifford from
-`I,H,S,HS,SH,HSH` on every coordinate plus recorded row additions.
+Positive instances pair the named code with an equivalent presentation of it:
+a random qubit permutation plus generator-basis change for PM (PM-STB and
+PM-CSS receive the identical pair on a CSS code), a random local Clifford plus
+generator-basis change for LC. Negative instances follow A1: two random
+Clifford gates (PM-STB, LC-STB) or two random CNOTs preserving CSS form and
+check ranks (PM-CSS) are applied to the named code, and the candidate is kept
+once an exact backend certifies inequivalence, otherwise the next seeded
+candidate is tried. Certification uses SAT, matroid isomorphism for PM-CSS with
+`n-k > 9` and `n <= 28`, and a sound permutation-invariant mismatch for larger
+PM-CSS codes. Instance generation including certification runs under its own
+time limit (`GENERATION_TIMEOUT_SECONDS`); an instance that cannot be
+generated is recorded as `generation_error` and is not retried.
 
-The negative stratum follows the A1 invariant-rejection benchmark. PM-STB and
-LC-STB proposals apply two independently sampled Clifford gates from
-`H,S,Sdg,X,Y,Z,CX,CZ,SWAP` to the named code. PM-CSS proposals apply two CNOTs,
-each using a uniform ordered pair of distinct coordinates, and preserve CSS
-orthogonality and both check ranks. Proposals are generated from a deterministic
-attempt-seed sequence. SAT certifies PM-STB and LC-STB. PM-CSS uses SAT when
-`n-k <= 9`, matroid isomorphism through `n <= 28`, and the same scalable
-rank/weight invariant as A1 beyond that region. Large PM-CSS still uses exactly
-the fixed-depth two-CNOT perturbation of the named code; it never falls back to
-an independently generated partner. Only the first exact-certified-inequivalent
-small/medium proposal becomes a timed negative. For a large proposal, an
-invariant mismatch is a sound inequivalence witness, while an invariant match
-is retained as unresolved and is not replaced.
+The collector writes two flat files per problem to
+`paper/data/collected/hybrids/`: `<problem>_instances.csv` caches the
+generated pairs (check matrices serialized as bit strings) and
+`<problem>_raw.csv` holds one row per instance with its status, runtime, the
+stage that decided it (`decided_by`), and, for a timed-out or memory-killed
+call, the stage it was stuck in (`stuck_at`). Restarting skips keys already in
+the raw file and reads cached instances instead of regenerating them; use
+`--problem` to collect one problem at a time.
 
-This is not an unbiased negative sample. Small/medium negatives use rejection
-sampling conditioned on leaving the relevant equivalence orbit. Large CSS uses
-a fixed proposal population with certificate-dependent missingness: matching
-invariants remain unresolved. All attempted proposal files and
-certification-attempt records are retained. A certification timeout, memory
-limit, solver `unknown`, or error blocks that negative case; it does not become
-a negative and does not trigger selection of an easier attempt.
-Certification and timed execution use separate supervised workers. They do not
-share solver objects, although earlier work can warm OS file/page caches.
-Equivalent exact-certified proposals remain visible in the exported
-`num_certified_equivalent` proposal count and as `e#` plot annotations.
+The extractor computes per (problem, code, label) the mean, standard
+deviation, and maximum runtime over completed and timed-out calls (timeouts
+enter at their budget, memory and execution failures are excluded, as in the
+other experiments), the full `deciders` distribution, and its two most
+frequent stages. The figure colors each cell by mean runtime and prints the
+primary deciding stage, the second most frequent one in parentheses, and the
+counts of timeouts (`t#`) and other failures (`f#`); such cells are hatched.
 
-Named-code text files do not provide verified distance metadata. A8 persists
-distance as unavailable and its paper PM hybrids skip the distance comparison
-when either value is unavailable. It never copies the named code's placeholder
-distance onto a perturbation and then treats it as measured truth.
-
-The plotted runtime is `restricted_mean_seconds`: the mean observed execution
-time with timed-out calls capped by their execution budget. It is not a
-success-only unconditional runtime estimate. `mean_success_seconds` is also
-exported, explicitly named, while unresolved labels, generation/certification
-failures, execution timeouts/memory/errors/wrong answers, pending work, and
-coverage remain separate columns and annotations. Hatched cells have at least
-one unresolved or failed case.
-
-#### A8 preflight, production, and resume
-
-Use the repository virtual environment; bare `python3` may not contain the
-dependencies. Preflight defaults to one seed and four-second stage budgets,
-but an explicit isolated path is recommended:
-
-```bash
-tmux new-session -d -s paper-hybrids-preflight -c "$PWD" "mkdir -p '$PWD/paper/data/preflight' '$PWD/paper/data/logs' '$PWD/paper/data/.matplotlib' && exec env MPLCONFIGDIR='$PWD/paper/data/.matplotlib' .venv/bin/python -u -m paper.benchmarks.collect_a8 --preflight --output-directory '$PWD/paper/data/preflight/a8-final' >>'$PWD/paper/data/logs/hybrids_a8_preflight.log' 2>&1"
-```
-
-Production defaults are 10 deterministic seeds, depth two, a 300 s/4 GiB
-generation budget, 900 s/13 GiB certification budget, and 5400 s/13 GiB hybrid
-budget. Use a fresh explicit output directory. Re-running the identical command
-resumes compatible completed stages. Any configuration, dependency, Python,
-or relevant-source hash mismatch is refused instead of mixed.
-
-The no-argument production command writes the campaign to the explicit default
-`paper/data/collected/hybrids_a8_v4` and appends a persistent log:
-
-```bash
-tmux new-session -d -s paper-hybrids -c "$PWD" "mkdir -p '$PWD/paper/data/collected' '$PWD/paper/data/logs' '$PWD/paper/data/.matplotlib' && exec env MPLCONFIGDIR='$PWD/paper/data/.matplotlib' .venv/bin/python -u -m paper.benchmarks.collect_a8 >>'$PWD/paper/data/logs/hybrids_a8_v4.log' 2>&1"
-```
-
-Failures are durable terminal outcomes by default. Retry selected failed
-stages explicitly, preserving prior attempts in each stage record and in
-`events.jsonl`:
-
-```bash
-.venv/bin/python -u -m paper.benchmarks.collect_a8 \
-  --output-directory paper/data/collected/hybrids-a8-paper-v4 \
-  --retry generation certification execution
-```
-
-Only one writer can hold an output directory's lock. JSON input/stage writes
-and CSV materialization use atomic replacement. Interruptions retain finished
-stage records. Three identical
-execution/generation/certification errors stop a run by default, and any wrong
-answer against a certified label stops immediately. Short-budget timeouts are
-expected preflight outcomes, not automatically defects.
-
-Extract and render any campaign with explicit paths:
-
-```bash
-.venv/bin/python -m paper.experiments.extract_a8 \
-  --input-directory paper/data/collected/hybrids-a8-paper-v4 \
-  --output-file paper/results/a8/by_cell.csv
-.venv/bin/python -m paper.visualizations.visualize_a8 \
-  --input-file paper/results/a8/by_cell.csv \
-  --output-file paper/results/a8/a8.png
-```
-
-Component tags are `CI` (cheap invariants), `EI` (expensive invariants), `S` (signatures), and the decision procedures `BF` (brute force), `MI` (matroid isomorphism), `GI` (graph isomorphism), `SAT`, and `LSE`.
+Stage tags are `CI` (cheap invariants), `EI` (expensive invariants), `S`
+(signatures), and the decision procedures `BF` (brute force), `MI` (matroid
+isomorphism), `GI` (graph isomorphism), `SAT`, and `LSE`.
 
 ---
 

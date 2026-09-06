@@ -87,3 +87,17 @@ def test_structured_lc_pair_keeps_named_source() -> None:
 def test_structured_positive_lc_css_code_uses_named_css_source() -> None:
     code = LCEqCodeGenerator.stabilizer_code_local_clifford("3q_rep", 14)
     assert is_lceq_css_bruteforce(code)
+
+
+def test_structured_cnot_candidate_keeps_css_form_and_check_ranks() -> None:
+    from ldpc.mod2 import rank
+
+    source, partner = NonPEqCodePairGenerator.css_codes_cnot_candidate("steane", 12)
+    again = NonPEqCodePairGenerator.css_codes_cnot_candidate("steane", 12)[1]
+    assert isinstance(source, CSSCode) and isinstance(partner, CSSCode)
+    assert np.array_equal(source.symplectic, load_named_code("steane").symplectic)
+    assert np.array_equal(partner.symplectic, again.symplectic)
+    assert (partner.n, partner.k) == (source.n, source.k)
+    assert not np.any((partner.Hx @ partner.Hz.T) % 2)
+    assert (rank(partner.Hx), rank(partner.Hz)) == (rank(source.Hx), rank(source.Hz))
+    assert not np.array_equal(partner.symplectic, source.symplectic)
