@@ -22,12 +22,12 @@ def extract(input_file: Path = INPUT, output_directory: Path = OUTPUT_DIRECTORY)
     combined: list[dict[str, Any]] = []
     for group in by_instance.values():
         sample = group[0]
-        valid = all(row["status"] == "success" for row in group)
+        is_valid = all(row["status"] == "success" for row in group)
         combined.append({
             **sample,
             "invariant": "combined",
-            "status": "success" if valid else "censored",
-            "rejected": any(as_bool(row["rejected"]) for row in group) if valid else "",
+            "status": "success" if is_valid else "censored",
+            "rejected": any(as_bool(row["rejected"]) for row in group) if is_valid else "",
         })
     all_rows: list[dict[str, Any]] = [*component_rows, *combined]
     groups: dict[tuple[str, int, int, str], list[dict[str, Any]]] = defaultdict(list)
@@ -35,26 +35,26 @@ def extract(input_file: Path = INPUT, output_directory: Path = OUTPUT_DIRECTORY)
         groups[(row["problem"], int(row["n"]), int(row["k"]), row["invariant"])].append(row)
     cells = []
     for (problem, n, k, invariant), group in sorted(groups.items()):
-        valid = [row for row in group if row["status"] == "success"]
-        rejected = sum(as_bool(row["rejected"]) for row in valid)
+        valid_rows = [row for row in group if row["status"] == "success"]
+        rejected = sum(as_bool(row["rejected"]) for row in valid_rows)
         cells.append({
             "problem": problem, "n": n, "k": k, "r": n - k,
             "invariant": invariant, "num_requested": len(group),
-            "num_valid": len(valid), "num_rejected": rejected,
-            "rejection_percentage": 100 * rejected / len(valid) if valid else "",
-            "num_censored": len(group) - len(valid),
+            "num_valid": len(valid_rows), "num_rejected": rejected,
+            "rejection_percentage": 100 * rejected / len(valid_rows) if valid_rows else "",
+            "num_censored": len(group) - len(valid_rows),
         })
     overall_groups: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in all_rows:
         overall_groups[(row["problem"], row["invariant"])].append(row)
     overall = []
     for (problem, invariant), group in sorted(overall_groups.items()):
-        valid = [row for row in group if row["status"] == "success"]
-        rejected = sum(as_bool(row["rejected"]) for row in valid)
+        valid_rows = [row for row in group if row["status"] == "success"]
+        rejected = sum(as_bool(row["rejected"]) for row in valid_rows)
         overall.append({
-            "problem": problem, "invariant": invariant, "num_valid": len(valid),
+            "problem": problem, "invariant": invariant, "num_valid": len(valid_rows),
             "num_rejected": rejected,
-            "rejection_percentage": 100 * rejected / len(valid) if valid else "",
+            "rejection_percentage": 100 * rejected / len(valid_rows) if valid_rows else "",
         })
     write_csv(output_directory / "by_cell.csv", cells, CELL_FIELDS)
     write_csv(output_directory / "overall.csv", overall, OVERALL_FIELDS)

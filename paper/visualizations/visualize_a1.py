@@ -1,4 +1,4 @@
-"""Render A1 as two full-grid rejection maps."""
+"""Render A1 as family-split rejection maps and an overall-rate table."""
 
 from __future__ import annotations
 
@@ -15,14 +15,17 @@ from paper.visualizations.common import (
     COLOR_PAPER_BLUE,
     COLOR_PAPER_GRAY_DARK,
     COLOR_PAPER_GRAY_LIGHT,
+    COLOR_PAPER_GRAY_VERY_DARK,
     COLOR_PAPER_GRAY_VERY_LIGHT,
     COLOR_PAPER_GREEN_RAMP,
     COLOR_PAPER_ORANGE_RAMP,
     COLOR_PAPER_PINK_RAMP,
     COLOR_PAPER_WHITE,
     RESULTS_DIR,
+    WIDE_TEXT_SCALE,
     half_cell_key,
     load_rows,
+    outline_partition,
     parameter_axis,
     partition_cell,
     save_png,
@@ -53,16 +56,23 @@ def _aggregate(rows: Sequence[dict[str, str]], problems: set[str]) -> dict[tuple
     return {key: (value[0], value[1]) for key, value in values.items()}
 
 
-def _draw(ax, values: dict[tuple[int, int, str], tuple[int, int]], invariants: Sequence[str]) -> None:
-    grouped: dict[tuple[int, int], dict[str, tuple[int, int]]] = defaultdict(dict)
-    for (n, r, invariant), value in values.items():
-        grouped[(n, r)][invariant] = value
-    for (n, r), cell in grouped.items():
-        visible = [name for name in invariants if cell.get(name, (0, 0))[0] > 0]
-        for index, name in enumerate(visible):
-            rejected, valid = cell[name]
-            fraction = rejected / valid if valid else 0
-            partition_cell(ax, n, r, index, len(visible), CMAPS[name](fraction))
+def _draw(
+    ax,
+    families: Sequence[dict[tuple[int, int, str], tuple[int, int]]],
+    invariant: str,
+) -> None:
+    """Draw one invariant, splitting cells consistently by code family."""
+    for index, values in enumerate(families):
+        for (n, r, name), (rejected, valid) in values.items():
+            if name != invariant or valid <= 0:
+                continue
+            partition_cell(
+                ax, n, r, index, len(families), CMAPS[invariant](rejected / valid)
+            )
+            if rejected == 0:
+                outline_partition(
+                    ax, n, r, index, len(families), COLOR_PAPER_GRAY_VERY_DARK
+                )
 
 
 def _overall(values: dict[tuple[int, int, str], tuple[int, int]], invariant: str) -> float | None:
@@ -77,6 +87,15 @@ def _label(invariant: str, values: dict[tuple[int, int, str], tuple[int, int]]) 
     if overall is None:
         return f"{LABELS[invariant]} (not yet collected)"
     return f"{LABELS[invariant]} ({overall:.1f}% overall)"
+
+
+def _family_label(
+    name: str,
+    values: dict[tuple[int, int, str], tuple[int, int]],
+) -> str:
+    linear = _format_rate(_overall(values, "linear_dependency"))
+    signatures = _format_rate(_overall(values, "signatures"))
+    return f"{name}: {linear} linear, {signatures} signatures"
 
 
 def _format_rate(value: float | None) -> str:
@@ -167,26 +186,34 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT, overall_output: Path
     rows = load_rows(input_file, ("problem", "n", "r", "invariant", "num_valid", "num_rejected"))
     pm_stb = _aggregate(rows, {"pm_stb"})
     pm_css = _aggregate(rows, {"pm_css"})
-    pm = _aggregate(rows, {"pm_stb", "pm_css"})
     lc = _aggregate(rows, {"lc_stb"})
-    use_style()
-    figure, axes = plt.subplots(1, 2, figsize=(10.2, 5.5))
-    figure.subplots_adjust(left=0.07, right=0.86, bottom=0.16, top=0.84, wspace=0.18)
-    parameter_axis(axes[0], "Permutation Equivalence")
-    parameter_axis(axes[1], "Local Clifford Equivalence")
-    _draw(axes[0], pm, ("linear_dependency", "signatures"))
-    _draw(axes[1], lc, ("local_invariant",))
+    use_style(scale=WIDE_TEXT_SCALE)
+    figure, axes = plt.subplots(1, 3, figsize=(14.4, 5.7))
+    figure.subplots_adjust(left=0.055, right=0.90, bottom=0.22, top=0.80, wspace=0.18)
+    parameter_axis(axes[0], LABELS["linear_dependency"])
+    parameter_axis(axes[1], LABELS["signatures"])
+    parameter_axis(axes[2], "Local Clifford Equivalence")
+    _draw(axes[0], (pm_stb, pm_css), "linear_dependency")
+    _draw(axes[1], (pm_stb, pm_css), "signatures")
+    _draw(axes[2], (lc,), "local_invariant")
 
-    # The permutation panel splits every cell between its two invariants, so
-    # those keys are drawn as the matching half-cells; the local invariant owns
-    # its cell outright and keeps a full square.
     handles: list[Patch | Line2D] = [
-        half_cell_key("left", CMAPS["linear_dependency"](0.72), _label("linear_dependency", pm)),
-        half_cell_key("right", CMAPS["signatures"](0.72), _label("signatures", pm)),
+        half_cell_key("left", COLOR_PAPER_GRAY_DARK, _family_label("Stabilizer", pm_stb)),
+        half_cell_key("right", COLOR_PAPER_GRAY_DARK, _family_label("CSS", pm_css)),
         Patch(facecolor=CMAPS["local_invariant"](0.72), label=_label("local_invariant", lc)),
+        Patch(
+            facecolor=CMAPS["linear_dependency"](0),
+            edgecolor=COLOR_PAPER_GRAY_VERY_DARK,
+            label="0% rejected (measured)",
+        ),
+        Patch(facecolor=COLOR_PAPER_GRAY_VERY_LIGHT, edgecolor="none", label="not measured"),
     ]
     figure.legend(handles=handles, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 0.015), fontsize=9)
-    figure.suptitle("Invariants' Rejection Patterns and Rates of Inequivalent Codes", fontsize=12)
+    figure.suptitle(
+        "Invariants' Rejection Patterns and Rates of Inequivalent Codes",
+        fontsize=12 * WIDE_TEXT_SCALE,
+        y=0.96,
+    )
 
     bar = figure.colorbar(scalar_mappable("Greys", Normalize(0, 1)), ax=axes, fraction=0.025, pad=0.02)
     bar.set_label(
