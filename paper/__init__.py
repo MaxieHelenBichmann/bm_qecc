@@ -1,1 +1,1 @@
-"""Paper benchmarks, figures and tests, self-contained under paper/."""
+"""Paper collectors, extractors and figure scripts."""
