@@ -11,6 +11,7 @@ from paper.visualizations.common import (
     RUNTIME_CMAP,
     aggregate_cells,
     decimal_ticks,
+    failure_legend,
     failure_marks,
     load_rows,
     mark_timeout,
@@ -79,6 +80,14 @@ def _render_panels(
             va="center",
             fontsize=8,
         )
+    axes[0].legend(
+        handles=failure_legend(),
+        loc="upper left",
+        frameon=False,
+        fontsize=8,
+        handlelength=0.8,
+        handletextpad=0.4,
+    )
     bar = figure.colorbar(
         scalar_mappable(RUNTIME_CMAP, norm), ax=axes, fraction=0.025, pad=0.02
     )
