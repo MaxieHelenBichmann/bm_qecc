@@ -375,7 +375,7 @@ def test_hk_normal_form_reduces_local_clifford_words(
         pytest.param(
             [(["S"], False), (["S"], False), (["H"], False), (["H"], False)],
             {(0, 2), (1, 3)},
-            [(["H"], False), (["H"], False), ([], True), ([], True)],
+            [(["H"], False), (["H"], False), (["S"], False), (["S"], False)],
             {(0, 2), (1, 3)},
             id="h-slide-and-sh-cleanup",
         ),
@@ -389,14 +389,14 @@ def test_hk_normal_form_reduces_local_clifford_words(
         pytest.param(
             [(["S"], False), (["H"], False)],
             {(0, 1)},
-            [(["H"], False), ([], True)],
+            [(["H"], False), (["S"], False)],
             {(0, 1)},
             id="h-slide-creates-and-cleans-sh-with-empty-neighbor",
         ),
         pytest.param(
             [(["S"], False), (["S"], False), (["H"], False)],
             {(0, 2), (1, 2)},
-            [(["H"], False), ([], True), ([], True)],
+            [(["H"], False), ([], True), (["S"], False)],
             {(0, 1), (0, 2), (1, 2)},
             id="h-slide-creates-and-cleans-sh-with-s-neighbor",
         ),

@@ -597,9 +597,9 @@ def _hk_normal_form(graph: GSLC) -> None:
         if deco not in ([], ["S"], ["H"]):
             raise ValueError(f"After reduction of decorations: Expected only I, S, or H decorations, but got: {deco}.")
 
-    # 2.) slides H down
+    # 2.) slides trailing H down
     for x in reversed(range(n)):
-        while graph.vertices[x][0] == ["H"]: # x has a Hadamard component
+        while graph.vertices[x][0][-1:] == ["H"]: # x has a trailing Hadamard
             low_neighbors = [v for v in graph.neighbors(x) if v < x]
             if len(low_neighbors) == 0:
                 break
@@ -619,7 +619,7 @@ def _hk_normal_form(graph: GSLC) -> None:
             for p in graph.neighbors(i):
                 if graph.vertices[p][0] == []:
                     graph.vertices[p] = (["S"], graph.vertices[p][1])
-                if graph.vertices[p][0] == ["S"]:
+                elif graph.vertices[p][0] == ["S"]:
                     graph.vertices[p] = ([], graph.vertices[p][1] ^ True)
                 else:
                     raise ValueError(f"Expected only I, S decorations in the neighborhood of a H-decorated vertex, but got: {graph.vertices[p][0]}")

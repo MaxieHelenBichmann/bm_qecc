@@ -7,6 +7,7 @@ import pytest
 
 import ldpc.mod2.mod2_numpy as mod2
 
+from benchmarks.experiments.generators_random import LCEqCodePairGenerator
 from benchmarks.experiments.utils import random_stabilizer_code, lc_equivalent_code
 from src.algorithms.lc_stb.lc_stb_kls import (
     GSLC,
@@ -375,7 +376,7 @@ def test_hk_normal_form_reduces_local_clifford_words(
         pytest.param(
             [(["S"], False), (["S"], False), (["H"], False), (["H"], False)],
             {(0, 2), (1, 3)},
-            [(["H"], False), (["H"], False), ([], True), ([], True)],
+            [(["H"], False), (["H"], False), (["S"], False), (["S"], False)],
             {(0, 2), (1, 3)},
             id="h-slide-and-sh-cleanup",
         ),
@@ -389,14 +390,14 @@ def test_hk_normal_form_reduces_local_clifford_words(
         pytest.param(
             [(["S"], False), (["H"], False)],
             {(0, 1)},
-            [(["H"], False), ([], True)],
+            [(["H"], False), (["S"], False)],
             {(0, 1)},
             id="h-slide-creates-and-cleans-sh-with-empty-neighbor",
         ),
         pytest.param(
             [(["S"], False), (["S"], False), (["H"], False)],
             {(0, 2), (1, 2)},
-            [(["H"], False), ([], True), ([], True)],
+            [(["H"], False), ([], True), (["S"], False)],
             {(0, 1), (0, 2), (1, 2)},
             id="h-slide-creates-and-cleans-sh-with-s-neighbor",
         ),
@@ -645,6 +646,28 @@ def test_are_lceq_kls_random_smoke() -> None:
             code2 = lc_equivalent_code(code1, seed=2000 + 17 * n + k)
 
             assert isinstance(are_lceq_kls(code1, code2), bool)
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2])
+def test_kls_normalization_extended_random_smoke(seed: int) -> None:
+    """Exercise HK/KLS conversion through n=8 without enumerating LC orbits."""
+    for n in range(3, 9):
+        for k in range(n + 1):
+            code1 = random_stabilizer_code(n, k, seed=10_000 + 101 * seed + 17 * n + k)
+            code2 = lc_equivalent_code(code1, seed=20_000 + 101 * seed + 17 * n + k)
+
+            for code in (code1, code2):
+                graph = _code_to_graph(code)
+                _hk_normal_form(graph)
+                _kls_normal_form(graph)
+                _assert_hk_requirements(graph)
+                _assert_kls_requirements(graph)
+
+
+def test_are_lceq_kls_sh_neighbor_regression() -> None:
+    pair = LCEqCodePairGenerator.stabilizer_codes_local_clifford(4, 0, 89)
+
+    assert isinstance(are_lceq_kls(*pair), bool)
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_lceq_kls_random_positive(seed: int) -> None:
