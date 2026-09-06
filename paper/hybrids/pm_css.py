@@ -20,6 +20,7 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> tuple[bool, str]:
 
     Returns: A tuple of (is_equivalent, diagnostic_info) where is_equivalent is a boolean indicating whether the codes are equivalent, and diagnostic_info is a string providing information about the equivalence check.
     """
+    # Refute
     cheap_invariants = (
         preserved_n,
         preserved_k,
@@ -31,9 +32,11 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> tuple[bool, str]:
 
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
         return False, "CI"
+
+    n = c1.n
     
-    if c1.n < 1:
-        return True, ""
+    if n < 1:
+        return True, "CI"
     
     reduced_Hx1 = _row_basis(c1.Hx)
     reduced_Hz1 = _row_basis(c1.Hz)
@@ -41,13 +44,12 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> tuple[bool, str]:
     reduced_Hx2 = _row_basis(c2.Hx)
     reduced_Hz2 = _row_basis(c2.Hz)
 
-    if reduced_Hx1.shape[0] == 0 and reduced_Hz1.shape[0] == 0:
+    r = reduced_Hx1.shape[0] + reduced_Hz1.shape[0]
+
+    if r < 1:
         return True, "CI"
     
-    if c1.n <= 5:
-        return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
-    
-    if c1.n >= 20:
+    if n >= 23 and r >= 10:
         if not preserved_linear_dependencies(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2):
             return False, "EI"
         
@@ -63,13 +65,11 @@ def are_peq_css(c1: CSSCode, c2: CSSCode) -> tuple[bool, str]:
 
     assert partition1 is not None
     assert partition2 is not None
-    
-    if c1.n <= 17:
-        return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
-    elif c1.n < 30:
-        r = reduced_Hx1.shape[0] + reduced_Hz1.shape[0]
-        if r < 10:
-            return _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
+
+    # Decide
+    if n <= 5:
+        return _bruteforce(reduced_Hx1, reduced_Hz1, reduced_Hx2, reduced_Hz2)
+    elif n <= 17 or (n < 30 and r >= 10):
         return _matroid_graph_iso(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
     else:
         return _sat(reduced_Hx1, reduced_Hz1, partition1, reduced_Hx2, reduced_Hz2, partition2)
@@ -161,6 +161,9 @@ def preserved_punctured_hull_weight_enumerator(Hx1: np.ndarray, Hz1: np.ndarray,
                     hull_basis = _row_basis((coeff_basis @ Gp) & 1)
 
             h = hull_basis.shape[0]
+            if h > 14:
+                return [-1, h]
+
             enumerator = [1] + [0] * g_p
 
             word = np.zeros(g_p, dtype=np.uint8)
