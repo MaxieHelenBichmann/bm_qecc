@@ -17,11 +17,8 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from matplotlib.ticker import FixedFormatter, FixedLocator, FuncFormatter
 
-from benchmarks.thesis.thesis_prototypes import measurement_dimensions
-
 ROOT = Path(__file__).resolve().parents[2]
 RESULTS_DIR = ROOT / "paper" / "results"
-DIMENSIONS = tuple(measurement_dimensions())
 
 # Thesis palette, mirrored from settings/commands.tex so figures and text match.
 COLOR_PAPER_ZX_GREEN = "#74D374"

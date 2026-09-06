@@ -143,6 +143,7 @@ def evaluate_signature_partition(problem: str, code: Code) -> list[int]:
     # Passing the same matrices selects each routine's single-computation
     # self-comparison path while keeping one canonical signature implementation.
     row_basis = p_stab._row_basis
+    partition: Mapping[Any, Sequence[int]] | None
     if problem == "pm_css":
         if not isinstance(code, CSSCode):
             raise TypeError("pm_css signatures require a CSSCode")

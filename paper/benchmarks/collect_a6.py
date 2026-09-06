@@ -3,9 +3,10 @@
 The script uses the same positive and negative CSS populations as the ordinary 
 PM-CSS random suite and appends statistics to
 ``paper/data/collected/pm_stb_sat_on_css.csv``.
-The A6 experiment combines this file with the normal ``pm_stb_sat.csv`` and 
-``pm_css_sat.csv`` files.
-Restarting skips keys already present, while the A6 experiment performs all aggregation later.
+The A6 experiment combines this file with the normal ``pm_stb_sat.csv`` and
+``pm_css_sat.csv`` files. This collector appends one summary row per seeded
+batch and does not skip completed keys; re-running recomputes every batch, and
+extraction keeps the latest row per ``(algorithm, n, k, positive, seed)``.
 """
 
 from __future__ import annotations
@@ -68,6 +69,7 @@ def _certified_negative_pair(
         if use_fallback:
             return NonPEqCodePairGenerator.css_codes_cascaded(n, k, attempt_seed)
 
+        assert certifier is not None
         rx = attempt_seed % (n - k + 1)
         pair = NonPEqCodePairGenerator.css_codes_independent_candidate(
             n, k, attempt_seed, rx=rx

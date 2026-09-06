@@ -41,7 +41,7 @@ Two files are written per hybrid, both append-only, under
 
 Practical feasibility (runtime and memory consumption) is measured here, 
 so it should be run on the according platform.
-Restarting skips keys already present, while the A7 experiment performs all aggregation later.
+Restarting skips keys already present, while the A8 experiment performs all aggregation later.
 """
 
 from __future__ import annotations
