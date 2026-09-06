@@ -187,7 +187,8 @@ paper/               # replication package for the subsequent paper
 
 ## Running the benchmarks
 
-Requires Python 3.10 or newer. Python 3.11 is the primary tested version. Install the local runtime dependencies first:
+Requires Python 3.13 or newer; Python 3.13 is the tested version in CI and for
+the paper replication package. Install the local runtime dependencies first:
 
 ```bash
 python3 -m venv .venv
@@ -253,6 +254,9 @@ python3 -m benchmarks.thesis.thesis_invariants \
 
 Optionally, record a flamegraph for more detailed analysis:
 
+On macOS, `py-spy` must be run with `sudo` so it can attach to the Python
+process.
+
 ```bash
 py-spy record \
   --format flamegraph \
@@ -274,6 +278,11 @@ The test suite is located in `tests/`. They include unit, regression and randomi
 ```bash
 python3 -m pytest
 ```
+
+For reference, the complete suite took 527 seconds (8 minutes 47 seconds) in
+the Python 3.13 development environment on 5 September 2026: 760 tests passed
+and 41 optional-dependency or inapplicable-case tests were skipped. Most of
+that wall time is spent in the exhaustive LC-CSS/KLS coverage.
 
 ### Dependencies
 

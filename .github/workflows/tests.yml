@@ -15,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.13"
           cache: pip
           cache-dependency-path: requirements.txt
 
@@ -25,4 +25,7 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Run tests
-        run: python -m pytest --ignore=tests/p_stab/test_p_stab_aut.py
+        run: python -m pytest
+
+      - name: Run mypy
+        run: python -m mypy paper/
