@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import math
+import sys
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
@@ -17,7 +18,10 @@ RESULTS_DIR = ROOT / "paper" / "results"
 
 def read_csv(path: Path, required: Sequence[str] = ()) -> list[dict[str, str]]:
     if not path.is_file():
-        raise FileNotFoundError(f"missing collected data: {path}")
+        raise FileNotFoundError(
+            f"missing collected data: {path}; run its paper collector first "
+            "(see the collector table in paper/README.md)"
+        )
     with path.open(newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         missing = set(required) - set(reader.fieldnames or ())
@@ -71,8 +75,18 @@ def read_statistics(path: Path) -> list[dict[str, str]]:
     for row in rows:
         key = tuple(
             row[field]
-            for field in ("algorithm", "n", "k", "positive", "seed", "nr_seeds")
+            for field in ("algorithm", "n", "k", "positive", "seed")
         )
+        previous = unique.get(key)
+        if previous is not None and previous["nr_seeds"] != row["nr_seeds"]:
+            print(
+                "warning: superseding statistics row in "
+                f"{path} for (algorithm={row['algorithm']}, n={row['n']}, "
+                f"k={row['k']}, positive={row['positive']}, seed={row['seed']}): "
+                f"nr_seeds changed from {previous['nr_seeds']} to {row['nr_seeds']}",
+                file=sys.stderr,
+                flush=True,
+            )
         unique[key] = row
     return list(unique.values())
 
