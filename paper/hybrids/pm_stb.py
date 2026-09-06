@@ -18,6 +18,7 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> tuple[bool, str]:
 
     Returns: A tuple of (is_equivalent, diagnostic_info) where is_equivalent is a boolean indicating whether the codes are equivalent, and diagnostic_info is a string providing information about the equivalence check.
     """
+    # Refute
     cheap_invariants = (
         preserved_n,
         preserved_k,
@@ -29,23 +30,32 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> tuple[bool, str]:
 
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
         return False, "CI"
-    
-    if c1.n < 1:
+
+    n = c1.n
+
+    if n < 1:
         return True, ""   
     
     reduced_symplectic_1 = _row_basis(c1.symplectic)
     reduced_symplectic_2 = _row_basis(c2.symplectic)
 
-    if not preserved_linear_dependencies(reduced_symplectic_1, reduced_symplectic_2):
-        return False, "EI"
+    r = reduced_symplectic_1.shape[0]
 
+    if r < 1:
+        return True, ""
+
+    if r >= 8 and n >= 25:
+        if not preserved_linear_dependencies(reduced_symplectic_1, reduced_symplectic_2):
+            return False, "EI"  
+
+    # Refine
     partition1: dict[tuple[int, ...], list[int]] = {
-        (0,): list(range(c1.n))
+        (0,): list(range(n))
     }
     partition2: dict[tuple[int, ...], list[int]] = {
-        (0,): list(range(c2.n))
+        (0,): list(range(n))
     }
-    if c1.n <= 20:
+    if r <= 14 and n <= 25:
         result, refined_partition1, refined_partition2 = preserved_punctured_hull_weight_enumerator(reduced_symplectic_1, reduced_symplectic_2)
 
         if not result:
@@ -55,8 +65,12 @@ def are_peq_stab(c1: StabilizerCode, c2: StabilizerCode) -> tuple[bool, str]:
         assert refined_partition2 is not None
         partition1 = refined_partition1
         partition2 = refined_partition2
-        
-    return _sat(reduced_symplectic_1, partition1, reduced_symplectic_2, partition2)
+
+    # Decide
+    if r <= 7:
+        return _graph_iso(reduced_symplectic_1, partition1, reduced_symplectic_2, partition2)
+    else:
+        return _sat(reduced_symplectic_1, partition1, reduced_symplectic_2, partition2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
