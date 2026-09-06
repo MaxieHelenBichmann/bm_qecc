@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
+import sys
 from typing import Any
 
 from paper.experiments.common import (
@@ -43,6 +44,7 @@ WINNER_FIELDS = (
     "problem", "n", "k", "r", "winner", "mean_seconds", "runner_up",
     "runner_up_mean_seconds", "speed_ratio", "num_eligible_algorithms",
     "selection", "winner_num_timeouts",
+    "excluded_algorithms",
 )
 
 
@@ -66,7 +68,10 @@ def timeout_candidate(cell: dict[str, Any]) -> bool:
     )
 
 
-def select_winners(methods: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+def select_winners(
+    methods: Sequence[dict[str, Any]],
+    missing_algorithms: Sequence[str] = (),
+) -> list[dict[str, Any]]:
     """Pick the fastest backend per parameter cell, as A5 defines "best".
 
     A3 pairs invariants against exactly these winners, so the choice lives here
@@ -77,6 +82,16 @@ def select_winners(methods: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         groups[(cell["problem"], cell["n"], cell["k"])].append(cell)
     winners = []
     for (problem, n, k), methods_in_cell in sorted(groups.items()):
+        exclusions = {
+            f"{algorithm} (missing data)"
+            for algorithm in missing_algorithms
+            if algorithm.startswith(f"{problem}_")
+        }
+        exclusions.update(
+            f"{cell['algorithm']} (errors)"
+            for cell in methods_in_cell
+            if cell["num_errors"] or cell["num_generation_errors"]
+        )
         completed = [
             cell
             for cell in methods_in_cell
@@ -102,6 +117,7 @@ def select_winners(methods: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
             "num_eligible_algorithms": len(ordered),
             "selection": selection,
             "winner_num_timeouts": winner["num_timeouts"],
+            "excluded_algorithms": "; ".join(sorted(exclusions)),
         })
     return winners
 
@@ -111,13 +127,33 @@ def extract(
     output_directory: Path = OUTPUT_DIRECTORY,
     algorithm_names: Sequence[str] = A5_ALGORITHMS,
 ) -> list[dict[str, Any]]:
+    missing = [
+        algorithm
+        for algorithm in algorithm_names
+        if not (algorithm_directory / f"{algorithm}.csv").is_file()
+    ]
+    if missing:
+        print(
+            "warning: A5 is excluding algorithms with missing collected data: "
+            f"{', '.join(missing)}; run paper.benchmarks.collect_algorithm "
+            "for those methods (pm_stb_aut additionally requires GAP + Guava)",
+            file=sys.stderr,
+            flush=True,
+        )
     rows = [
         row
         for algorithm in algorithm_names
+        if algorithm not in missing
         for row in load_algorithm(algorithm, algorithm_directory)
     ]
+    if not rows:
+        paths = ", ".join(str(algorithm_directory / f"{name}.csv") for name in missing)
+        raise FileNotFoundError(
+            f"missing all A5 collected data files: {paths}; run "
+            "python3 -m paper.benchmarks.collect_algorithm first"
+        )
     methods = aggregate_statistics(rows)
-    winners = select_winners(methods)
+    winners = select_winners(methods, missing)
     write_csv(output_directory / "by_method.csv", methods, METHOD_FIELDS)
     write_csv(output_directory / "by_cell.csv", winners, WINNER_FIELDS)
     return winners
