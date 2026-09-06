@@ -14,8 +14,17 @@ The artifacts of this pipeline are not the exact same figures used in the paper,
 | Memory | 32 GB DDR4-3200 (2 × 16 GB, CL16) | Python | 3.13.5 |
 | | | NumPy | 2.4.6 |
 | | | LDPC | 2.4.1 |
+| | | Stim | 1.16.0 |
+| | | Matplotlib | 3.11.1 |
 | | | PyNauty | 2.8.8.1 |
-| | | Z3 Solver | 4.16.0 |
+| | | Z3 Solver | 4.16.0.0 |
+| | | PyZX | 0.10.6 |
+| | | pytest | 9.1.1 |
+| | | py-spy | 0.4.2 |
+| | | GAP + Guava | exact measurement versions were not recorded; see below |
+
+`requirements.txt` pins every direct Python dependency. For the exact resolved
+transitive environment, install `requirements.lock.txt` instead.
 
 ---
 
@@ -23,16 +32,20 @@ The artifacts of this pipeline are not the exact same figures used in the paper,
 
 Figures and Tables are referred to everywhere in this package as **A1 … A8**, and figure-specific files carry **only** the `aN` identifier:
 
-| ID | Related Question | Figure |
-|---|---|---|
-| **A1** | Are invariants even useful? | `results/a1/a1.png` |
-| **A2** | Are signatures even useful? | `results/a2/a2.png` |
-| **A3** | When are invariants useful? | `results/a3/a3.png` |
-| **A4** | How do methods eliminating the representation degree of freedom perform? | `results/a4/a4.png` |
-| **A5** | Which exact method performs best? | `results/a5/a5.png` |
-| **A6** | Is SAT's poor CSS behavior caused by the encoding or by the CSS inputs? | `results/a6/a6.png` |
-| **A7** | Why does SAT perform so poorly on CSS Permutations? | `results/a7/a7.png` |
-| **A8** | How do the hybrids perform? | `results/a8/a8.png` |
+| ID | Related Question | Collector(s) | Collected file(s) | Figure(s) |
+|---|---|---|---|---|
+| **A1** | Are invariants even useful? | `collect_a1` | `invariant_rejections.csv` | `paper/results/a1/a1.png`<br>`paper/results/a1/a1_overall.png` (overall rejection-rate table) |
+| **A2** | Are signatures even useful? | `collect_a2` | `signature_space.csv` | `paper/results/a2/a2.png` |
+| **A3** | When are invariants useful? | `collect_a3` + `collect_algorithm` | `invariant_timings.csv`, `algorithms/*.csv` | `paper/results/a3/a3.png` |
+| **A4** | How do methods eliminating the representation degree of freedom perform? | `collect_algorithm` | `algorithms/{pm_stb_graph_iso,lc_stb_graph_iso,pm_css_matroid}.csv` | `paper/results/a4/a4.png` |
+| **A5** | Which exact method performs best? | `collect_algorithm` | `algorithms/*.csv` (all configured methods) | `paper/results/a5/a5.png` |
+| **A6** | Is SAT's poor CSS behavior caused by the encoding or by the CSS inputs? | `collect_a6` + `collect_algorithm` | `pm_stb_sat_on_css.csv`, `algorithms/pm_{stb,css}_sat.csv` | `paper/results/a6/a6.png`<br>`paper/results/a6/a6_css.png` (direct CSS-encoding comparison) |
+| **A7** | Why does SAT perform so poorly on CSS Permutations? | `collect_a7` | `a7_sat_css_structure.csv` | `paper/results/a7/a7.png` |
+| **A8** | How do the hybrids perform? | `collect_a8` | `hybrids/*.csv` | `paper/results/a8/a8.png` |
+
+All collected-file paths in this table are relative to
+`paper/data/collected/`. The top-level `data/` and `results/` directories
+belong to the thesis benchmark pipeline and are unrelated to this package.
 
 As the paper focuses on pairwise equivalence checking, only three problems from the underlying thesis are in scope: `pm_stb` (permutation equivalence of stabilizer codes), `pm_css` (permutation equivalence of CSS codes), and `lc_stb` (local-Clifford equivalence of stabilizer codes).
 
@@ -47,17 +60,17 @@ As the paper focuses on pairwise equivalence checking, only three problems from 
     hours-to-days, server            seconds, CSV→CSV
          │                                   │                             │
          ▼                                   ▼                             ▼
-  data/collected/       ───────────►  results/a<N>/by_cell.csv  ─────────►  results/a<N>/a<N>.png
+  paper/data/collected/ ───────────►  paper/results/a<N>/by_cell.csv ─────► paper/results/a<N>/a<N>.png
    (raw or batch summaries)             (figure-ready, per cell)
 ```
 
 This pipeline has three phases for each experiment, with strict boundaries, making the package replicable:
 
-- Phase 1 primarily collects measurements and is the only phase that generates codes, runs algorithms, or consumes meaningful compute time. Depending on the collector, it stores either per-instance rows or summaries of a seeded batch, but never writes into `results/`.
+- Phase 1 primarily collects measurements and is the only phase that generates codes, runs algorithms, or consumes meaningful compute time. Depending on the collector, it stores either per-instance rows or summaries of a seeded batch, but never writes into `paper/results/`.
 - Phase 2 performs deterministic extraction, including the main selection and aggregation steps (winner choice, backend choice, eligibility rules, and normalization). It never generates inputs or runs a benchmark algorithm.
-- Phase 3 primarily draws the figures from `results/`. Visualizers may apply presentation-specific grouping, range restrictions, or annotations, but never read from `data/collected/`.
+- Phase 3 primarily draws the figures from `paper/results/`. Visualizers may apply presentation-specific grouping, range restrictions, or annotations, but never read from `paper/data/collected/`.
 
-Phase 1 normally runs on a benchmark server; phases 2 and 3 run locally. The transfer between machines is exactly the contents of `data/collected/`.
+Phase 1 normally runs on a benchmark server; phases 2 and 3 run locally. The transfer between machines is exactly the contents of `paper/data/collected/`.
 
 ### Phase 1 — Data Collection
 
@@ -68,7 +81,19 @@ Collected data from `collect_algorithm.py` is not figure-specific, but used by m
 python3 -m paper.benchmarks.collect_*
 ```
 
-Writes CSV data into `data/collected/`.
+Writes CSV data into `paper/data/collected/`.
+
+#### Optional dependency for `pm_stb_aut`
+
+The automorphism-group method requires a GAP executable with the Guava package.
+The exact GAP and Guava versions used for the original measurements cannot be
+recovered from the collected outputs; this missing provenance is stated here
+rather than replaced with an inferred version.
+Install GAP and Guava, place any Guava dependencies under the repository's
+`.gap/` directory as described in the top-level README, and set
+`GAP_EXECUTABLE` if GAP is not on `PATH`. Without it,
+`collect_algorithm` skips `pm_stb_aut`; A5 extraction warns and produces the
+figure from the remaining methods, with the exclusion stated on the figure.
 
 ### Phase 2 — Information Extraction
 
@@ -78,7 +103,7 @@ Fast, deterministic, safe to re-run at any time.
 python3 -m paper.experiments.extract_a<N>
 ```
 
-Reads CSVs from `data/collected/` and writes CSV data into `results/a<N>/`.
+Reads CSVs from `paper/data/collected/` and writes CSV data into `paper/results/a<N>/`.
 
 ### Phase 3 — Information Visualization
 
@@ -88,7 +113,8 @@ Fast, deterministic, safe to re-run at any time.
 python3 -m paper.visualizations.visualize_a<N>
 ```
 
-Reads CSVs from `results/a<N>/` and writes one `results/a<N>/a<N>.png` or multiple PNGs, depending on the experiment.
+Reads CSVs from `paper/results/a<N>/` and writes one
+`paper/results/a<N>/a<N>.png` or multiple PNGs, depending on the experiment.
 
 ---
 
@@ -154,6 +180,14 @@ $$
 
 The result value for a parameter setting is the mean runtime of the instances, explicitly marking runs where at least one instance resulted in a memory error.
 
+Negative stabilizer instances use A1's short Clifford perturbation followed by
+exact certification. Negative CSS instances instead use
+`css_codes_independent_candidate`: two independently sampled CSS codes with a
+pinned X-check rank `rx`, followed by SAT or matroid certification. When
+`n > 28` and `r > 9`, the suite falls back to `css_codes_cascaded`; this changes
+the negative-family composition across cells and, as its generator warns, is
+not a single stable construction over the entire grid.
+
 
 ### A5 — Best-Performing Methods
 
@@ -163,7 +197,22 @@ The result value for a parameter setting is the mean runtime of the instances, e
 | **Algorithms measured** | All algorithms discussed in the paper for `pm_stb`, `pm_css`, and `lc_stb` on their corresponding code families |
 | **Method** | 10 positive and 10 negative randomized instances per parameter setting; eligible algorithm with the lowest mean runtime selected per setting |
 
-For each parameter setting, the method with the lowest mean runtime is extracted, under the condition that is has no memory errors. A memory error is considered a more sever type of error than a timeout.
+For each parameter setting, the lowest-mean method is selected only when both
+positive and negative batches are present, all requested calls succeed, and
+there are no timeouts, memory failures, wrong results, execution errors, or
+generation errors. If no method completes but one or more methods fail only by
+timeout, the lowest censored mean is used as a timeout-fallback winner. It is
+rendered with the selected method's normal color and remains identified by the
+`selection` column in `by_cell.csv`. A censored fallback ordering can be
+uncertain, but cases where multiple timeout-only methods actually compete are
+too few in the reported data to warrant a separate marker in the figure.
+Methods excluded because data is missing or calls errored are named on the
+figure.
+
+Negative instances use the same constructions and large-parameter CSS fallback
+described under A4: short Clifford perturbations for stabilizer codes,
+`css_codes_independent_candidate` with pinned `rx` for CSS codes, and
+`css_codes_cascaded` beyond the exact-certifier region.
 
 ### A6 — SAT on CSS-Code Permutation Equivalence
 
@@ -175,6 +224,12 @@ For each parameter setting, the method with the lowest mean runtime is extracted
 
 The result value for a parameter setting is the mean runtime of the instances.
 
+Negative general-stabilizer instances use A1's short Clifford perturbation.
+Negative CSS instances use `css_codes_independent_candidate` with pinned `rx`
+and exact SAT/matroid certification. Beyond the exact-certifier region they use
+`css_codes_cascaded`, so the negative-family composition changes across cells
+as described under A4.
+
 ### A7 — SAT Encodings on CSS-Code Permutation Equivalence
 
 |  |  |
@@ -183,7 +238,7 @@ The result value for a parameter setting is the mean runtime of the instances.
 | **Algorithms measured** | `pm_stb_sat` on unrestricted and block-structured general stabilizer codes; `pm_css_sat` on balanced CSS codes |
 | **Method** | 10 positive randomized instances per parameter setting; no direct runtime measurements |
 
-Two experiments are measured, first the number of solver decisions required to solve an code size and the number of decisions required to reject deliberately wrong qubit mappings. Both on instances with different amount of (in)dependent (un)coupled row-transformations. 
+Two experiments are measured, first the number of solver decisions required to solve a code size and the number of decisions required to reject deliberately wrong qubit mappings. Both on instances with different amount of (in)dependent (un)coupled row-transformations.
 The second compares clean/separated and fully row-mixed presentations of the same CSS groups using the `pm_stb_sat` encoding.
 
 ### A8 — Hybrid Component Attribution
