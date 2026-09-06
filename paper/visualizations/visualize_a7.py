@@ -302,7 +302,7 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
     _render_experiment2(experiment2_ax, rows)
 
     figure.suptitle(
-        "Uncoupled and Independent CSS Structure INHERENTLY increases SAT Search",
+        "Solver Decisions under Uncoupled and Independent CSS Structure",
         x=0.5,
         y=0.97,
         fontsize=13,
