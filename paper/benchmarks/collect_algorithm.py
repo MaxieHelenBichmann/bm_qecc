@@ -11,16 +11,22 @@ configured paper algorithms. Every selected algorithm appends to its own file,
 
 The generated files are deliberately complete shared measurements:
 the A3, A4, A5, and A6 experiment scripts later select only the rows they need.
-Positive cases retain the established random-suite construction. Negative
-cases reuse A1's invariant-neutral proposals and problem-specific
-certification; generation and certification occur before the timed backend
-call. The seed derivation matches A1, so selected backends receive the same
-deterministic case family.
+Positive cases retain the established random-suite construction. Stabilizer
+negatives reuse A1's short Clifford perturbations, while CSS negatives use two
+independently sampled codes with a pinned X-check rank. Their seed derivation
+is shared with A1, but the CSS generator is not. Outside the exact CSS
+certifier region, ``css_codes_cascaded`` supplies a scalable fallback.
+Generation and certification occur before the timed backend call.
+
+This collector always recomputes selected batches and appends one summary row;
+extraction keeps the latest row for each invocation key.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 from collections.abc import Sequence
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -218,6 +224,17 @@ def collect(algorithm_names: Sequence[str]) -> None:
     """Append complete positive/negative grid statistics for each algorithm."""
     validate_configuration()
     for algorithm_name in algorithm_names:
+        if algorithm_name == "pm_stb_aut":
+            gap_executable = os.environ.get("GAP_EXECUTABLE", "gap")
+            if shutil.which(gap_executable) is None:
+                print(
+                    "warning: skipping pm_stb_aut because GAP executable "
+                    f"{gap_executable!r} was not found; A5 will exclude the "
+                    "automorphism-group method. Install GAP with Guava or set "
+                    "GAP_EXECUTABLE (see paper/README.md).",
+                    flush=True,
+                )
+                continue
         nmin, nmax = ALGORITHM_N_RANGES[algorithm_name]
         output_file = OUTPUT_DIRECTORY / f"{algorithm_name}.csv"
         algorithm = ALGORITHMS[algorithm_name]
