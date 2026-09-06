@@ -405,6 +405,12 @@ def random_non_permuted_stabilizer_pair(
     """
     if max_attempts < 1:
         raise ValueError("max_attempts must be positive.")
+    if n - k < 2:
+        raise RandomizeError(
+            f"no certified non-permuted pair exists for [[{n},{k}]] (r={n-k}); "
+            "the X+Z projection-rank certificate requires at least two "
+            "stabilizer generators"
+        )
 
     rng = np.random.default_rng(seed)
 

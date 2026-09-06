@@ -17,7 +17,12 @@ from benchmarks.experiments.generators_random import (
     _lc_projection_rank_invariant,
     _projection_rank_invariant,
 )
-from benchmarks.experiments.utils import _rank_binary, random_stabilizer_code
+from benchmarks.experiments.utils import (
+    RandomizeError,
+    _rank_binary,
+    random_non_permuted_stabilizer_pair,
+    random_stabilizer_code,
+)
 from src.core.css_code import CSSCode
 from src.core.stabilizer_code import StabilizerCode
 from src.algorithms.lc_css.lc_css_bruteforce import is_lceq_css_bruteforce
@@ -48,6 +53,11 @@ def test_random_stabilizer_initial_support_is_seeded_and_independent() -> None:
 
     assert len(set(supports)) > 1
     assert any(support != (0, 1, 2) for support in supports)
+
+
+def test_non_permuted_stabilizer_pair_rejects_rank_one_certificate_immediately() -> None:
+    with pytest.raises(RandomizeError, match="requires at least two stabilizer generators"):
+        random_non_permuted_stabilizer_pair(3, 2, seed=42)
 
 
 def test_layered_random_stabilizer_code_is_seeded_and_preserves_rank() -> None:
