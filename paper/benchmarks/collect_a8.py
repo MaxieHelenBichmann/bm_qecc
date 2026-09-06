@@ -315,9 +315,9 @@ def collect(
                         measured.add(key)
                         if verbose:
                             detail = row["decided_by"] or row["stuck_at"] or row["error"]
+                            runtime = f"{row['runtime_seconds']}s " if row["runtime_seconds"] else ""
                             print(f"{problem} {code_name} positive={positive} seed={seed}: "
-                                  f"{row['status']} {row['runtime_seconds'] or '-'}s {detail}",
-                                  flush=True)
+                                  f"{row['status']} {runtime}{detail}", flush=True)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
