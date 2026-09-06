@@ -100,7 +100,7 @@ class _SplitCellKey:
         return "top/bottom: within 5%"
 
 
-def legend(rows: list[dict[str, str]]) -> list[Patch]:
+def legend(rows: list[dict[str, str]]) -> list[object]:
     algorithms = {row["winner"] for row in rows}
     algorithms.update(row["runner_up"] for row in rows if row["runner_up"])
     present = {method(algorithm)[0] for algorithm in algorithms}
@@ -154,6 +154,23 @@ def render(input_file: Path = INPUT, output: Path = OUTPUT) -> Path:
         fontsize=12 * WIDE_TEXT_SCALE,
         y=0.96,
     )
+    exclusions = sorted(
+        {
+            item.strip()
+            for row in rows
+            for item in row.get("excluded_algorithms", "").split(";")
+            if item.strip()
+        }
+    )
+    if exclusions:
+        figure.text(
+            0.5,
+            0.84,
+            "Excluded for missing data or errors: " + ", ".join(exclusions),
+            ha="center",
+            va="center",
+            fontsize=8,
+        )
     figure.legend(
         handles=legend(rows),
         loc="lower center",
