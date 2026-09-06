@@ -19,6 +19,7 @@ def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> tuple[bool, str]:
 
     Returns: A tuple of (is_equivalent, diagnostic_info) where is_equivalent is a boolean indicating whether the codes are equivalent, and diagnostic_info is a string providing information about the equivalence check.
     """
+    # Refute
     cheap_invariants = (
         preserved_n,
         preserved_k,
@@ -26,21 +27,34 @@ def are_lceq(c1: StabilizerCode, c2: StabilizerCode) -> tuple[bool, str]:
 
     if not all(invariant(c1, c2) for invariant in cheap_invariants):
         return False, "CI"
-    
-    if c1.n < 1:
-        return True, ""
+
+    n = c1.n
+
+    if n < 1:
+        return True, "CI"
     
     reduced_symplectic_1 = _row_basis(c1.symplectic)
     reduced_symplectic_2 = _row_basis(c2.symplectic)
 
-    if c1.k < 2:
-        return _lse(c1, c2, reduced_symplectic_1, reduced_symplectic_2)
+    r = reduced_symplectic_1.shape[0]
 
-    if c1.n <= 30:
+    if r < 1:
+        return True, "CI"
+
+    if n <= 10:
         if not preserved_low_degree_local_invariant(reduced_symplectic_1, reduced_symplectic_2):
             return False, "EI"
+
+    # Decide
+    if c1.k < 2:
+        return _lse(c1, c2, reduced_symplectic_1, reduced_symplectic_2)
+    elif r <= 10:
+        return _graph_iso(reduced_symplectic_1, reduced_symplectic_2)
+    else:
+        return _sat(reduced_symplectic_1, reduced_symplectic_2)
+
+
     
-    return _sat(reduced_symplectic_1, reduced_symplectic_2)
 
 # ----------------------------------------------------------------------------------------------------
 # invariants
