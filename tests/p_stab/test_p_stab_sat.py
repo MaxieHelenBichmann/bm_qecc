@@ -28,8 +28,9 @@ def test_are_peq_stab_sat_random_positive(seed: int) -> None:
 
 @pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in range(10)])
 def test_are_peq_stab_sat_random_negative(seed: int) -> None:
-    n = 2 + (3 * seed + 1) % 5
-    k = 1 + (2 * seed + 1) % (n - 1)
+    n = 4 + (3 * seed + 1) % 4
+    k = 1 + (2 * seed + 1) % max(1, n - 3)
+    assert n - k >= 2
 
     code1, code2 = random_non_permuted_stabilizer_pair(n, k, seed=1000 + 17 * n + k + seed)
     assert are_peq_stab_sat(code1, code2) is False

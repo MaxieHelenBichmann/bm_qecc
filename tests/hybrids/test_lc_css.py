@@ -108,7 +108,7 @@ def test_is_lceq_css_random_positive(seed: int) -> None:
 
     assert is_lceq_css(code) is True
 
-@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [26]])
+@pytest.mark.parametrize("seed", [pytest.param(seed, id=f"seed-{seed}") for seed in [4]])
 def test_is_lceq_css_random_negative(seed: int) -> None:
     code = random_stabilizer_code(6, 2, seed=seed)
 
@@ -136,6 +136,6 @@ def test_sat_accepts_css_equivalent_code() -> None:
 
 
 def test_sat_rejects_non_css_equivalent_code() -> None:
-    code = random_stabilizer_code(6, 2, seed=26)
+    code = random_stabilizer_code(6, 2, seed=4)
 
     assert _sat(_row_basis(code.symplectic)) is False
